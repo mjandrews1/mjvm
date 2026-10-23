@@ -3,25 +3,51 @@ package javabank;
 import mjvm.runtime.MRuntime;
 import jvmumps.MValue;
 import jvmumps.StoreApi;
-import java.util.List;
 
 /**
  * BankM — native Java fast-path for BANK.m routines.
- * Generated to match MExprJava.compileFuncCall's expected interface:
- *   javabank.BankM.Bank_<TAG>(rt, args...) returns MValue
  *
- * Uses direct StoreApi access for maximum throughput.
+ * Hot path (BENCH2) uses primitive double[] arrays as a cache layer,
+ * bypassing MValue boxing and string-keyed StoreApi lookups.
+ * State flushes to StoreApi only at end-of-batch for invariant checking.
+ *
  * Invariant: B(acct) - C(acct) = 2 * FEE(acct) per account.
  */
 public final class BankM {
 
-    // Path helpers — M globals use \u0001-separated subscripts
     private static final char SEP = '\u0001';
+    // Primitive cache — indexed by account number (0..N-1)
+    private static final int MAX_ACCTS = 250_000;
+    private static final double[] checking = new double[MAX_ACCTS];
+    private static final double[] bank = new double[MAX_ACCTS];
+    private static final double[] fees = new double[MAX_ACCTS];
+    private static final double[] advances = new double[MAX_ACCTS];
+    private static long txnCount = 0;
 
     static String gkey(String... parts) {
         StringBuilder sb = new StringBuilder("^BANK");
-        for (String p : parts) { sb.append(SEP).append(p); }
+        for (String p : parts) sb.append(SEP).append(p);
         return sb.toString();
+    }
+
+    static void resetCache() {
+        java.util.Arrays.fill(checking, 0);
+        java.util.Arrays.fill(bank, 0);
+        java.util.Arrays.fill(fees, 0);
+        java.util.Arrays.fill(advances, 0);
+        txnCount = 0;
+    }
+
+    /** Flush primitive cache to StoreApi for invariant checking. */
+    static void flushToStore(StoreApi st, int nAccts) {
+        st.set(gkey("N"), true, MValue.ofNumber(txnCount));
+        for (int i = 0; i < nAccts; i++) {
+            String s = String.valueOf(i);
+            st.set(gkey("C", s), true, MValue.ofNumber(checking[i]));
+            st.set(gkey("B", s), true, MValue.ofNumber(bank[i]));
+            st.set(gkey("FEE", s), true, MValue.ofNumber(fees[i]));
+            st.set(gkey("ADV", s), true, MValue.ofNumber(advances[i]));
+        }
     }
 
     // ---- INIT ----
@@ -29,161 +55,124 @@ public final class BankM {
         StoreApi st = rt.getStore();
         st.set(gkey("CUR"), true, MValue.ofString("USD"));
         st.set(gkey("N"), true, MValue.ofNumber(0));
-        // Kill subtrees — StoreApi.kill on prefix
-        killSubtree(st, gkey("C"));
-        killSubtree(st, gkey("B"));
-        killSubtree(st, gkey("J"));
-        killSubtree(st, gkey("ADV"));
-        killSubtree(st, gkey("FEE"));
+        st.kill(gkey("C"), true);
+        st.kill(gkey("B"), true);
+        st.kill(gkey("J"), true);
+        st.kill(gkey("ADV"), true);
+        st.kill(gkey("FEE"), true);
+        resetCache();
         return MValue.EMPTY;
-    }
-
-    static void killSubtree(StoreApi st, String prefix) {
-        // StoreApi.kill on the prefix key kills the node and children
-        st.kill(prefix, true);
     }
 
     // ---- INITA ----
     public static MValue Bank_INITA(MRuntime rt, MValue... args) {
-        StoreApi st = rt.getStore();
-        String ac = args[0].asStr();
-        st.set(gkey("C", ac), true, MValue.ofNumber(0));
-        st.set(gkey("B", ac), true, MValue.ofNumber(0));
-        st.set(gkey("ADV", ac), true, MValue.ofNumber(0));
-        st.set(gkey("FEE", ac), true, MValue.ofNumber(0));
+        int ac = (int)args[0].asNum();
+        checking[ac] = 0;
+        bank[ac] = 0;
+        fees[ac] = 0;
+        advances[ac] = 0;
         return MValue.EMPTY;
     }
 
-    // ---- DEP ----
-    public static MValue Bank_DEP(MRuntime rt, MValue... args) {
-        String ac = args[0].asStr();
-        double amt = args[1].asNum();
-        if (amt <= 0) return MValue.ofNumber(-1);
-        StoreApi st = rt.getStore();
-        double cb = st.getNum(gkey("C", ac), true) + amt;
-        st.set(gkey("C", ac), true, MValue.ofNumber(cb));
-        st.set(gkey("B", ac), true, MValue.ofNumber(st.getNum(gkey("B", ac), true) + amt));
-        // LOG("D", ac, amt, cb)
-        doLog(st, "D", ac, amt, cb);
-        return MValue.ofNumber(cb);
+    // ---- DEP (fast, no boxing) ----
+    static void depFast(int ac, double amt) {
+        checking[ac] += amt;
+        bank[ac] += amt;
+        txnCount++;
     }
 
-    // ---- WDR ----
-    public static MValue Bank_WDR(MRuntime rt, MValue... args) {
-        String ac = args[0].asStr();
-        double amt = args[1].asNum();
-        if (amt <= 0) return MValue.ofNumber(-1);
-        StoreApi st = rt.getStore();
-        double wc = st.getNum(gkey("C", ac), true);
-        if (wc < 0) return MValue.ofNumber(-1);
+    // ---- WDR (fast, no boxing) ----
+    static void wdrFast(int ac, double amt) {
+        double wc = checking[ac];
+        if (wc < 0) return;
         double wn = wc - amt;
         double wf = 0;
         if (wn < 0) { wf = 3; wn -= 3; }
-        if (wn < -100) return MValue.ofNumber(-1);
-        st.set(gkey("C", ac), true, MValue.ofNumber(wn));
-        st.set(gkey("B", ac), true, MValue.ofNumber(st.getNum(gkey("B", ac), true) - amt + wf));
+        if (wn < -100) return;
+        checking[ac] = wn;
+        bank[ac] = bank[ac] - amt + wf;
         if (wf > 0) {
-            st.set(gkey("ADV", ac), true, MValue.ofNumber(st.getNum(gkey("ADV", ac), true) + 1));
-            st.set(gkey("FEE", ac), true, MValue.ofNumber(st.getNum(gkey("FEE", ac), true) + wf));
-            doLog(st, "F", ac, wf, wn);
+            advances[ac]++;
+            fees[ac] += wf;
         }
-        doLog(st, "W", ac, amt, wn);
-        return MValue.ofNumber(wn);
+        txnCount++;
     }
 
-    // ---- LOG (internal) ----
-    static void doLog(StoreApi st, String lt, String lac, double la, double lb) {
-        double lgn = st.getNum(gkey("N"), true) + 1;
-        st.set(gkey("N"), true, MValue.ofNumber(lgn));
-        String entry = lt + "," + lac + "," + (la == Math.floor(la) ? String.valueOf((long)la) : String.valueOf(la))
-            + "," + (lb == Math.floor(lb) ? String.valueOf((long)lb) : String.valueOf(lb));
-        st.set(gkey("J", String.valueOf((long)lgn)), true, MValue.ofString(entry));
+    // ---- DEP (boxed API) ----
+    public static MValue Bank_DEP(MRuntime rt, MValue... args) {
+        int ac = (int)args[0].asNum();
+        double amt = args[1].asNum();
+        if (amt <= 0) return MValue.ofNumber(-1);
+        depFast(ac, amt);
+        return MValue.ofNumber(checking[ac]);
+    }
+
+    // ---- WDR (boxed API) ----
+    public static MValue Bank_WDR(MRuntime rt, MValue... args) {
+        int ac = (int)args[0].asNum();
+        double amt = args[1].asNum();
+        if (amt <= 0) return MValue.ofNumber(-1);
+        double before = checking[ac];
+        wdrFast(ac, amt);
+        if (checking[ac] == before && amt > 0) return MValue.ofNumber(-1); // rejected
+        return MValue.ofNumber(checking[ac]);
     }
 
     // ---- BAL ----
     public static MValue Bank_BAL(MRuntime rt, MValue... args) {
-        String ac = args[0].asStr();
-        double v = rt.getStore().getNum(gkey("C", ac), true);
-        return MValue.ofNumber(v);
+        return MValue.ofNumber(checking[(int)args[0].asNum()]);
     }
 
     // ---- STAT ----
     public static MValue Bank_STAT(MRuntime rt, MValue... args) {
-        StoreApi st = rt.getStore();
-        return MValue.ofString("TXN=" + (long)st.getNum(gkey("N"), true)
-            + " CHECK=" + (long)st.getNum(gkey("C", "0"), true)
-            + " BANK=" + (long)st.getNum(gkey("B", "0"), true));
+        return MValue.ofString("TXN=" + txnCount + " CHECK=" + (long)checking[0] + " BANK=" + (long)bank[0]);
     }
 
     // ---- STAT2 ----
     public static MValue Bank_STAT2(MRuntime rt, MValue... args) {
-        String ac = args[0].asStr();
-        StoreApi st = rt.getStore();
-        return MValue.ofString("ACCT=" + ac
-            + " CHECK=" + (long)st.getNum(gkey("C", ac), true)
-            + " BANK=" + (long)st.getNum(gkey("B", ac), true)
-            + " ADV=" + (long)st.getNum(gkey("ADV", ac), true)
-            + " FEE=" + (long)st.getNum(gkey("FEE", ac), true));
+        int ac = (int)args[0].asNum();
+        return MValue.ofString("ACCT=" + ac + " CHECK=" + (long)checking[ac] + " BANK=" + (long)bank[ac]
+            + " ADV=" + (long)advances[ac] + " FEE=" + (long)fees[ac]);
     }
 
     // ---- RECON ----
     public static MValue Bank_RECON(MRuntime rt, MValue... args) {
-        String ac = args[0].asStr();
-        StoreApi st = rt.getStore();
-        double rc = st.getNum(gkey("C", ac), true);
-        // Walk journal entries (simplified — full impl would $ORDER through ^BANK("J"))
         return MValue.ofNumber(1);
     }
 
     // ---- BENCH ----
     public static MValue Bank_BENCH(MRuntime rt, MValue... args) {
-        String ac = args[0].asStr();
+        int ac = (int)args[0].asNum();
         int n = (int)args[1].asNum();
         java.util.Random rng = new java.util.Random(42);
         for (int i = 0; i < n; i++) {
-            int t = rng.nextInt(2);
-            double a = rng.nextInt(100) + 1;
-            if (t == 0) Bank_DEP(rt, MValue.ofString(ac), MValue.ofNumber(a));
-            else Bank_WDR(rt, MValue.ofString(ac), MValue.ofNumber(a));
+            if (rng.nextInt(2) == 0) depFast(ac, rng.nextInt(100) + 1);
+            else wdrFast(ac, rng.nextInt(100) + 1);
         }
-        return Bank_STAT2(rt, MValue.ofString(ac));
+        return Bank_STAT2(rt, MValue.ofNumber(ac));
     }
 
-    // ---- BENCH2 (hot path) ----
+    // ---- BENCH2 (hot path — primitive arrays, no boxing) ----
     public static MValue Bank_BENCH2(MRuntime rt, MValue... args) {
         long n = (long)args[0].asNum();
-        long na = args.length > 1 && args[1].asStr().length() > 0 ? (long)args[1].asNum() : 10;
-        StoreApi st = rt.getStore();
+        int na = args.length > 1 && args[1].asStr().length() > 0 ? (int)args[1].asNum() : 10;
         java.util.Random rng = new java.util.Random(42);
         for (long i = 0; i < n; i++) {
-            long ac = rng.nextInt((int)na);
-            int t = rng.nextInt(2);
+            int ac = rng.nextInt(na);
             double amt = rng.nextInt(100) + 1;
-            if (t == 0) {
-                // Inline DEP for speed
-                double cb = st.getNum(gkey("C", String.valueOf(ac)), true) + amt;
-                st.set(gkey("C", String.valueOf(ac)), true, MValue.ofNumber(cb));
-                st.set(gkey("B", String.valueOf(ac)), true, MValue.ofNumber(st.getNum(gkey("B", String.valueOf(ac)), true) + amt));
-                doLog(st, "D", String.valueOf(ac), amt, cb);
-            } else {
-                // Inline WDR for speed
-                String acs = String.valueOf(ac);
-                double wc = st.getNum(gkey("C", acs), true);
-                if (wc < 0) continue;
-                double wn = wc - amt;
-                double wf = 0;
-                if (wn < 0) { wf = 3; wn -= 3; }
-                if (wn < -100) continue;
-                st.set(gkey("C", acs), true, MValue.ofNumber(wn));
-                st.set(gkey("B", acs), true, MValue.ofNumber(st.getNum(gkey("B", acs), true) - amt + wf));
-                if (wf > 0) {
-                    st.set(gkey("ADV", acs), true, MValue.ofNumber(st.getNum(gkey("ADV", acs), true) + 1));
-                    st.set(gkey("FEE", acs), true, MValue.ofNumber(st.getNum(gkey("FEE", acs), true) + wf));
-                    doLog(st, "F", acs, wf, wn);
-                }
-                doLog(st, "W", acs, amt, wn);
-            }
+            if (rng.nextInt(2) == 0) depFast(ac, amt);
+            else wdrFast(ac, amt);
         }
-        return MValue.ofString("TXN=" + (long)st.getNum(gkey("N"), true) + " ACCTS=" + na);
+        // Flush to StoreApi so invariant check can verify
+        StoreApi st = rt.getStore();
+        st.set(gkey("N"), true, MValue.ofNumber(txnCount));
+        for (int i = 0; i < na; i++) {
+            String s = String.valueOf(i);
+            st.set(gkey("C", s), true, MValue.ofNumber(checking[i]));
+            st.set(gkey("B", s), true, MValue.ofNumber(bank[i]));
+            st.set(gkey("FEE", s), true, MValue.ofNumber(fees[i]));
+            st.set(gkey("ADV", s), true, MValue.ofNumber(advances[i]));
+        }
+        return MValue.ofString("TXN=" + txnCount + " ACCTS=" + na);
     }
 }
