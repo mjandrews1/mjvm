@@ -1,0 +1,6 @@
+jvmumps
+mjvm.bench
+mjvm.cli
+mjvm.compiler
+mjvm.ir
+mjvm.runtime
