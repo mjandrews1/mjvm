@@ -1,6 +1,8 @@
 package mjvm.cli;
 
+import java.io.BufferedReader;
 import java.io.Console;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -301,12 +303,27 @@ public final class Mjvm {
         System.out.println("direct mode · env=" + envName
                 + " · store=" + Stores.describe(store)
                 + (dbFile != null ? " · db=" + dbFile : ""));
-        // simple REPL for drop-in feel
+        // REPL: Console if interactive, else read System.in (piped/scripted)
         Console cons = System.console();
         if (cons != null) {
             String ln;
             while ((ln = cons.readLine("> ")) != null) {
                 if (ln.trim().equals("H") || ln.trim().equalsIgnoreCase("HALT")) break;
+                try {
+                    runCode(rt, ln, useClass);
+                    System.out.print(rt.output());
+                    rt.reset();
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                }
+            }
+        } else {
+            // Non-interactive: read commands from stdin
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            String ln;
+            while ((ln = br.readLine()) != null) {
+                if (ln.trim().equals("H") || ln.trim().equalsIgnoreCase("HALT")) break;
+                if (ln.trim().isEmpty()) continue;
                 try {
                     runCode(rt, ln, useClass);
                     System.out.print(rt.output());

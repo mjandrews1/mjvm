@@ -342,13 +342,13 @@ final class ExprIntrinsics {
       case "$ESTACK":
           return MValue.ofNumber(0);
       case "$STACK":
-          return MValue.ofNumber(0);
       case "$ST":
       case "$STACKLEVEL":
           {
           // C69/C70/C72 — direct-mode stack frame
           if (args.isEmpty()) {
-              return MValue.ofString("RUN");
+              // Bare $STACK returns stack level number (ISO 8.1.2)
+              return MValue.ofNumber(0);
           }
           double lev = args.get(0).asNum();
           String what = args.size() > 1 ? args.get(1).asStr().toUpperCase() : "";

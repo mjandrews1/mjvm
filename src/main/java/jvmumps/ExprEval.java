@@ -677,10 +677,10 @@ public final class ExprEval {
                     || up.equals("$NA") || up.equals("$NAME") || up.equals("$I")
                     || up.equals("$INCREMENT") || up.equals("$O") || up.equals("$ORDER")
                     || up.equals("$NEXT") || up.equals("$N")
-                    || up.equals("$Q") || up.equals("$QUERY")) {
-                // bare $Q is $QUIT special (C81), not $QUERY
-                if ((up.equals("$Q") || up.equals("$QUERY")) && peek().kind != ExprTokens.Kind.LP) {
-                    if (up.equals("$Q")) {
+                    || up.equals("$Q") || up.equals("$QUERY") || up.equals("$QUIT")) {
+                // bare $Q/$QUIT is $QUIT special (C81), not $QUERY
+                if ((up.equals("$Q") || up.equals("$QUERY") || up.equals("$QUIT")) && peek().kind != ExprTokens.Kind.LP) {
+                    if (up.equals("$Q") || up.equals("$QUIT")) {
                         return MValue.ofNumber(0);
                     }
                 }
