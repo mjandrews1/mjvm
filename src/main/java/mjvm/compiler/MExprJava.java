@@ -127,7 +127,7 @@ public final class MExprJava {
             String args = expr.substring(paren + 1, expr.length() - 1);
             return compileCall(fnName, args, s, p);
         }
-        // fn^RTN(args) pattern — extract fn name (before ^)
+        // fn^RTN(args) pattern
         if (expr.contains("^") && expr.contains("(") && expr.endsWith(")")) {
             int paren = expr.indexOf('(');
             String full = expr.substring(0, paren);
@@ -138,15 +138,8 @@ public final class MExprJava {
                 return compileCall(fnName, args, s, p);
             }
         }
-        // Bare fn(args) pattern
-        if (expr.contains("(") && expr.endsWith(")")) {
-            int paren = expr.indexOf('(');
-            String fnName = expr.substring(0, paren);
-            String args = expr.substring(paren + 1, expr.length() - 1);
-            if (fnName.matches("[A-Za-z][A-Za-z0-9]*")) {
-                return compileCall(fnName, args, s, p);
-            }
-        }
+        // Bare fn(args) pattern — DISABLED (javabank.BankM not pre-compiled)
+        // Falls back to rt.evalExpr which handles all cases correctly.
         return null;
     }
 

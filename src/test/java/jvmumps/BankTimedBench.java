@@ -14,6 +14,8 @@ import java.util.*;
  */
 public final class BankTimedBench {
 
+    static boolean jit = false;
+
     static String loadBank() throws Exception {
         return Files.readString(Path.of("src/main/m/lib/BANK.m"));
     }
@@ -38,6 +40,8 @@ public final class BankTimedBench {
         for (int i = 0; i < args.length; i++) {
             if (args[i].equals("mem") || args[i].equals("h2") || args[i].equals("tiered")) {
                 storeType = args[i];
+            } else if (args[i].equals("--jit") || args[i].equals("--class")) {
+                jit = true;
             } else if (args[i].matches("\\d+")) {
                 maxScale = Long.parseLong(args[i]);
             }
@@ -46,7 +50,7 @@ public final class BankTimedBench {
         String bank = loadBank();
         long[] scales = {1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000L};
 
-        System.out.println("=== Bank Timed Workload Benchmark ===");
+        System.out.println("=== Bank Timed Workload Benchmark ===" + (jit ? " [JIT]" : " [IR]"));
         System.out.println("store=" + storeType + "  maxScale=" + maxScale);
         System.out.println();
         System.out.println("scale        batch_ms    txn/ms    total_ms    invariant");
@@ -89,9 +93,17 @@ public final class BankTimedBench {
         long count = 0;
         for (long b = 0; b < batches; b++) {
             long t0 = System.nanoTime();
-            var code = "S X=$$BENCH2^BANK(" + perBatch + "," + accounts + ")\n";
-            var prog = fe.compileProgram(code);
-            mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
+            if (jit) {
+                // JIT: compile BENCH2 body as Java source, which calls into MRuntime for store ops
+                var code = "S X=$$BENCH2^BANK(" + perBatch + "," + accounts + ")\n";
+                var prog = fe.compileProgram(code);
+                var runner = mjvm.compiler.JavaSourceEmitter.compile(prog, "MjvmGen" + System.nanoTime(), rt);
+                runner.run();
+            } else {
+                var code = "S X=$$BENCH2^BANK(" + perBatch + "," + accounts + ")\n";
+                var prog = fe.compileProgram(code);
+                mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
+            }
             rt.reset();
             long t1 = System.nanoTime();
             totalNs += (t1 - t0);
