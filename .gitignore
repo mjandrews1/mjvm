@@ -2,3 +2,8 @@ build/
 *.class
 *.wal
 lib/
+.scala-build/
+.bsp/
+*.jar
+*.class
+*.tasty
