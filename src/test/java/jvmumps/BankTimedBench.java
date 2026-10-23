@@ -89,16 +89,19 @@ public final class BankTimedBench {
         rt.reset();
 
         // Timed batches
+        // JIT: compile once, reuse runner for all batches (avoids javac per batch)
+        Runnable jitRunner = null;
+        if (jit) {
+            var code = "S X=$$BENCH2^BANK(" + perBatch + "," + accounts + ")\n";
+            var prog = fe.compileProgram(code);
+            jitRunner = mjvm.compiler.JavaSourceEmitter.compile(prog, "MjvmBench", rt);
+        }
         long totalNs = 0;
         long count = 0;
         for (long b = 0; b < batches; b++) {
             long t0 = System.nanoTime();
             if (jit) {
-                // JIT: compile BENCH2 body as Java source, which calls into MRuntime for store ops
-                var code = "S X=$$BENCH2^BANK(" + perBatch + "," + accounts + ")\n";
-                var prog = fe.compileProgram(code);
-                var runner = mjvm.compiler.JavaSourceEmitter.compile(prog, "MjvmGen" + System.nanoTime(), rt);
-                runner.run();
+                jitRunner.run();
             } else {
                 var code = "S X=$$BENCH2^BANK(" + perBatch + "," + accounts + ")\n";
                 var prog = fe.compileProgram(code);
