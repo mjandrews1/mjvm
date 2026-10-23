@@ -30,6 +30,12 @@ public final class TieredStore implements StoreApi, AutoCloseable {
 
     private static final char SEP = 1;
 
+    /** Get metrics for monitoring. */
+    public StoreMetrics metrics() { return metrics; }
+
+    /** Check disk space. Returns "OK", "WARN", or "FAIL". */
+    public String checkDisk() { return metrics.checkDisk(diskPath); }
+
     /** LRU cache — ConcurrentHashMap (thread-safe). */
     private final ConcurrentHashMap<String, MValue> cache = new ConcurrentHashMap<>();
     /** Dirty keys (pending flush to disk). */
@@ -48,6 +54,10 @@ public final class TieredStore implements StoreApi, AutoCloseable {
     private ScheduledExecutorService flusher;
     /** Op counter. */
     private final AtomicLong ops = new AtomicLong();
+    /** Metrics: throughput, latency, cache hit rate. */
+    private final StoreMetrics metrics = new StoreMetrics();
+    /** Disk path for space monitoring. */
+    private final String diskPath;
     /** Closed flag. */
     private volatile boolean closed;
 
@@ -65,6 +75,7 @@ public final class TieredStore implements StoreApi, AutoCloseable {
      */
     public TieredStore(String diskPath, String walPath, int maxCacheSize, long fsyncIntervalMs,
                        boolean readOnly) throws Exception {
+        this.diskPath = diskPath;
         this.maxCacheSize = maxCacheSize;
         this.readOnly = readOnly;
         this.disk = new H2Store(diskPath, readOnly);
@@ -149,23 +160,29 @@ public final class TieredStore implements StoreApi, AutoCloseable {
 
     @Override
     public MValue get(String key, boolean global) {
+        long t0 = System.nanoTime();
         ops.incrementAndGet();
         // Check cache first
         MValue v = cache.get(key);
         if (v != null) {
             touchLru(key);
+            metrics.recordCacheHit();
+            metrics.recordRead(System.nanoTime() - t0);
             return v;
         }
         // Cache miss — read from disk
+        metrics.recordCacheMiss();
         v = disk.get(key, global);
         if (v != MValue.EMPTY) {
             putCache(key, v);
         }
+        metrics.recordRead(System.nanoTime() - t0);
         return v;
     }
 
     @Override
     public void set(String key, boolean global, MValue v) {
+        long t0 = System.nanoTime();
         if (readOnly) throw new MError("TieredStore is read-only");
         ops.incrementAndGet();
         // Write to cache (instant)
@@ -176,9 +193,11 @@ public final class TieredStore implements StoreApi, AutoCloseable {
         try {
             String val = v.isnum ? "#" + ExprEval.mstr(v.num) : v.str;
             wal.appendSet(key, val);
+            metrics.recordWalAppend();
         } catch (Exception e) {
             throw new MError("WAL append failed: " + e);
         }
+        metrics.recordWrite(System.nanoTime() - t0);
     }
 
     @Override
