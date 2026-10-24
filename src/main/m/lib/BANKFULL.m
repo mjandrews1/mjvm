@@ -184,6 +184,17 @@ VERIFY() ; Verify double-entry invariant. Returns 1 if balanced.
  I %DEBIT'=%CREDIT S %OK=0
  Q %OK
 
+BENCHFAST(%NACCTS,%NTXN) ; Inlined hot loop — deposits only for now
+ N %I,%AC,%AMT
+ D INIT
+ F %I=1:1:%NACCTS S ^BF("SVC",%I,"BAL")=0
+ F %I=1:1:%NTXN D
+ . S %AC=$R(%NACCTS)+1
+ . S %AMT=$R(100)+1
+ . S ^BF("SVC",%AC,"BAL")=$G(^BF("SVC",%AC,"BAL"))+%AMT
+ . S ^BF("BANK","BAL")=$G(^BF("BANK","BAL"))-%AMT
+ Q "TXN="_%NTXN_" ACCTS="_%NACCTS
+
 BENCH(%NACCTS,%NINST,%NTXN) ; Benchmark: %NACCTS accounts, %NINST instances, %NTXN txns each
  N %I,%J,%ACCT,%SVC,%AMT,%T
  D INIT

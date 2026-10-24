@@ -42,6 +42,8 @@ public final class BankExpansive {
     static String machine = "unknown";
     static long txnPerInstance = 100_000;
     static String outputFile = null;
+    static boolean useJit = false;
+    static boolean useInline = false;
 
     public static void main(String[] args) throws Exception {
         parseArgs(args);
@@ -52,6 +54,8 @@ public final class BankExpansive {
         System.out.println("Accounts:  " + accounts[0] + ".." + accounts[accounts.length-1] + " (" + accounts.length + " points)");
         System.out.println("Instances: " + instances[0] + ".." + instances[instances.length-1] + " (" + instances.length + " points)");
         System.out.println("Txn/inst:  " + txnPerInstance);
+        System.out.println("JIT:       " + (useJit ? "enabled" : "disabled"));
+        System.out.println("Inline:    " + (useInline ? "enabled" : "disabled"));
         System.out.println();
 
         // Results: [accounts][instances] -> {timeMs, txnPerMs, invariantOk}
@@ -111,8 +115,8 @@ public final class BankExpansive {
         var rt = new mjvm.runtime.MRuntime(store);
         var fe = new mjvm.compiler.MFrontend();
 
-        // Load BANK.m
-        String bankSrc = Files.readString(Path.of("src/main/m/lib/BANK.m"));
+        // Load BANKFULL.m
+        String bankSrc = Files.readString(Path.of("src/main/m/lib/BANKFULL.m"));
         var libProg = fe.compileProgram(bankSrc);
         mjvm.runtime.IrMachine.run(libProg, rt, fe.lastTags());
         rt.reset();
@@ -120,7 +124,7 @@ public final class BankExpansive {
         // Init accounts
         if (nAccounts > 0) {
             var initProg = fe.compileProgram(
-                "D INIT^BANK F I=0:1:" + (nAccounts - 1) + " D INITA^BANK(I)\n");
+                "D INIT^BANKFULL F I=1:1:" + nAccounts + " S A=$$CREATE^BANKFULL(\"P\",\"U\"_I)\n");
             mjvm.runtime.IrMachine.run(initProg, rt, fe.lastTags());
             rt.reset();
         }
@@ -128,8 +132,14 @@ public final class BankExpansive {
         // Run concurrent instances
         if (nInstances == 1) {
             long perInst = totalTxn;
-            var prog = fe.compileProgram("D BENCH^BANKFULL(" + perInst + "," + nAccounts + ")\n");
-            mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
+            var prog = fe.compileProgram(useInline ? "D BENCHFAST^BANKFULL(" + nAccounts + "," + perInst + ")\n" : "D BENCH^BANKFULL(" + nAccounts + "," + nInstances + "," + perInst + ")\n");
+            if (useJit) {
+                // Compile once, run
+                var runner = mjvm.compiler.JavaSourceEmitter.compile(prog, "MjvmBench", rt);
+                runner.run();
+            } else {
+                mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
+            }
         } else {
             ExecutorService ex = Executors.newFixedThreadPool(nInstances);
             List<Future<?>> futures = new ArrayList<>();
@@ -140,19 +150,24 @@ public final class BankExpansive {
                     var istore = new MStore();
                     var irt = new mjvm.runtime.MRuntime(istore);
                     var ife = new mjvm.compiler.MFrontend();
-                    // Load BANK.m into this instance
+                    // Load BANKFULL.m into this instance
                     var ilib = ife.compileProgram(bankSrc);
                     mjvm.runtime.IrMachine.run(ilib, irt, ife.lastTags());
                     irt.reset();
                     // Init accounts
                     if (nAccounts > 0) {
-                        var iinit = ife.compileProgram("D INIT^BANK F I=0:1:" + (nAccounts - 1) + " D INITA^BANK(I)\n");
+                        var iinit = ife.compileProgram("D INIT^BANKFULL F I=1:1:" + nAccounts + " S A=$$CREATE^BANKFULL(\"P\",\"U\"_I)\n");
                         mjvm.runtime.IrMachine.run(iinit, irt, ife.lastTags());
                         irt.reset();
                     }
                     // Run benchmark
-                    var iprog = ife.compileProgram("D BENCH^BANKFULL(" + count + "," + nAccounts + ")\n");
-                    mjvm.runtime.IrMachine.run(iprog, irt, ife.lastTags());
+                    var iprog = ife.compileProgram(useInline ? "D BENCHFAST^BANKFULL(" + nAccounts + "," + count + ")\n" : "D BENCH^BANKFULL(" + nAccounts + "," + nInstances + "," + count + ")\n");
+                    if (useJit) {
+                        var irunner = mjvm.compiler.JavaSourceEmitter.compile(iprog, "MjvmBench" + System.nanoTime(), irt);
+                        irunner.run();
+                    } else {
+                        mjvm.runtime.IrMachine.run(iprog, irt, ife.lastTags());
+                    }
                     return null;
                 }));
             }
@@ -251,6 +266,8 @@ public final class BankExpansive {
                 case "--machine" -> machine = args[++i];
                 case "--txn" -> txnPerInstance = Long.parseLong(args[++i]);
                 case "--output" -> outputFile = args[++i];
+                case "--jit" -> useJit = true;
+                case "--inline" -> useInline = true;
                 default -> {}
             }
         }

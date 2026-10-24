@@ -147,10 +147,10 @@ public final class MExprJava {
         // Strip ^RTN suffix if present
         int caret = fnName.indexOf('^');
         if (caret > 0) fnName = fnName.substring(0, caret);
-        // Generate: s[p++] = Bank_<fnName>(rt, arg1, arg2, ...);
+        // Route to BankFullM
         String[] argParts = args.split(",");
         StringBuilder sb = new StringBuilder();
-        sb.append("    s[p++] = javabank.BankM.Bank_").append(fnName).append("(rt");
+        sb.append("    s[p++] = javabank.BankFullM.Bank_").append(fnName).append("(rt");
         for (String arg : argParts) {
             arg = arg.trim();
             if (arg.isEmpty()) continue;
