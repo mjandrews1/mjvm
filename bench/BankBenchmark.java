@@ -9,7 +9,7 @@ public class BankBenchmark {
     static double[] bank = new double[ACCOUNTS];
     static double[] fees = new double[ACCOUNTS];
     static long txnCount = 0;
-    static java.util.Random rng = new java.util.Random(42);
+    static java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
 
     static void deposit(int acct, double amt) {
         checking[acct] += amt;
@@ -62,7 +62,7 @@ public class BankBenchmark {
             java.util.Arrays.fill(bank, 0);
             java.util.Arrays.fill(fees, 0);
             txnCount = 0;
-            rng = new java.util.Random(42);
+            rng = java.util.concurrent.ThreadLocalRandom.current();
 
             // Warmup
             runBatch(1000);
@@ -72,7 +72,7 @@ public class BankBenchmark {
             java.util.Arrays.fill(bank, 0);
             java.util.Arrays.fill(fees, 0);
             txnCount = 0;
-            rng = new java.util.Random(42);
+            rng = java.util.concurrent.ThreadLocalRandom.current();
 
             int batchSize = 100000;
             long batches = Math.max(1, n / batchSize);
