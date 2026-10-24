@@ -30,6 +30,51 @@ One row per metric: **unit · reproduce command · stacks**. Baseline column liv
 | 13 | Peak RSS (make smoke) | s / KB | `make smoke` + `/usr/bin/time` | both | baseline |
 | 14 | RSM oracle compare | ratio | `python3 tools/rsm_routine_runner.py --mode stdin` | RSM | **0.023 s · 5953 cases/s** · LineEngine 43 ms → RSM ~1.9× wall |
 
+## Three Performance Metrics (2026-10-23)
+
+Beyond peak TPS. **Peak TPS is misleading** — hides tail latency and degradation.
+
+| # | Metric | What it catches | Tool |
+|---|--------|----------------|------|
+| 1 | **Sustained throughput** | Degradation over time (GC, cache, disk) | `LatencyBench` |
+| 2 | **Response time** (p50/p95/p99) | Tail latency — what the user *feels* | `StoreMetrics.latencyReport()` |
+| 3 | **Transactional accuracy** | Invariants under concurrency | `BankTimedBench` + `StoreConcurrencySmoke` |
+
+### Results — Mac (aarch64 · Java 27 · 2026-10-23)
+
+#### (1) Sustained Throughput (1M ops)
+
+| Store | Throughput | Total Time |
+|-------|-----------|------------|
+| **MStore** (memory) | **7,567K ops/sec** | 132 ms |
+| **TieredStore** (cache+WAL) | **4,374K ops/sec** | 229 ms |
+| **H2Store** (disk) | **2,791K ops/sec** | 358 ms |
+
+#### (2) Response Time — p50/p95/p99
+
+| Store | Read p50 | Read p95 | Read p99 | Write p50 | Write p95 | Write p99 |
+|-------|----------|----------|----------|-----------|-----------|-----------|
+| **MStore** | 0.0μs | 0.1μs | **0.1μs** | 0.1μs | 0.1μs | **0.3μs** |
+| **TieredStore** | 0.1μs | 0.1μs | **0.3μs** | 0.1μs | 0.3μs | **0.5μs** |
+| **H2Store** | 0.1μs | 0.3μs | **0.5μs** | 0.3μs | 0.3μs | **1.0μs** |
+
+**Key finding:** TieredStore p99 beats H2Store (0.3μs vs 0.5μs read, 0.5μs vs 1.0μs write) — WAL buffer absorbs disk latency.
+
+#### (3) Accuracy
+
+| Test | Result |
+|------|--------|
+| Bank double-entry invariant (10M txns) | ✅ **OK** |
+| Concurrency stress (8 threads × 500K ops) | ✅ **5/5 PASS** |
+
+#### Reproduce
+
+```bash
+java -cp "build:lib/*" jvmumps.LatencyBench        # metrics 1+2
+java -cp "build:lib/*" jvmumps.BankTimedBench mem --jit 10000000  # metric 3
+java -cp "build:lib/*" jvmumps.StoreConcurrencySmoke  # metric 3 (concurrent)
+```
+
 **Capture (fixed host):**
 
 ```bash
