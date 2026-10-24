@@ -59,18 +59,75 @@ public final class MStore implements StoreApi {
         }
     }
 
-    /** Pack name hash + int subscript into a cache key. */
-    private static long primKey(String name, int sub) {
-        long h = name.hashCode() * 0x9E3779B97F4A7C15L + sub;
+    /** Precomputed name hash cache: String name -> mixed hash. */
+    private static final ConcurrentHashMap<String, Long> nameHashCache = new ConcurrentHashMap<>();
+
+    /** Get precomputed mixed hash for a name (cached). */
+    private static long nameHash(String name) {
+        Long cached = nameHashCache.get(name);
+        if (cached != null) return cached;
+        long h = name.hashCode() * 0x9E3779B97F4A7C15L;
         h ^= (h >>> 33);
         h *= 0xFF51AFD7ED558CCDL;
         h ^= (h >>> 33);
+        h = h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
+        nameHashCache.put(name, h);
+        return h;
+    }
+
+    /** Pack name hash + int subscript into a cache key (uses precomputed name hash). */
+    private static long primKey(String name, int sub) {
+        long h = nameHash(name) + sub;
+        h ^= (h >>> 33);
         return h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
+    }
+
+    /** Pack precomputed name hash + int subscript (ultra-fast path). */
+    private static long primKeyFast(long nameH, int sub) {
+        long h = nameH + sub;
+        h ^= (h >>> 33);
+        return h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
+    }
+
+    /** Get precomputed name hash for use with setNumAtFast/getNumAtFast. */
+    public long nameHashFor(String name) {
+        return nameHash(name);
     }
 
     /** Get stripe index from key. */
     private static int primStripe(long key) {
         return (int)((key >>> 48) & (PRIM_STRIPES - 1));
+    }
+
+    /** Ultra-fast numeric set with precomputed name hash (no String, no hash recomputation). */
+    public void setNumAtFast(long nameH, int sub, double val) {
+        long key = primKeyFast(nameH, sub);
+        int stripe = primStripe(key);
+        synchronized (primKeys[stripe]) {
+            long[] keys = primKeys[stripe];
+            double[] vals = primVals[stripe];
+            int idx = (int)(key & PRIM_MASK);
+            while (keys[idx] != PRIM_EMPTY) {
+                if (keys[idx] == key) { vals[idx] = val; return; }
+                idx = (idx + 1) & PRIM_MASK;
+            }
+            keys[idx] = key;
+            vals[idx] = val;
+        }
+    }
+
+    /** Ultra-fast numeric get with precomputed name hash (no String, no hash recomputation). */
+    public double getNumAtFast(long nameH, int sub) {
+        long key = primKeyFast(nameH, sub);
+        int stripe = primStripe(key);
+        long[] keys = primKeys[stripe];
+        double[] vals = primVals[stripe];
+        int idx = (int)(key & PRIM_MASK);
+        while (keys[idx] != PRIM_EMPTY) {
+            if (keys[idx] == key) return vals[idx];
+            idx = (idx + 1) & PRIM_MASK;
+        }
+        return Double.NaN;
     }
 
     /** Ultra-fast numeric set with primitive subscript (no String, no boxing).
