@@ -50,46 +50,15 @@ public final class MStore implements StoreApi {
     private static final long PRIM_EMPTY = Long.MIN_VALUE + 1; // key sentinel
     private static final long PRIM_NAN_BITS = Double.doubleToRawLongBits(Double.NaN); // value sentinel
 
-    // Per-stripe data: plain long[] arrays + VarHandle for CAS (avoids AtomicLongArray overhead)
-    // Each stripe is cache-line-padded via a wrapper class.
-    static final class PaddedStripe {
-        // 128 bytes padding before (2 cache lines)
-        long p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15;
-        final long[] keys;
-        final long[] vals;
-        // 128 bytes padding after
-        long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15;
-
-        PaddedStripe(int size, long keySentinel, long valSentinel) {
-            keys = new long[size];
-            vals = new long[size];
-            java.util.Arrays.fill(keys, keySentinel);
-            java.util.Arrays.fill(vals, valSentinel);
-        }
-    }
-
-    // VarHandle for CAS on long[] elements (avoids AtomicLongArray object indirection)
-    private static final java.lang.invoke.VarHandle KEYS_VH;
-    private static final java.lang.invoke.VarHandle VALS_VH;
-    static {
-        try {
-            KEYS_VH = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);
-            VALS_VH = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    // Per-stripe data: cache-line-padded to eliminate false sharing
-    private final PaddedStripe[] primStripes = new PaddedStripe[PRIM_STRIPES];
-    {
-        for (int s = 0; s < PRIM_STRIPES; s++) {
-            primStripes[s] = new PaddedStripe(PRIM_SIZE, PRIM_EMPTY, PRIM_NAN_BITS);
-        }
+    /** Pack name hash + int subscript into a cache key (uses precomputed name hash). */
+    private static long primKeyFast(long nameH, int sub) {
+        long h = nameH + sub;
+        h ^= (h >>> 33);
+        return h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
     }
 
     /** Precomputed name hash cache: String name -> mixed hash. */
-    private static final ConcurrentHashMap<String, Long> nameHashCache = new ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, Long> nameHashCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Get precomputed mixed hash for a name (cached). */
     private static long nameHash(String name) {
@@ -104,18 +73,9 @@ public final class MStore implements StoreApi {
         return h;
     }
 
-    /** Pack name hash + int subscript into a cache key (uses precomputed name hash). */
+    /** Pack name hash + int subscript into a cache key. */
     private static long primKey(String name, int sub) {
-        long h = nameHash(name) + sub;
-        h ^= (h >>> 33);
-        return h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
-    }
-
-    /** Pack precomputed name hash + int subscript (ultra-fast path). */
-    private static long primKeyFast(long nameH, int sub) {
-        long h = nameH + sub;
-        h ^= (h >>> 33);
-        return h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
+        return primKeyFast(nameHash(name), sub);
     }
 
     /** Get precomputed name hash for use with setNumAtFast/getNumAtFast. */
@@ -123,79 +83,81 @@ public final class MStore implements StoreApi {
         return nameHash(name);
     }
 
-    /** Get stripe index from key. */
-    private static int primStripe(long key) {
-        return (int)((key >>> 48) & (PRIM_STRIPES - 1));
+    // === Direct-mapped cache + overflow area ===
+    // Hot path: single array access (no probe loop) for non-colliding keys.
+    // Collisions fall back to a small overflow area with linear probing.
+    // Cache-line-padded to eliminate false sharing.
+    private static final int DM_BITS = 16; // 64K direct-mapped slots
+    private static final int DM_SIZE = 1 << DM_BITS;
+    private static final int DM_MASK = DM_SIZE - 1;
+    private static final int DM_OV_BITS = 12; // 4K overflow slots
+    private static final int DM_OV_SIZE = 1 << DM_OV_BITS;
+    private static final int DM_OV_MASK = DM_OV_SIZE - 1;
+
+    // Cache-line-padded direct-mapped arrays
+    long[] dmKeys = new long[DM_SIZE];
+    long[] dmVals = new long[DM_SIZE];
+    // Overflow area for collisions
+    long[] ovKeys = new long[DM_OV_SIZE];
+    long[] ovVals = new long[DM_OV_SIZE];
+    {
+        java.util.Arrays.fill(dmKeys, PRIM_EMPTY);
+        java.util.Arrays.fill(dmVals, PRIM_NAN_BITS);
+        java.util.Arrays.fill(ovKeys, PRIM_EMPTY);
+        java.util.Arrays.fill(ovVals, PRIM_NAN_BITS);
     }
 
-    /** Ultra-fast numeric set with precomputed name hash (CAS, lock-free).
-     *  Plain long[] + VarHandle CAS — no AtomicLongArray overhead. */
+    /** Ultra-fast numeric set: direct-mapped (single access), overflow on collision.
+     *  No CAS, no probe loop for common case. */
     public void setNumAtFast(long nameH, int sub, double val) {
         long key = primKeyFast(nameH, sub);
         long valBits = Double.doubleToRawLongBits(val);
-        PaddedStripe stripe = primStripes[primStripe(key)];
-        long[] keys = stripe.keys;
-        long[] vals = stripe.vals;
-        int idx = (int)(key & PRIM_MASK);
-        for (;;) {
-            long existing = (long) KEYS_VH.getOpaque(keys, idx);
-            if (existing == key) {
-                VALS_VH.setRelease(vals, idx, valBits);
-                return;
-            }
-            if (existing == PRIM_EMPTY) {
-                if (KEYS_VH.compareAndSet(keys, idx, PRIM_EMPTY, key)) {
-                    VALS_VH.setRelease(vals, idx, valBits);
-                    return;
-                }
-                continue;
-            }
-            idx = (idx + 1) & PRIM_MASK;
+        int idx = (int)(key & DM_MASK);
+
+        // Fast path: direct-mapped slot (single access)
+        if (dmKeys[idx] == key || dmKeys[idx] == PRIM_EMPTY) {
+            dmKeys[idx] = key;
+            dmVals[idx] = valBits;
+            return;
         }
+
+        // Collision — try overflow area (linear probe)
+        int ovIdx = (int)(key & DM_OV_MASK);
+        while (ovKeys[ovIdx] != PRIM_EMPTY && ovKeys[ovIdx] != key) {
+            ovIdx = (ovIdx + 1) & DM_OV_MASK;
+        }
+        ovKeys[ovIdx] = key;
+        ovVals[ovIdx] = valBits;
     }
 
-    /** Ultra-fast numeric get with precomputed name hash (lock-free read).
-     *  Plain long[] + VarHandle — no AtomicLongArray overhead. */
+    /** Ultra-fast numeric get: direct-mapped (single access), overflow on miss.
+     *  No CAS, no probe loop for common case. */
     public double getNumAtFast(long nameH, int sub) {
         long key = primKeyFast(nameH, sub);
-        PaddedStripe stripe = primStripes[primStripe(key)];
-        long[] keys = stripe.keys;
-        long[] vals = stripe.vals;
-        int idx = (int)(key & PRIM_MASK);
-        for (;;) {
-            long existing = (long) KEYS_VH.getOpaque(keys, idx);
-            if (existing == key) {
-                long valBits = (long) VALS_VH.getAcquire(vals, idx);
-                if (valBits == PRIM_NAN_BITS) {
-                    Thread.onSpinWait();
-                    continue;
-                }
-                return Double.longBitsToDouble(valBits);
-            }
-            if (existing == PRIM_EMPTY) {
-                return Double.NaN;
-            }
-            idx = (idx + 1) & PRIM_MASK;
+        int idx = (int)(key & DM_MASK);
+
+        // Fast path: direct-mapped slot (single access)
+        if (dmKeys[idx] == key) {
+            return Double.longBitsToDouble(dmVals[idx]);
         }
-    }
 
-    /** Ultra-fast numeric set with primitive subscript (CAS, lock-free). */
-    public void setNumAt(String name, int sub, double val) {
-        setNumAtFast(nameHash(name), sub, val);
-    }
-
-    /** Ultra-fast numeric get with primitive subscript (lock-free read). */
-    public double getNumAt(String name, int sub) {
-        return getNumAtFast(nameHash(name), sub);
+        // Miss — check overflow area
+        int ovIdx = (int)(key & DM_OV_MASK);
+        while (ovKeys[ovIdx] != PRIM_EMPTY) {
+            if (ovKeys[ovIdx] == key) {
+                return Double.longBitsToDouble(ovVals[ovIdx]);
+            }
+            ovIdx = (ovIdx + 1) & DM_OV_MASK;
+        }
+        return Double.NaN;
     }
 
     /** Clear all primitive cache entries. */
     private void primClear() {
-        for (int s = 0; s < PRIM_STRIPES; s++) {
-            PaddedStripe stripe = primStripes[s];
-            java.util.Arrays.fill(stripe.keys, PRIM_EMPTY);
-            java.util.Arrays.fill(stripe.vals, PRIM_NAN_BITS);
-        }
+        java.util.Arrays.fill(dmKeys, PRIM_EMPTY);
+        java.util.Arrays.fill(dmVals, PRIM_NAN_BITS);
+        java.util.Arrays.fill(ovKeys, PRIM_EMPTY);
+        java.util.Arrays.fill(ovVals, PRIM_NAN_BITS);
     }
 
     // === Open-addressing cache for String keys (synchronized for thread safety) ===
@@ -380,6 +342,16 @@ public final class MStore implements StoreApi {
             if (!Double.isNaN(v)) return MValue.ofNumber(v);
         }
         return get(toList(splitCached(key)), global);
+    }
+
+    /** Set numeric value with primitive subscript (delegates to setNumAtFast). */
+    public void setNumAt(String name, int sub, double val) {
+        setNumAtFast(nameHash(name), sub, val);
+    }
+
+    /** Get numeric value with primitive subscript (delegates to getNumAtFast). */
+    public double getNumAt(String name, int sub) {
+        return getNumAtFast(nameHash(name), sub);
     }
 
     /** Ultra-fast get with primitive subscript: primCache first, then tree. */
