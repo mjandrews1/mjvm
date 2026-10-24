@@ -700,6 +700,21 @@ public final class ExprEval {
                 }
                 return ExprIntrinsics.intrinsic(ExprEval.this, name, new ArrayList<>());
             }
+            // Fast path: $R(n) — bypass full evaluator, call ThreadLocalRandom directly
+            if ((up.equals("$R") || up.equals("$RANDOM")) && peek().kind == ExprTokens.Kind.LP) {
+                i++; // skip (
+                if (peek().kind == ExprTokens.Kind.NUM) {
+                    int n = (int)Double.parseDouble(peek().text);
+                    i++; // skip number
+                    if (peek().kind == ExprTokens.Kind.RP) {
+                        i++; // skip )
+                    }
+                    return MValue.ofNumber(n <= 0 ? 0 : java.util.concurrent.ThreadLocalRandom.current().nextInt(n));
+                }
+                // Non-literal arg — fall through to full evaluator
+                i--; // back up
+            }
+
             List<MValue> args = new ArrayList<>();
             if (peek().kind == ExprTokens.Kind.LP) {
                 i++;

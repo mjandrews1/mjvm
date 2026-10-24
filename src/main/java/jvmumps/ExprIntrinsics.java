@@ -421,7 +421,7 @@ final class ExprIntrinsics {
           if (rn <= 0) {
               return MValue.ofNumber(0);
           }
-          return MValue.ofNumber((int) (Math.random() * rn));
+          return MValue.ofNumber(java.util.concurrent.ThreadLocalRandom.current().nextInt(rn));
           }
       case "$S":
       case "$SELECT":
