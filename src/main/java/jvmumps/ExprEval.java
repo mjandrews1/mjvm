@@ -700,6 +700,43 @@ public final class ExprEval {
                 }
                 return ExprIntrinsics.intrinsic(ExprEval.this, name, new ArrayList<>());
             }
+            // Fast path: $G(global) — only enter if first subscript is literal
+            if ((up.equals("$G") || up.equals("$GET")) && peek().kind == ExprTokens.Kind.LP) {
+                int save = i;
+                i++; // skip (
+                if (peek().kind == ExprTokens.Kind.GLOBAL) {
+                    StringBuilder key = new StringBuilder(peek().text);
+                    i++;
+                    if (peek().kind == ExprTokens.Kind.LP) {
+                        i++;
+                        // Only fast-path if ALL subscripts are literals or NAME lookups
+                        boolean simple = true;
+                        while (peek().kind != ExprTokens.Kind.RP) {
+                            if (peek().kind == ExprTokens.Kind.NUM || peek().kind == ExprTokens.Kind.STR) {
+                                key.append('\u0001').append(peek().text);
+                            } else if (peek().kind == ExprTokens.Kind.NAME) {
+                                MValue sv = env.get(peek().text);
+                                key.append('\u0001').append(sv == null ? "" : sv.asStr());
+                            } else {
+                                simple = false;
+                                break;
+                            }
+                            i++;
+                            if (peek().kind == ExprTokens.Kind.COMMA) i++;
+                        }
+                        if (simple && peek().kind == ExprTokens.Kind.RP) {
+                            i++;
+                            if (peek().kind == ExprTokens.Kind.RP) {
+                                i++;
+                                MValue v = env.get(key.toString());
+                                return v == null ? MValue.ofNumber(0) : v;
+                            }
+                        }
+                    }
+                }
+                i = save;
+            }
+
             // Fast path: $R(n) — bypass full evaluator, call ThreadLocalRandom directly
             if ((up.equals("$R") || up.equals("$RANDOM")) && peek().kind == ExprTokens.Kind.LP) {
                 i++; // skip (
