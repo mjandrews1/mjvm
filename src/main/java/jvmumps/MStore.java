@@ -103,6 +103,41 @@ public final class MStore implements StoreApi {
         for (int i = 0; i < DM_OV_SIZE * 2; i += 2) { ov[i] = PRIM_EMPTY; ov[i+1] = PRIM_NAN_BITS; }
     }
 
+    /** Zero-hash set: key = nameH + sub (no mix step). Only for known-distributed names.
+     *  Ultra-fast: 1 add + array access, no XOR/multiply. */
+    public void setZeroHash(long nameH, int sub, double val) {
+        long key = nameH + sub;
+        long valBits = Double.doubleToRawLongBits(val);
+        int didx = (int)(key & DM_MASK) << 1;
+        long existing = dm[didx];
+        if (existing == key || existing == PRIM_EMPTY) {
+            dm[didx] = key;
+            dm[didx + 1] = valBits;
+            return;
+        }
+        int oidx = (int)(key & DM_OV_MASK) << 1;
+        while (ov[oidx] != PRIM_EMPTY && ov[oidx] != key) {
+            oidx = (oidx + 2) & (DM_OV_SIZE * 2 - 1);
+        }
+        ov[oidx] = key;
+        ov[oidx + 1] = valBits;
+    }
+
+    /** Zero-hash get: key = nameH + sub (no mix step). Only for known-distributed names. */
+    public double getZeroHash(long nameH, int sub) {
+        long key = nameH + sub;
+        int didx = (int)(key & DM_MASK) << 1;
+        if (dm[didx] == key) {
+            return Double.longBitsToDouble(dm[didx + 1]);
+        }
+        int oidx = (int)(key & DM_OV_MASK) << 1;
+        while (ov[oidx] != PRIM_EMPTY) {
+            if (ov[oidx] == key) return Double.longBitsToDouble(ov[oidx + 1]);
+            oidx = (oidx + 2) & (DM_OV_SIZE * 2 - 1);
+        }
+        return Double.NaN;
+    }
+
     /** Ultra-fast numeric set: interleaved direct-mapped (1 cache line), overflow on collision.
      *  Prefetch hint + single cache line access. */
     public void setNumAtFast(long nameH, int sub, double val) {
