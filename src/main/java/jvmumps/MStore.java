@@ -173,6 +173,133 @@ public final class MStore implements StoreApi {
         return idx < 0 ? 0 : idx + 1;
     }
 
+    // === Compile-time mixed-type specialization ===
+    // Dedicated arrays for mixed numeric + string values. Direct indexing.
+
+    /** Mixed-type field: parallel double[] + String[] arrays. */
+    public static final class MixedField {
+        public final double[] nums;
+        public final String[] strs;
+        public final boolean[] isNum;
+
+        public MixedField(int size) {
+            nums = new double[size];
+            strs = new String[size];
+            isNum = new boolean[size];
+        }
+
+        /** Set numeric value at index. */
+        public void setNum(int idx, double val) {
+            nums[idx] = val;
+            isNum[idx] = true;
+        }
+
+        /** Set string value at index. */
+        public void setStr(int idx, String val) {
+            strs[idx] = val;
+            isNum[idx] = false;
+        }
+
+        /** Get as double (returns NaN for string values). */
+        public double getNum(int idx) {
+            return isNum[idx] ? nums[idx] : Double.NaN;
+        }
+
+        /** Get as string (returns null for numeric values). */
+        public String getStr(int idx) {
+            return isNum[idx] ? null : strs[idx];
+        }
+
+        /** Get as string (converts numbers to strings). */
+        public String getAsStr(int idx) {
+            return isNum[idx] ? String.valueOf((long)nums[idx]) : strs[idx];
+        }
+
+        /** Get string length (0 for numeric). */
+        public int getLength(int idx) {
+            return isNum[idx] ? 0 : (strs[idx] != null ? strs[idx].length() : 0);
+        }
+    }
+
+    /** Register a mixed-type field. */
+    public MixedField registerMixed(String name, int size) {
+        MixedField f = new MixedField(size);
+        mixedFields.put(name, f);
+        return f;
+    }
+
+    /** Get mixed field by name. */
+    public MixedField getMixed(String name) {
+        return mixedFields.get(name);
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<String, MixedField> mixedFields = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // === Compile-time ordered iteration (specialized $ORDER) ===
+    // Returns next non-empty index directly — bypasses tree traversal.
+
+    /** Ordered field: double[] with occupancy bitmap for $ORDER iteration. */
+    public static final class OrderedField {
+        public final double[] vals;
+        public final boolean[] occupied;
+
+        public OrderedField(int size) {
+            vals = new double[size];
+            occupied = new boolean[size];
+        }
+
+        /** Set value at index. */
+        public void set(int idx, double val) {
+            vals[idx] = val;
+            occupied[idx] = true;
+        }
+
+        /** Get value at index. */
+        public double get(int idx) {
+            return vals[idx];
+        }
+
+        /** $ORDER forward: next occupied index after `from` (or -1 if none). */
+        public int next(int from) {
+            for (int i = from + 1; i < vals.length; i++) {
+                if (occupied[i]) return i;
+            }
+            return -1;
+        }
+
+        /** $ORDER backward: previous occupied index before `from` (or -1 if none). */
+        public int prev(int from) {
+            for (int i = from - 1; i >= 0; i--) {
+                if (occupied[i]) return i;
+            }
+            return -1;
+        }
+
+        /** Iterate all occupied indices in order. */
+        public int[] allIndices() {
+            int count = 0;
+            for (int i = 0; i < vals.length; i++) if (occupied[i]) count++;
+            int[] result = new int[count];
+            int j = 0;
+            for (int i = 0; i < vals.length; i++) if (occupied[i]) result[j++] = i;
+            return result;
+        }
+    }
+
+    /** Register an ordered field for $ORDER iteration. */
+    public OrderedField registerOrdered(String name, int size) {
+        OrderedField f = new OrderedField(size);
+        orderedFields.put(name, f);
+        return f;
+    }
+
+    /** Get ordered field by name. */
+    public OrderedField getOrdered(String name) {
+        return orderedFields.get(name);
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<String, OrderedField> orderedFields = new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Zero-hash set: key = nameH + sub (no mix step). Only for known-distributed names.
      *  Ultra-fast: 1 add + array access, no XOR/multiply. */
     public void setZeroHash(long nameH, int sub, double val) {
