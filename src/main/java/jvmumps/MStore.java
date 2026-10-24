@@ -173,6 +173,44 @@ public final class MStore implements StoreApi {
         return idx < 0 ? 0 : idx + 1;
     }
 
+    // === Allocation-free string builder ===
+    // Reusable char[] buffer avoids intermediate String allocations.
+    // Faster than + concat which allocates per operation.
+
+    /** Reusable string buffer (one per thread via ThreadLocal). */
+    private static final ThreadLocal<char[]> STR_BUF = ThreadLocal.withInitial(() -> new char[256]);
+
+    /** Append String to buffer, return new position. */
+    public static int appendStr(char[] buf, int pos, String s) {
+        int len = s.length();
+        s.getChars(0, len, buf, pos);
+        return pos + len;
+    }
+
+    /** Append int to buffer (decimal), return new position. */
+    public static int appendInt(char[] buf, int pos, int val) {
+        if (val == 0) { buf[pos++] = '0'; return pos; }
+        if (val < 0) { buf[pos++] = '-'; val = -val; }
+        int start = pos;
+        while (val > 0) { buf[pos++] = (char)('0' + val % 10); val /= 10; }
+        for (int l = start, r = pos - 1; l < r; l++, r--) {
+            char tmp = buf[l]; buf[l] = buf[r]; buf[r] = tmp;
+        }
+        return pos;
+    }
+
+    /** Build string from parts without intermediate allocations. */
+    public static String buildString(Object... parts) {
+        char[] buf = STR_BUF.get();
+        int pos = 0;
+        for (Object part : parts) {
+            if (part instanceof String s) pos = appendStr(buf, pos, s);
+            else if (part instanceof Integer n) pos = appendInt(buf, pos, n);
+            else if (part instanceof Character c) buf[pos++] = c;
+        }
+        return new String(buf, 0, pos);
+    }
+
     // === Compile-time mixed-type specialization ===
     // Dedicated arrays for mixed numeric + string values. Direct indexing.
 
