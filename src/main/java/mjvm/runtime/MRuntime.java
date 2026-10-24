@@ -56,8 +56,56 @@ public final class MRuntime {
         });
     }
 
+    // Compiled expression cache: avoids re-tokenization for repeated expressions
+    private static final java.util.concurrent.ConcurrentHashMap<String, CompiledExpr> exprCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Pre-compiled expression: cached tokenization + fast evaluation. */
+    static final class CompiledExpr {
+        final String src;
+        final String[] tokens; // pre-tokenized
+        final int[] kinds;     // token kinds
+        CompiledExpr(String src) {
+            this.src = src;
+            // Tokenize once
+            java.util.List<String> tok = new java.util.ArrayList<>();
+            java.util.List<Integer> knd = new java.util.ArrayList<>();
+            int i = 0;
+            while (i < src.length()) {
+                char c = src.charAt(i);
+                if (Character.isWhitespace(c)) { i++; continue; }
+                if (Character.isDigit(c) || c == '.') {
+                    int j = i;
+                    while (j < src.length() && (Character.isDigit(src.charAt(j)) || src.charAt(j) == '.')) j++;
+                    tok.add(src.substring(i, j)); knd.add(0); // NUM
+                    i = j;
+                } else if (Character.isLetter(c) || c == '%' || c == '^') {
+                    int j = i;
+                    while (j < src.length() && (Character.isLetterOrDigit(src.charAt(j)) || src.charAt(j) == '%')) j++;
+                    tok.add(src.substring(i, j)); knd.add(1); // NAME
+                    i = j;
+                } else if (c == '"') {
+                    int j = i + 1;
+                    while (j < src.length() && src.charAt(j) != '"') j++;
+                    tok.add(src.substring(i + 1, j)); knd.add(2); // STR
+                    i = j + 1;
+                } else {
+                    tok.add(String.valueOf(c)); knd.add(3); // OP
+                    i++;
+                }
+            }
+            this.tokens = tok.toArray(new String[0]);
+            this.kinds = new int[knd.size()];
+            for (int j = 0; j < knd.size(); j++) this.kinds[j] = knd.get(j);
+        }
+    }
+
     /** M11: run a raw M expression through JvMumps ExprEval. */
     public jvmumps.MValue evalExpr(String src) {
+        // Fast path: try cached compiled expression for simple patterns
+        if (src != null && src.length() > 1 && src.length() < 30) {
+            jvmumps.MValue fast = fastEvalCached(src);
+            if (fast != null) return fast;
+        }
         try {
             return exprEval.eval(src == null ? "" : src);
         } catch (jvmumps.MError e) {
@@ -373,6 +421,58 @@ public final class MRuntime {
             locals.put(name, v);
             store.set(path, false, v);
         }
+    }
+
+    /** Fast evaluation using cached tokenization. Returns null if pattern not recognized. */
+    private jvmumps.MValue fastEvalCached(String src) {
+        // Only handle simple 3-token expressions: VAR OP NUM/VAR
+        if (src.length() > 15 || src.length() < 3) return null;
+        CompiledExpr ce = exprCache.get(src);
+        if (ce == null) {
+            if (exprCache.size() > 500) return null;
+            // Quick check: must have exactly 2 operator positions (3 tokens)
+            // Count: NAME OP NAME/NUM pattern
+            int ops = 0;
+            for (int i = 0; i < src.length(); i++) {
+                char c = src.charAt(i);
+                if (c == '=' || c == '<' || c == '>' || c == '+' || c == '-' || c == '*' || c == '/' || c == '\'') ops++;
+            }
+            if (ops != 1) return null;
+            ce = new CompiledExpr(src);
+            exprCache.put(src, ce);
+        }
+        // Simple patterns: VAR OP NUM, VAR OP VAR
+        if (ce.tokens.length == 3 && ce.kinds[0] == 1) {
+            String left = ce.tokens[0];
+            String op = ce.tokens[1];
+            if (op.length() <= 2 && !Character.isLetterOrDigit(op.charAt(0))) {
+                jvmumps.MValue lv = getVar(left);
+                jvmumps.MValue rv;
+                if (ce.kinds[2] == 0) {
+                    rv = jvmumps.MValue.ofNumber(Double.parseDouble(ce.tokens[2]));
+                } else if (ce.kinds[2] == 1) {
+                    rv = getVar(ce.tokens[2]);
+                } else {
+                    return null;
+                }
+                if (lv.isnum && rv.isnum) {
+                    double x = lv.num, y = rv.num;
+                    switch (op) {
+                        case "+": return jvmumps.MValue.ofNumber(x + y);
+                        case "-": return jvmumps.MValue.ofNumber(x - y);
+                        case "*": return jvmumps.MValue.ofNumber(x * y);
+                        case "/": return jvmumps.MValue.ofNumber(y == 0 ? 0 : x / y);
+                        case "=": return jvmumps.MValue.ofNumber(x == y ? 1 : 0);
+                        case "'=": return jvmumps.MValue.ofNumber(x != y ? 1 : 0);
+                        case "<": return jvmumps.MValue.ofNumber(x < y ? 1 : 0);
+                        case ">": return jvmumps.MValue.ofNumber(x > y ? 1 : 0);
+                        case "<=": return jvmumps.MValue.ofNumber(x <= y ? 1 : 0);
+                        case ">=": return jvmumps.MValue.ofNumber(x >= y ? 1 : 0);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /** Atomic increment: delegates to store.increment for single-op path. */
