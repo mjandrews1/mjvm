@@ -389,8 +389,26 @@ public final class ExprEval {
                     // Flush pending concat before arithmetic
                     if (concatBuf != null) { a = MValue.ofString(concatBuf.toString()); concatBuf = null; }
                     String op = takeOp();
-                    MValue b = unary();
-                    a = arith(op, a, b);
+                    // Fast path: both operands numeric, use primitive arithmetic
+                    if (a.isnum) {
+                        MValue b = unary();
+                        if (b.isnum) {
+                            double x = a.num, y = b.num;
+                            switch (op) {
+                                case "+": a = MValue.ofNumber(x + y); continue;
+                                case "-": a = MValue.ofNumber(x - y); continue;
+                                case "*": a = MValue.ofNumber(x * y); continue;
+                                case "/": a = MValue.ofNumber(y == 0 ? 0 : x / y); continue;
+                                case "\\": a = MValue.ofNumber(y == 0 ? 0 : Math.floor(x / y)); continue;
+                                case "#": a = MValue.ofNumber(y == 0 ? 0 : x % y); continue;
+                                case "**": a = MValue.ofNumber(Math.pow(x, y)); continue;
+                            }
+                        }
+                        a = arith(op, a, b);
+                    } else {
+                        MValue b = unary();
+                        a = arith(op, a, b);
+                    }
                 } else if (isOp("?", "'?")) {
                     if (concatBuf != null) { a = MValue.ofString(concatBuf.toString()); concatBuf = null; }
                     String op = takeOp();
@@ -404,7 +422,25 @@ public final class ExprEval {
                     if (concatBuf != null) { a = MValue.ofString(concatBuf.toString()); concatBuf = null; }
                     String op = takeOp();
                     MValue b = unary();
-                    a = compare(op, a, b);
+                    // Fast path: both numeric, use primitive comparison
+                    if (a.isnum && b.isnum) {
+                        double x = a.num, y = b.num;
+                        boolean r;
+                        switch (op) {
+                            case "=": r = x == y; break;
+                            case "'=": r = x != y; break;
+                            case "<": r = x < y; break;
+                            case ">": r = x > y; break;
+                            case "<=": r = x <= y; break;
+                            case ">=": r = x >= y; break;
+                            case "'<": r = x >= y; break;
+                            case "'>": r = x <= y; break;
+                            default: r = false;
+                        }
+                        a = r ? MValue.ofNumber(1) : MValue.ofNumber(0);
+                    } else {
+                        a = compare(op, a, b);
+                    }
                 } else if (isOp("&", "'&", "!", "'!")) {
                     if (concatBuf != null) { a = MValue.ofString(concatBuf.toString()); concatBuf = null; }
                     String op = takeOp();
