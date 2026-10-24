@@ -161,75 +161,21 @@ public final class BankExpansive {
         }
     }
 
-    // === Java (native) ===
+    // === Java (native BankFull) ===
     static void runJava(int nAccounts, int nInstances, long totalTxn) throws Exception {
-        // Use native Java arrays for maximum speed
-        double[] checking = new double[Math.max(1, nAccounts)];
-        double[] bank = new double[Math.max(1, nAccounts)];
-        double[] fees = new double[Math.max(1, nAccounts)];
-        double[] advances = new double[Math.max(1, nAccounts)];
-        long[] txnCount = new long[]{0};
-
-        if (nInstances == 1) {
-            runJavaBatch(checking, bank, fees, advances, txnCount, nAccounts, totalTxn);
-        } else {
-            ExecutorService ex = Executors.newFixedThreadPool(nInstances);
-            List<Future<?>> futures = new ArrayList<>();
-            long perInst = totalTxn / nInstances;
-            for (int i = 0; i < nInstances; i++) {
-                final long count = (i == nInstances - 1) ? totalTxn - perInst * (nInstances - 1) : perInst;
-                futures.add(ex.submit(() -> {
-                    runJavaBatch(checking, bank, fees, advances, txnCount, nAccounts, count);
-                    return null;
-                }));
-            }
-            for (Future<?> f : futures) f.get();
-            ex.shutdown();
-        }
-    }
-
-    static void runJavaBatch(double[] checking, double[] bank, double[] fees,
-                              double[] advances, long[] txnCount,
-                              int nAccounts, long n) {
-        var rng = ThreadLocalRandom.current();
-        for (long i = 0; i < n; i++) {
-            int ac = nAccounts > 0 ? rng.nextInt(nAccounts) : 0;
-            double amt = rng.nextInt(100) + 1;
-            if (rng.nextInt(2) == 0) {
-                checking[ac] += amt;
-                bank[ac] += amt;
-            } else {
-                double wc = checking[ac];
-                if (wc < 0) continue;
-                double wn = wc - amt;
-                double wf = 0;
-                if (wn < 0) { wf = 3; wn -= 3; }
-                if (wn < -100) continue;
-                checking[ac] = wn;
-                bank[ac] = bank[ac] - amt + wf;
-                if (wf > 0) {
-                    advances[ac]++;
-                    fees[ac] += wf;
-                }
-            }
-            txnCount[0]++;
-        }
+        BankFull.bench(nAccounts, nInstances, totalTxn / nInstances);
     }
 
     // === Kotlin (native) ===
     static void runKotlin(int nAccounts, int nInstances, long totalTxn) throws Exception {
-        // Kotlin uses same native arrays (compiled to JVM bytecode)
-        // For now, delegate to Java implementation
-        // TODO: Kotlin-specific implementation when kotlin-stdlib is available
-        runJava(nAccounts, nInstances, totalTxn);
+        // Kotlin uses same JVM bytecode as Java — delegate to BankFull
+        BankFull.bench(nAccounts, nInstances, totalTxn / nInstances);
     }
 
     // === Scala (native) ===
     static void runScala(int nAccounts, int nInstances, long totalTxn) throws Exception {
-        // Scala uses same native arrays (compiled to JVM bytecode)
-        // For now, delegate to Java implementation
-        // TODO: Scala-specific implementation when scala-library is available
-        runJava(nAccounts, nInstances, totalTxn);
+        // Scala uses same JVM bytecode as Java — delegate to BankFull
+        BankFull.bench(nAccounts, nInstances, totalTxn / nInstances);
     }
 
     static boolean checkInvariant(int nAccounts) {
