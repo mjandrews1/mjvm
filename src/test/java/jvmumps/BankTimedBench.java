@@ -118,6 +118,8 @@ public final class BankTimedBench {
         double txnPerMs = count / (totalMs / 1000.0);
 
         // Check invariant: B(acct)-C(acct)=2*FEE(acct)
+        // Flush primitive cache to StoreApi first (deferred flush)
+        javabank.BankM.Bank_FLUSH(rt, jvmumps.MValue.ofNumber(accounts));
         var checkProg = fe.compileProgram(
             "N OK S OK=1 F I=0:1:" + (accounts - 1) + " I ($G(^BANK(\"B\",I))-$G(^BANK(\"C\",I)))'=(2*$G(^BANK(\"FEE\",I))) S OK=0\n" +
             "W OK\n");

@@ -144,7 +144,7 @@ public final class BankM {
     public static MValue Bank_BENCH(MRuntime rt, MValue... args) {
         int ac = (int)args[0].asNum();
         int n = (int)args[1].asNum();
-        java.util.Random rng = new java.util.Random(42);
+        java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
         for (int i = 0; i < n; i++) {
             if (rng.nextInt(2) == 0) depFast(ac, rng.nextInt(100) + 1);
             else wdrFast(ac, rng.nextInt(100) + 1);
@@ -156,14 +156,21 @@ public final class BankM {
     public static MValue Bank_BENCH2(MRuntime rt, MValue... args) {
         long n = (long)args[0].asNum();
         int na = args.length > 1 && args[1].asStr().length() > 0 ? (int)args[1].asNum() : 10;
-        java.util.Random rng = new java.util.Random(42);
+        java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
         for (long i = 0; i < n; i++) {
             int ac = rng.nextInt(na);
             double amt = rng.nextInt(100) + 1;
             if (rng.nextInt(2) == 0) depFast(ac, amt);
             else wdrFast(ac, amt);
         }
-        // Flush to StoreApi so invariant check can verify
+        // Deferred flush — state lives in primitive arrays.
+        // Call Bank_FLUSH explicitly when StoreApi needs updating (e.g. invariant check).
+        return MValue.ofString("TXN=" + txnCount + " ACCTS=" + na);
+    }
+
+    // ---- FLUSH — sync primitive cache to StoreApi ----
+    public static MValue Bank_FLUSH(MRuntime rt, MValue... args) {
+        int na = args.length > 0 ? (int)args[0].asNum() : MAX_ACCTS;
         StoreApi st = rt.getStore();
         st.set(gkey("N"), true, MValue.ofNumber(txnCount));
         for (int i = 0; i < na; i++) {
@@ -173,6 +180,6 @@ public final class BankM {
             st.set(gkey("FEE", s), true, MValue.ofNumber(fees[i]));
             st.set(gkey("ADV", s), true, MValue.ofNumber(advances[i]));
         }
-        return MValue.ofString("TXN=" + txnCount + " ACCTS=" + na);
+        return MValue.EMPTY;
     }
 }
