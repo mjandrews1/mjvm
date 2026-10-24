@@ -39,9 +39,36 @@ public final class MStore implements StoreApi {
     // === Key interning: String key -> cached path segments (avoids splitKey alloc) ===
     private final ConcurrentHashMap<String, String[]> keyCache = new ConcurrentHashMap<>();
 
-    // === Open-addressing primitive numeric cache ===
-    // Flat arrays: no boxing, no synchronization, linear probing.
-    // Stores: key ref (for comparison) + double value in parallel arrays.
+    // === Primitive-key cache: ConcurrentHashMap<Long, Double> ===
+    // Thread-safe (CAS-based), no String allocation, no boxing.
+    // Key = pack(name.hashCode(), subscript) -> value.
+    private final ConcurrentHashMap<Long, Double> primCache = new ConcurrentHashMap<>();
+
+    /** Pack name hash + int subscript into a cache key. */
+    private static long primKey(String name, int sub) {
+        return ((long)name.hashCode() << 32) | (sub & 0xFFFFFFFFL);
+    }
+
+    /** Pack name hash + two int subscripts into a cache key. */
+    private static long primKey(String name, int sub1, int sub2) {
+        long h = name.hashCode() * 0x9E3779B97F4A7C15L + sub1;
+        h = h * 0x9E3779B97F4A7C15L + sub2;
+        return h;
+    }
+
+    /** Ultra-fast numeric set with primitive subscript (no String construction). */
+    public void setNumAt(String name, int sub, double val) {
+        primCache.put(primKey(name, sub), val);
+    }
+
+    /** Ultra-fast numeric get with primitive subscript (no String construction). */
+    public double getNumAt(String name, int sub) {
+        Double v = primCache.get(primKey(name, sub));
+        return v != null ? v : Double.NaN;
+    }
+
+    // === Open-addressing cache for String keys (synchronized for thread safety) ===
+    // Flat arrays: no boxing, linear probing. Synchronized on write/read.
     private static final int OA_INIT_BITS = 16; // 64K slots
     private int oaBits = OA_INIT_BITS;
     private int oaSize = 1 << oaBits;
@@ -51,8 +78,8 @@ public final class MStore implements StoreApi {
     private double[] oaVals = new double[oaSize];
     private static final double OA_LOAD = 0.6;
 
-    /** Open-addressing put: linear probing. */
-    private void oaPut(String key, double val) {
+    /** Open-addressing put: linear probing. Thread-safe via synchronized. */
+    private synchronized void oaPut(String key, double val) {
         if (oaCount > oaSize * OA_LOAD) oaResize();
         int idx = (int)(mixHash(key) & oaMask);
         while (oaKeys[idx] != null) {
@@ -64,8 +91,8 @@ public final class MStore implements StoreApi {
         oaCount++;
     }
 
-    /** Open-addressing get: returns NaN if not found. */
-    private double oaGet(String key) {
+    /** Open-addressing get: returns NaN if not found. Thread-safe via synchronized. */
+    private synchronized double oaGet(String key) {
         int idx = (int)(mixHash(key) & oaMask);
         while (oaKeys[idx] != null) {
             if (oaKeys[idx].equals(key)) return oaVals[idx];
@@ -74,8 +101,8 @@ public final class MStore implements StoreApi {
         return Double.NaN;
     }
 
-    /** Open-addressing remove. */
-    private void oaRemove(String key) {
+    /** Open-addressing remove. Thread-safe via synchronized. */
+    private synchronized void oaRemove(String key) {
         int idx = (int)(mixHash(key) & oaMask);
         while (oaKeys[idx] != null) {
             if (oaKeys[idx].equals(key)) {
@@ -98,8 +125,8 @@ public final class MStore implements StoreApi {
         }
     }
 
-    /** Clear all cache entries. */
-    private void oaClear() {
+    /** Clear all cache entries. Thread-safe via synchronized. */
+    private synchronized void oaClear() {
         java.util.Arrays.fill(oaKeys, null);
         oaCount = 0;
     }
@@ -224,6 +251,22 @@ public final class MStore implements StoreApi {
         return get(toList(splitCached(key)), global);
     }
 
+    /** Ultra-fast get with primitive subscript: primCache first, then tree. */
+    public double getNumAtFast(String name, int sub, boolean global) {
+        Double v = primCache.get(primKey(name, sub));
+        if (v != null) return v;
+        // Fallback to tree via string key
+        String key = name + '\u0001' + sub;
+        return get(toList(splitCached(key)), global).asNum();
+    }
+
+    /** Ultra-fast set with primitive subscript: primCache + tree. */
+    public void setNumAtFull(String name, int sub, double val, boolean global) {
+        primCache.put(primKey(name, sub), val);
+        String key = name + '\u0001' + sub;
+        set(toList(splitCached(key)), global, MValue.ofNumber(val));
+    }
+
     @Override
     public void set(String key, boolean global, MValue v) {
         if (global && v.isnum) {
@@ -280,8 +323,9 @@ public final class MStore implements StoreApi {
     public void kill(List<String> path, boolean global) {
         if (global) {
             ops.incrementAndGet();
-            // Clear numeric cache (kills can remove subtrees)
+            // Clear caches (kills can remove subtrees)
             oaClear();
+            primCache.clear();
         }
         if (path.size() == 1) {
             root(global).remove(path.get(0));
