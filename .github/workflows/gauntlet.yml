@@ -24,6 +24,7 @@ jobs:
         run: |
           mkdir -p build
           find src/main/java -name "*.java" | xargs javac -cp "lib/*" -d build 2>&1
+          find bench -name "*.java" | xargs javac -cp "build:lib/*" -d build 2>&1
           find src/test/java -name "*.java" | xargs javac -cp "build:lib/*" -d build 2>&1
           echo "Build OK: $(find build -name '*.class' | wc -l) classes"
 
