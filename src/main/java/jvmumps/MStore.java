@@ -129,6 +129,50 @@ public final class MStore implements StoreApi {
         return field[sub];
     }
 
+    // === Compile-time string specialization ===
+    // Bypass MValue boxing entirely for known string operation patterns.
+    // Direct String operations, no object allocation in hot path.
+
+    /** Specialized string concat: a + b (no MValue boxing). */
+    public static String concat(String a, String b) {
+        return a + b;
+    }
+
+    /** Specialized string concat with int (no MValue boxing). */
+    public static String concat(String a, int b) {
+        return a + b;
+    }
+
+    /** Specialized $PIECE: extract piece n from s delimited by d. */
+    public static String piece(String s, String d, int n) {
+        int start = 0;
+        for (int i = 1; i < n; i++) {
+            start = s.indexOf(d, start);
+            if (start < 0) return "";
+            start += d.length();
+        }
+        int end = s.indexOf(d, start);
+        return end < 0 ? s.substring(start) : s.substring(start, end);
+    }
+
+    /** Specialized $EXTRACT: s[from..to] (1-based, inclusive). */
+    public static String extract(String s, int from, int to) {
+        int f = Math.max(0, from - 1);
+        int t = Math.min(s.length(), to);
+        return f >= t ? "" : s.substring(f, t);
+    }
+
+    /** Specialized $LENGTH: length of string. */
+    public static int length(String s) {
+        return s.length();
+    }
+
+    /** Specialized $FIND: position of substring (1-based, 0 if not found). */
+    public static int find(String s, String sub) {
+        int idx = s.indexOf(sub);
+        return idx < 0 ? 0 : idx + 1;
+    }
+
     /** Zero-hash set: key = nameH + sub (no mix step). Only for known-distributed names.
      *  Ultra-fast: 1 add + array access, no XOR/multiply. */
     public void setZeroHash(long nameH, int sub, double val) {
