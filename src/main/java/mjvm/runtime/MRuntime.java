@@ -351,6 +351,16 @@ public final class MRuntime {
     }
 
     public void setVar(String name, MValue v) {
+        // Fast path: simple global with no indirection
+        if (name.startsWith("^") && name.indexOf('@') < 0) {
+            boolean glob = true;
+            if (tlevel > 0) {
+                MValue old = store.get(name, glob);
+                recordUndo(List.of(name), glob, old);
+            }
+            store.set(name, true, v);
+            return;
+        }
         List<String> path = pathOf(name, this);
         boolean glob = path.get(0).startsWith("^");
         if (tlevel > 0) {
