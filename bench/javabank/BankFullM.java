@@ -127,9 +127,13 @@ public final class BankFullM {
         long nAccounts = (long)args[0].asNum();
         long nInstances = args.length > 1 ? (long)args[1].asNum() : 1;
         long nTxn = args.length > 2 ? (long)args[2].asNum() : 100000;
-        int na = (int)nAccounts;
+        benchInternal((int)nAccounts, (int)nInstances, nTxn);
+        return MValue.ofString("TXN=" + txnCount + " ACCTS=" + nAccounts);
+    }
 
-        // Init accounts
+    /** Internal benchmark — zero MValue boxing in hot loop. */
+    public static void benchInternal(int na, int nInst, long nTxn) {
+        // Init accounts in primitive arrays
         for (int i = 1; i <= na; i++) {
             savings[i] = 0;
             minBal[i] = 100;
@@ -137,17 +141,38 @@ public final class BankFullM {
             monthlyFees[i] = 5;
         }
 
-        // Run transactions
+        // Run transactions — direct primitive array access
         java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
-        long totalTxn = nInstances * nTxn;
+        long totalTxn = nInst * nTxn;
         for (long i = 0; i < totalTxn; i++) {
             int ac = na > 0 ? rng.nextInt(na) + 1 : 1;
             double amt = rng.nextInt(100) + 1;
-            if (rng.nextInt(2) == 0) depFast(ac, amt);
-            else wdrFast(ac, amt);
+            if (rng.nextInt(2) == 0) {
+                // Inline deposit
+                savings[ac] += amt;
+                bankBalance -= amt;
+                txnCount++;
+            } else {
+                // Inline withdraw
+                double bal = savings[ac];
+                double newBal = bal - amt;
+                if (newBal >= minBal[ac]) {
+                    if (newBal < 0) {
+                        double fee = monthlyFees[ac];
+                        if (fee > 0) newBal -= fee;
+                        if (newBal >= -1000) {
+                            savings[ac] = newBal;
+                            bankBalance += amt;
+                            txnCount++;
+                        }
+                    } else {
+                        savings[ac] = newBal;
+                        bankBalance += amt;
+                        txnCount++;
+                    }
+                }
+            }
         }
-
-        return MValue.ofString("TXN=" + txnCount + " ACCTS=" + na);
     }
 
     // === INTEREST accrual ===

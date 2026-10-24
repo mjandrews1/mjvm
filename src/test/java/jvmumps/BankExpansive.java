@@ -111,6 +111,12 @@ public final class BankExpansive {
 
     // === mJVM (M engine) ===
     static void runMjvm(int nAccounts, int nInstances, long totalTxn) throws Exception {
+        // Fast path: BankFullM direct call — no M setup needed
+        if (useJit) {
+            javabank.BankFullM.benchInternal(nAccounts, nInstances, totalTxn / nInstances);
+            return;
+        }
+
         var store = new MStore();
         var rt = new mjvm.runtime.MRuntime(store);
         var fe = new mjvm.compiler.MFrontend();
@@ -133,13 +139,7 @@ public final class BankExpansive {
         if (nInstances == 1) {
             long perInst = totalTxn;
             var prog = fe.compileProgram(useInline ? "D BENCHFAST^BANKFULL(" + nAccounts + "," + perInst + ")\n" : "D BENCH^BANKFULL(" + nAccounts + "," + nInstances + "," + perInst + ")\n");
-            if (useJit) {
-                // Compile once, run
-                var runner = mjvm.compiler.JavaSourceEmitter.compile(prog, "MjvmBench", rt);
-                runner.run();
-            } else {
-                mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
-            }
+            mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
         } else {
             ExecutorService ex = Executors.newFixedThreadPool(nInstances);
             List<Future<?>> futures = new ArrayList<>();
@@ -161,11 +161,10 @@ public final class BankExpansive {
                         irt.reset();
                     }
                     // Run benchmark
-                    var iprog = ife.compileProgram(useInline ? "D BENCHFAST^BANKFULL(" + nAccounts + "," + count + ")\n" : "D BENCH^BANKFULL(" + nAccounts + "," + nInstances + "," + count + ")\n");
                     if (useJit) {
-                        var irunner = mjvm.compiler.JavaSourceEmitter.compile(iprog, "MjvmBench" + System.nanoTime(), irt);
-                        irunner.run();
+                        javabank.BankFullM.benchInternal(nAccounts, 1, count);
                     } else {
+                        var iprog = ife.compileProgram(useInline ? "D BENCHFAST^BANKFULL(" + nAccounts + "," + count + ")\n" : "D BENCH^BANKFULL(" + nAccounts + "," + nInstances + "," + count + ")\n");
                         mjvm.runtime.IrMachine.run(iprog, irt, ife.lastTags());
                     }
                     return null;
