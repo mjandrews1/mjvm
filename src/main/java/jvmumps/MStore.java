@@ -39,23 +39,28 @@ public final class MStore implements StoreApi {
     // === Key interning: String key -> cached path segments (avoids splitKey alloc) ===
     private final ConcurrentHashMap<String, String[]> keyCache = new ConcurrentHashMap<>();
 
-    // === Primitive-key cache: striped long[] open-addressing ===
-    // Each stripe is a flat (keys[], vals[]) pair with linear probing.
-    // Lock-free reads via volatile, CAS-free writes via per-stripe synchronized.
-    // Key = pack(name.hashCode(), subscript) -> value.
+    // === Primitive-key cache: striped CAS-based open-addressing ===
+    // Each stripe is a flat AtomicLongArray pair with linear probing.
+    // Lock-free reads AND writes via CAS (no synchronized).
+    // Key = pack(name.hashCode(), subscript) -> value (double bits).
     private static final int PRIM_BITS = 16; // 64K entries per stripe
     private static final int PRIM_SIZE = 1 << PRIM_BITS;
     private static final int PRIM_MASK = PRIM_SIZE - 1;
     private static final int PRIM_STRIPES = 16;
-    private static final long PRIM_EMPTY = Long.MIN_VALUE + 1; // sentinel (avoid collision with real keys)
+    private static final long PRIM_EMPTY = Long.MIN_VALUE + 1; // key sentinel
+    private static final long PRIM_NAN_BITS = Double.doubleToRawLongBits(Double.NaN); // value sentinel
 
-    // Per-stripe data: each stripe has its own keys[] and vals[] arrays
-    private final long[][] primKeys = new long[PRIM_STRIPES][PRIM_SIZE];
-    private final double[][] primVals = new double[PRIM_STRIPES][PRIM_SIZE];
+    // Per-stripe data: AtomicLongArray for CAS operations
+    private final java.util.concurrent.atomic.AtomicLongArray[] primKeys = new java.util.concurrent.atomic.AtomicLongArray[PRIM_STRIPES];
+    private final java.util.concurrent.atomic.AtomicLongArray[] primVals = new java.util.concurrent.atomic.AtomicLongArray[PRIM_STRIPES];
     {
-        // Instance initializer: fill primKeys with sentinel
         for (int s = 0; s < PRIM_STRIPES; s++) {
-            java.util.Arrays.fill(primKeys[s], PRIM_EMPTY);
+            primKeys[s] = new java.util.concurrent.atomic.AtomicLongArray(PRIM_SIZE);
+            primVals[s] = new java.util.concurrent.atomic.AtomicLongArray(PRIM_SIZE);
+            for (int i = 0; i < PRIM_SIZE; i++) {
+                primKeys[s].set(i, PRIM_EMPTY);
+                primVals[s].set(i, PRIM_NAN_BITS);
+            }
         }
     }
 
@@ -99,76 +104,75 @@ public final class MStore implements StoreApi {
         return (int)((key >>> 48) & (PRIM_STRIPES - 1));
     }
 
-    /** Ultra-fast numeric set with precomputed name hash (no String, no hash recomputation). */
+    /** Ultra-fast numeric set with precomputed name hash (CAS, lock-free).
+     *  Single volatile read per probe step, CAS only on insert. */
     public void setNumAtFast(long nameH, int sub, double val) {
         long key = primKeyFast(nameH, sub);
+        long valBits = Double.doubleToRawLongBits(val);
         int stripe = primStripe(key);
-        synchronized (primKeys[stripe]) {
-            long[] keys = primKeys[stripe];
-            double[] vals = primVals[stripe];
-            int idx = (int)(key & PRIM_MASK);
-            while (keys[idx] != PRIM_EMPTY) {
-                if (keys[idx] == key) { vals[idx] = val; return; }
-                idx = (idx + 1) & PRIM_MASK;
+        java.util.concurrent.atomic.AtomicLongArray keys = primKeys[stripe];
+        java.util.concurrent.atomic.AtomicLongArray vals = primVals[stripe];
+        int idx = (int)(key & PRIM_MASK);
+        for (;;) {
+            long existing = keys.getOpaque(idx); // relaxed read — faster on ARM
+            if (existing == key) {
+                vals.setRelease(idx, valBits); // release store — pair with getOpaque
+                return;
             }
-            keys[idx] = key;
-            vals[idx] = val;
+            if (existing == PRIM_EMPTY) {
+                if (keys.compareAndSet(idx, PRIM_EMPTY, key)) {
+                    vals.setRelease(idx, valBits);
+                    return;
+                }
+                // CAS failed — retry from same slot
+                continue;
+            }
+            idx = (idx + 1) & PRIM_MASK;
         }
     }
 
-    /** Ultra-fast numeric get with precomputed name hash (no String, no hash recomputation). */
+    /** Ultra-fast numeric get with precomputed name hash (lock-free read).
+     *  Single volatile read per probe step, relaxed ordering. */
     public double getNumAtFast(long nameH, int sub) {
         long key = primKeyFast(nameH, sub);
         int stripe = primStripe(key);
-        long[] keys = primKeys[stripe];
-        double[] vals = primVals[stripe];
+        java.util.concurrent.atomic.AtomicLongArray keys = primKeys[stripe];
+        java.util.concurrent.atomic.AtomicLongArray vals = primVals[stripe];
         int idx = (int)(key & PRIM_MASK);
-        while (keys[idx] != PRIM_EMPTY) {
-            if (keys[idx] == key) return vals[idx];
-            idx = (idx + 1) & PRIM_MASK;
-        }
-        return Double.NaN;
-    }
-
-    /** Ultra-fast numeric set with primitive subscript (no String, no boxing).
-     *  Thread-safe: per-stripe synchronized on write. */
-    public void setNumAt(String name, int sub, double val) {
-        long key = primKey(name, sub);
-        int stripe = primStripe(key);
-        synchronized (primKeys[stripe]) {
-            long[] keys = primKeys[stripe];
-            double[] vals = primVals[stripe];
-            int idx = (int)(key & PRIM_MASK);
-            while (keys[idx] != PRIM_EMPTY) {
-                if (keys[idx] == key) { vals[idx] = val; return; }
-                idx = (idx + 1) & PRIM_MASK;
+        for (;;) {
+            long existing = keys.getOpaque(idx); // relaxed read
+            if (existing == key) {
+                long valBits = vals.getAcquire(idx); // acquire — pairs with setRelease
+                if (valBits == PRIM_NAN_BITS) {
+                    Thread.onSpinWait();
+                    continue;
+                }
+                return Double.longBitsToDouble(valBits);
             }
-            keys[idx] = key;
-            vals[idx] = val;
+            if (existing == PRIM_EMPTY) {
+                return Double.NaN;
+            }
+            idx = (idx + 1) & PRIM_MASK;
         }
     }
 
-    /** Ultra-fast numeric get with primitive subscript (no String, no boxing).
-     *  Thread-safe: volatile reads on striped arrays. */
+    /** Ultra-fast numeric set with primitive subscript (CAS, lock-free). */
+    public void setNumAt(String name, int sub, double val) {
+        setNumAtFast(nameHash(name), sub, val);
+    }
+
+    /** Ultra-fast numeric get with primitive subscript (lock-free read). */
     public double getNumAt(String name, int sub) {
-        long key = primKey(name, sub);
-        int stripe = primStripe(key);
-        long[] keys = primKeys[stripe];
-        double[] vals = primVals[stripe];
-        int idx = (int)(key & PRIM_MASK);
-        // Lock-free read: linear probe without synchronization
-        // (safe because writes are per-stripe synchronized and we only read)
-        while (keys[idx] != PRIM_EMPTY) {
-            if (keys[idx] == key) return vals[idx];
-            idx = (idx + 1) & PRIM_MASK;
-        }
-        return Double.NaN;
+        return getNumAtFast(nameHash(name), sub);
     }
 
     /** Clear all primitive cache entries. */
-    private synchronized void primClear() {
+    private void primClear() {
         for (int s = 0; s < PRIM_STRIPES; s++) {
-            java.util.Arrays.fill(primKeys[s], PRIM_EMPTY);
+            for (int i = 0; i < PRIM_SIZE; i++) {
+                primKeys[s].set(i, PRIM_EMPTY);
+                primVals[s].set(i, PRIM_NAN_BITS);
+            }
         }
     }
 
