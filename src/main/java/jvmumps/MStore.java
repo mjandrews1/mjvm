@@ -50,17 +50,41 @@ public final class MStore implements StoreApi {
     private static final long PRIM_EMPTY = Long.MIN_VALUE + 1; // key sentinel
     private static final long PRIM_NAN_BITS = Double.doubleToRawLongBits(Double.NaN); // value sentinel
 
-    // Per-stripe data: AtomicLongArray for CAS operations
-    private final java.util.concurrent.atomic.AtomicLongArray[] primKeys = new java.util.concurrent.atomic.AtomicLongArray[PRIM_STRIPES];
-    private final java.util.concurrent.atomic.AtomicLongArray[] primVals = new java.util.concurrent.atomic.AtomicLongArray[PRIM_STRIPES];
+    // Per-stripe data: plain long[] arrays + VarHandle for CAS (avoids AtomicLongArray overhead)
+    // Each stripe is cache-line-padded via a wrapper class.
+    static final class PaddedStripe {
+        // 128 bytes padding before (2 cache lines)
+        long p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15;
+        final long[] keys;
+        final long[] vals;
+        // 128 bytes padding after
+        long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15;
+
+        PaddedStripe(int size, long keySentinel, long valSentinel) {
+            keys = new long[size];
+            vals = new long[size];
+            java.util.Arrays.fill(keys, keySentinel);
+            java.util.Arrays.fill(vals, valSentinel);
+        }
+    }
+
+    // VarHandle for CAS on long[] elements (avoids AtomicLongArray object indirection)
+    private static final java.lang.invoke.VarHandle KEYS_VH;
+    private static final java.lang.invoke.VarHandle VALS_VH;
+    static {
+        try {
+            KEYS_VH = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);
+            VALS_VH = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    // Per-stripe data: cache-line-padded to eliminate false sharing
+    private final PaddedStripe[] primStripes = new PaddedStripe[PRIM_STRIPES];
     {
         for (int s = 0; s < PRIM_STRIPES; s++) {
-            primKeys[s] = new java.util.concurrent.atomic.AtomicLongArray(PRIM_SIZE);
-            primVals[s] = new java.util.concurrent.atomic.AtomicLongArray(PRIM_SIZE);
-            for (int i = 0; i < PRIM_SIZE; i++) {
-                primKeys[s].set(i, PRIM_EMPTY);
-                primVals[s].set(i, PRIM_NAN_BITS);
-            }
+            primStripes[s] = new PaddedStripe(PRIM_SIZE, PRIM_EMPTY, PRIM_NAN_BITS);
         }
     }
 
@@ -105,26 +129,25 @@ public final class MStore implements StoreApi {
     }
 
     /** Ultra-fast numeric set with precomputed name hash (CAS, lock-free).
-     *  Single volatile read per probe step, CAS only on insert. */
+     *  Plain long[] + VarHandle CAS — no AtomicLongArray overhead. */
     public void setNumAtFast(long nameH, int sub, double val) {
         long key = primKeyFast(nameH, sub);
         long valBits = Double.doubleToRawLongBits(val);
-        int stripe = primStripe(key);
-        java.util.concurrent.atomic.AtomicLongArray keys = primKeys[stripe];
-        java.util.concurrent.atomic.AtomicLongArray vals = primVals[stripe];
+        PaddedStripe stripe = primStripes[primStripe(key)];
+        long[] keys = stripe.keys;
+        long[] vals = stripe.vals;
         int idx = (int)(key & PRIM_MASK);
         for (;;) {
-            long existing = keys.getOpaque(idx); // relaxed read — faster on ARM
+            long existing = (long) KEYS_VH.getOpaque(keys, idx);
             if (existing == key) {
-                vals.setRelease(idx, valBits); // release store — pair with getOpaque
+                VALS_VH.setRelease(vals, idx, valBits);
                 return;
             }
             if (existing == PRIM_EMPTY) {
-                if (keys.compareAndSet(idx, PRIM_EMPTY, key)) {
-                    vals.setRelease(idx, valBits);
+                if (KEYS_VH.compareAndSet(keys, idx, PRIM_EMPTY, key)) {
+                    VALS_VH.setRelease(vals, idx, valBits);
                     return;
                 }
-                // CAS failed — retry from same slot
                 continue;
             }
             idx = (idx + 1) & PRIM_MASK;
@@ -132,17 +155,17 @@ public final class MStore implements StoreApi {
     }
 
     /** Ultra-fast numeric get with precomputed name hash (lock-free read).
-     *  Single volatile read per probe step, relaxed ordering. */
+     *  Plain long[] + VarHandle — no AtomicLongArray overhead. */
     public double getNumAtFast(long nameH, int sub) {
         long key = primKeyFast(nameH, sub);
-        int stripe = primStripe(key);
-        java.util.concurrent.atomic.AtomicLongArray keys = primKeys[stripe];
-        java.util.concurrent.atomic.AtomicLongArray vals = primVals[stripe];
+        PaddedStripe stripe = primStripes[primStripe(key)];
+        long[] keys = stripe.keys;
+        long[] vals = stripe.vals;
         int idx = (int)(key & PRIM_MASK);
         for (;;) {
-            long existing = keys.getOpaque(idx); // relaxed read
+            long existing = (long) KEYS_VH.getOpaque(keys, idx);
             if (existing == key) {
-                long valBits = vals.getAcquire(idx); // acquire — pairs with setRelease
+                long valBits = (long) VALS_VH.getAcquire(vals, idx);
                 if (valBits == PRIM_NAN_BITS) {
                     Thread.onSpinWait();
                     continue;
@@ -169,10 +192,9 @@ public final class MStore implements StoreApi {
     /** Clear all primitive cache entries. */
     private void primClear() {
         for (int s = 0; s < PRIM_STRIPES; s++) {
-            for (int i = 0; i < PRIM_SIZE; i++) {
-                primKeys[s].set(i, PRIM_EMPTY);
-                primVals[s].set(i, PRIM_NAN_BITS);
-            }
+            PaddedStripe stripe = primStripes[s];
+            java.util.Arrays.fill(stripe.keys, PRIM_EMPTY);
+            java.util.Arrays.fill(stripe.vals, PRIM_NAN_BITS);
         }
     }
 
