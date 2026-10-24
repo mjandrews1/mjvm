@@ -1,0 +1,51 @@
+name: GAUNTLET
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gauntlet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build mJVM
+        run: |
+          mkdir -p build
+          find src/main/java -name "*.java" | xargs javac -cp "lib/*" -d build 2>&1
+          find src/test/java -name "*.java" | xargs javac -cp "build:lib/*" -d build 2>&1
+          echo "Build OK: $(find build -name '*.class' | wc -l) classes"
+
+      - name: Run GAUNTLET
+        run: |
+          java -cp "build:lib/*" jvmumps.GauntletRun 2>&1
+          echo "GAUNTLET PASSED"
+
+      - name: Run conformance corpus
+        run: |
+          if [ -f tests/conformance.json ]; then
+            java -cp "build:lib/*" jvmumps.MjvmCorpusScore tests/conformance.json 2>&1
+          else
+            echo "No conformance.json found, skipping"
+          fi
+
+      - name: Run concurrency stress test
+        run: |
+          java -cp "build:lib/*" jvmumps.StoreConcurrencySmoke 2>&1
+          echo "CONCURRENCY PASSED"
+
+      - name: Run latency benchmark
+        run: |
+          java -cp "build:lib/*" jvmumps.LatencyBench 2>&1
+          echo "LATENCY BENCH PASSED"
