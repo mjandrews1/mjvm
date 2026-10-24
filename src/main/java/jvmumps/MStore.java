@@ -103,6 +103,32 @@ public final class MStore implements StoreApi {
         for (int i = 0; i < DM_OV_SIZE * 2; i += 2) { ov[i] = PRIM_EMPTY; ov[i+1] = PRIM_NAN_BITS; }
     }
 
+    // === Compile-time key specialization ===
+    // For known field names with integer subscripts, use dedicated double[] arrays
+    // with direct indexing — zero hash cost, zero probing, identical to native.
+    private static final int MAX_SPECIALIZED = 64;
+    private final java.util.concurrent.ConcurrentHashMap<String, double[]> specializedFields = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Register a field for compile-time specialization (direct array indexing). */
+    public void registerSpecialized(String name, int size) {
+        specializedFields.put(name, new double[size]);
+    }
+
+    /** Get specialized array for a name (null if not registered). */
+    public double[] getSpecialized(String name) {
+        return specializedFields.get(name);
+    }
+
+    /** Ultra-fast set on specialized field: direct array index, zero hash. */
+    public static void setSpecialized(double[] field, int sub, double val) {
+        field[sub] = val;
+    }
+
+    /** Ultra-fast get on specialized field: direct array index, zero hash. */
+    public static double getSpecialized(double[] field, int sub) {
+        return field[sub];
+    }
+
     /** Zero-hash set: key = nameH + sub (no mix step). Only for known-distributed names.
      *  Ultra-fast: 1 add + array access, no XOR/multiply. */
     public void setZeroHash(long nameH, int sub, double val) {
