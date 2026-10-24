@@ -128,7 +128,7 @@ public final class BankExpansive {
         // Run concurrent instances
         if (nInstances == 1) {
             long perInst = totalTxn;
-            var prog = fe.compileProgram("S X=$$BENCH2^BANK(" + perInst + "," + nAccounts + ")\n");
+            var prog = fe.compileProgram("D BENCH^BANKFULL(" + perInst + "," + nAccounts + ")\n");
             mjvm.runtime.IrMachine.run(prog, rt, fe.lastTags());
         } else {
             ExecutorService ex = Executors.newFixedThreadPool(nInstances);
@@ -151,7 +151,7 @@ public final class BankExpansive {
                         irt.reset();
                     }
                     // Run benchmark
-                    var iprog = ife.compileProgram("S X=$$BENCH2^BANK(" + count + "," + nAccounts + ")\n");
+                    var iprog = ife.compileProgram("D BENCH^BANKFULL(" + count + "," + nAccounts + ")\n");
                     mjvm.runtime.IrMachine.run(iprog, irt, ife.lastTags());
                     return null;
                 }));
