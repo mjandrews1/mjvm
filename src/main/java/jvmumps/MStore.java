@@ -39,10 +39,98 @@ public final class MStore implements StoreApi {
     // === Key interning: String key -> cached path segments (avoids splitKey alloc) ===
     private final ConcurrentHashMap<String, String[]> keyCache = new ConcurrentHashMap<>();
 
-    // === Primitive numeric cache for global gets/sets ===
-    // ConcurrentHashMap<String, double[]> — avoids MValue boxing + tree walk.
-    // Uses key comparison for correctness (no hash collisions).
-    private final ConcurrentHashMap<String, double[]> numCache = new ConcurrentHashMap<>();
+    // === Open-addressing primitive numeric cache ===
+    // Flat arrays: no boxing, no synchronization, linear probing.
+    // Stores: key ref (for comparison) + double value in parallel arrays.
+    private static final int OA_INIT_BITS = 16; // 64K slots
+    private int oaBits = OA_INIT_BITS;
+    private int oaSize = 1 << oaBits;
+    private int oaMask = oaSize - 1;
+    private int oaCount = 0;
+    private String[] oaKeys = new String[oaSize];
+    private double[] oaVals = new double[oaSize];
+    private static final double OA_LOAD = 0.6;
+
+    /** Open-addressing put: linear probing. */
+    private void oaPut(String key, double val) {
+        if (oaCount > oaSize * OA_LOAD) oaResize();
+        int idx = (int)(mixHash(key) & oaMask);
+        while (oaKeys[idx] != null) {
+            if (oaKeys[idx].equals(key)) { oaVals[idx] = val; return; }
+            idx = (idx + 1) & oaMask;
+        }
+        oaKeys[idx] = key;
+        oaVals[idx] = val;
+        oaCount++;
+    }
+
+    /** Open-addressing get: returns NaN if not found. */
+    private double oaGet(String key) {
+        int idx = (int)(mixHash(key) & oaMask);
+        while (oaKeys[idx] != null) {
+            if (oaKeys[idx].equals(key)) return oaVals[idx];
+            idx = (idx + 1) & oaMask;
+        }
+        return Double.NaN;
+    }
+
+    /** Open-addressing remove. */
+    private void oaRemove(String key) {
+        int idx = (int)(mixHash(key) & oaMask);
+        while (oaKeys[idx] != null) {
+            if (oaKeys[idx].equals(key)) {
+                // Tombstone: shift remaining cluster
+                oaKeys[idx] = null;
+                oaCount--;
+                // Re-insert cluster that may have been displaced
+                int next = (idx + 1) & oaMask;
+                while (oaKeys[next] != null) {
+                    String k = oaKeys[next];
+                    double v = oaVals[next];
+                    oaKeys[next] = null;
+                    oaCount--;
+                    oaPut(k, v);
+                    next = (next + 1) & oaMask;
+                }
+                return;
+            }
+            idx = (idx + 1) & oaMask;
+        }
+    }
+
+    /** Clear all cache entries. */
+    private void oaClear() {
+        java.util.Arrays.fill(oaKeys, null);
+        oaCount = 0;
+    }
+
+    /** Resize to 2x capacity. */
+    private void oaResize() {
+        String[] oldKeys = oaKeys;
+        double[] oldVals = oaVals;
+        int oldSize = oaSize;
+        oaBits++;
+        oaSize = 1 << oaBits;
+        oaMask = oaSize - 1;
+        oaKeys = new String[oaSize];
+        oaVals = new double[oaSize];
+        oaCount = 0;
+        for (int i = 0; i < oldSize; i++) {
+            if (oldKeys[i] != null) oaPut(oldKeys[i], oldVals[i]);
+        }
+    }
+
+    /** Mix hash for open addressing (Murmur-style finalizer). */
+    private static long mixHash(String key) {
+        long h = 0;
+        for (int i = 0; i < key.length(); i++) {
+            h = h * 0x9E3779B97F4A7C15L + key.charAt(i);
+        }
+        h ^= (h >>> 33);
+        h *= 0xFF51AFD7ED558CCDL;
+        h ^= (h >>> 33);
+        return h;
+    }
     /** Displaced local nodes for NEW restore. */
     private final List<Map<String, Node>> scopeStack = new ArrayList<>();
 
@@ -130,8 +218,8 @@ public final class MStore implements StoreApi {
     @Override
     public MValue get(String key, boolean global) {
         if (global) {
-            double[] cached = numCache.get(key);
-            if (cached != null) return MValue.ofNumber(cached[0]);
+            double v = oaGet(key);
+            if (!Double.isNaN(v)) return MValue.ofNumber(v);
         }
         return get(toList(splitCached(key)), global);
     }
@@ -139,7 +227,7 @@ public final class MStore implements StoreApi {
     @Override
     public void set(String key, boolean global, MValue v) {
         if (global && v.isnum) {
-            numCache.put(key, new double[]{v.num});
+            oaPut(key, v.num);
         }
         set(toList(splitCached(key)), global, v);
     }
@@ -148,7 +236,7 @@ public final class MStore implements StoreApi {
      *  Use with getNumFast for read-back. For tree visibility use set() instead. */
     public void setNum(String key, boolean global, double val) {
         if (global) {
-            numCache.put(key, new double[]{val});
+            oaPut(key, val);
         }
     }
 
@@ -161,8 +249,8 @@ public final class MStore implements StoreApi {
     /** Ultra-fast numeric get: returns double, skips MValue boxing. */
     public double getNumFast(String key, boolean global) {
         if (global) {
-            double[] cached = numCache.get(key);
-            if (cached != null) return cached[0];
+            double v = oaGet(key);
+            if (!Double.isNaN(v)) return v;
         }
         return get(toList(splitCached(key)), global).asNum();
     }
@@ -193,7 +281,7 @@ public final class MStore implements StoreApi {
         if (global) {
             ops.incrementAndGet();
             // Clear numeric cache (kills can remove subtrees)
-            numCache.clear();
+            oaClear();
         }
         if (path.size() == 1) {
             root(global).remove(path.get(0));
