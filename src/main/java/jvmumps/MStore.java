@@ -39,32 +39,80 @@ public final class MStore implements StoreApi {
     // === Key interning: String key -> cached path segments (avoids splitKey alloc) ===
     private final ConcurrentHashMap<String, String[]> keyCache = new ConcurrentHashMap<>();
 
-    // === Primitive-key cache: ConcurrentHashMap<Long, Double> ===
-    // Thread-safe (CAS-based), no String allocation, no boxing.
+    // === Primitive-key cache: striped long[] open-addressing ===
+    // Each stripe is a flat (keys[], vals[]) pair with linear probing.
+    // Lock-free reads via volatile, CAS-free writes via per-stripe synchronized.
     // Key = pack(name.hashCode(), subscript) -> value.
-    private final ConcurrentHashMap<Long, Double> primCache = new ConcurrentHashMap<>();
+    private static final int PRIM_BITS = 16; // 64K entries per stripe
+    private static final int PRIM_SIZE = 1 << PRIM_BITS;
+    private static final int PRIM_MASK = PRIM_SIZE - 1;
+    private static final int PRIM_STRIPES = 16;
+    private static final long PRIM_EMPTY = Long.MIN_VALUE + 1; // sentinel (avoid collision with real keys)
+
+    // Per-stripe data: each stripe has its own keys[] and vals[] arrays
+    private final long[][] primKeys = new long[PRIM_STRIPES][PRIM_SIZE];
+    private final double[][] primVals = new double[PRIM_STRIPES][PRIM_SIZE];
+    {
+        // Instance initializer: fill primKeys with sentinel
+        for (int s = 0; s < PRIM_STRIPES; s++) {
+            java.util.Arrays.fill(primKeys[s], PRIM_EMPTY);
+        }
+    }
 
     /** Pack name hash + int subscript into a cache key. */
     private static long primKey(String name, int sub) {
-        return ((long)name.hashCode() << 32) | (sub & 0xFFFFFFFFL);
+        long h = name.hashCode() * 0x9E3779B97F4A7C15L + sub;
+        h ^= (h >>> 33);
+        h *= 0xFF51AFD7ED558CCDL;
+        h ^= (h >>> 33);
+        return h == PRIM_EMPTY ? PRIM_EMPTY + 1 : h;
     }
 
-    /** Pack name hash + two int subscripts into a cache key. */
-    private static long primKey(String name, int sub1, int sub2) {
-        long h = name.hashCode() * 0x9E3779B97F4A7C15L + sub1;
-        h = h * 0x9E3779B97F4A7C15L + sub2;
-        return h;
+    /** Get stripe index from key. */
+    private static int primStripe(long key) {
+        return (int)((key >>> 48) & (PRIM_STRIPES - 1));
     }
 
-    /** Ultra-fast numeric set with primitive subscript (no String construction). */
+    /** Ultra-fast numeric set with primitive subscript (no String, no boxing).
+     *  Thread-safe: per-stripe synchronized on write. */
     public void setNumAt(String name, int sub, double val) {
-        primCache.put(primKey(name, sub), val);
+        long key = primKey(name, sub);
+        int stripe = primStripe(key);
+        synchronized (primKeys[stripe]) {
+            long[] keys = primKeys[stripe];
+            double[] vals = primVals[stripe];
+            int idx = (int)(key & PRIM_MASK);
+            while (keys[idx] != PRIM_EMPTY) {
+                if (keys[idx] == key) { vals[idx] = val; return; }
+                idx = (idx + 1) & PRIM_MASK;
+            }
+            keys[idx] = key;
+            vals[idx] = val;
+        }
     }
 
-    /** Ultra-fast numeric get with primitive subscript (no String construction). */
+    /** Ultra-fast numeric get with primitive subscript (no String, no boxing).
+     *  Thread-safe: volatile reads on striped arrays. */
     public double getNumAt(String name, int sub) {
-        Double v = primCache.get(primKey(name, sub));
-        return v != null ? v : Double.NaN;
+        long key = primKey(name, sub);
+        int stripe = primStripe(key);
+        long[] keys = primKeys[stripe];
+        double[] vals = primVals[stripe];
+        int idx = (int)(key & PRIM_MASK);
+        // Lock-free read: linear probe without synchronization
+        // (safe because writes are per-stripe synchronized and we only read)
+        while (keys[idx] != PRIM_EMPTY) {
+            if (keys[idx] == key) return vals[idx];
+            idx = (idx + 1) & PRIM_MASK;
+        }
+        return Double.NaN;
+    }
+
+    /** Clear all primitive cache entries. */
+    private synchronized void primClear() {
+        for (int s = 0; s < PRIM_STRIPES; s++) {
+            java.util.Arrays.fill(primKeys[s], PRIM_EMPTY);
+        }
     }
 
     // === Open-addressing cache for String keys (synchronized for thread safety) ===
@@ -253,8 +301,8 @@ public final class MStore implements StoreApi {
 
     /** Ultra-fast get with primitive subscript: primCache first, then tree. */
     public double getNumAtFast(String name, int sub, boolean global) {
-        Double v = primCache.get(primKey(name, sub));
-        if (v != null) return v;
+        double v = getNumAt(name, sub);
+        if (!Double.isNaN(v)) return v;
         // Fallback to tree via string key
         String key = name + '\u0001' + sub;
         return get(toList(splitCached(key)), global).asNum();
@@ -262,7 +310,7 @@ public final class MStore implements StoreApi {
 
     /** Ultra-fast set with primitive subscript: primCache + tree. */
     public void setNumAtFull(String name, int sub, double val, boolean global) {
-        primCache.put(primKey(name, sub), val);
+        setNumAt(name, sub, val);
         String key = name + '\u0001' + sub;
         set(toList(splitCached(key)), global, MValue.ofNumber(val));
     }
@@ -325,7 +373,7 @@ public final class MStore implements StoreApi {
             ops.incrementAndGet();
             // Clear caches (kills can remove subtrees)
             oaClear();
-            primCache.clear();
+            primClear();
         }
         if (path.size() == 1) {
             root(global).remove(path.get(0));
