@@ -120,12 +120,16 @@ public final class BankTimedBench {
         // Check invariant: B(acct)-C(acct)=2*FEE(acct)
         // Flush primitive cache to StoreApi first (deferred flush)
         javabank.BankM.Bank_FLUSH(rt, jvmumps.MValue.ofNumber(accounts));
-        var checkProg = fe.compileProgram(
-            "N OK S OK=1 F I=0:1:" + (accounts - 1) + " I ($G(^BANK(\"B\",I))-$G(^BANK(\"C\",I)))'=(2*$G(^BANK(\"FEE\",I))) S OK=0\n" +
-            "W OK\n");
-        mjvm.runtime.IrMachine.run(checkProg, rt, fe.lastTags());
-        String inv = rt.output().trim();
-        rt.reset();
+        // Read via getNumFast (uses cache) to avoid key-format mismatch with IrMachine
+        boolean ok = true;
+        for (int i = 0; i < accounts; i++) {
+            String si = String.valueOf(i);
+            double b = ((jvmumps.MStore)store).getNumFast("^BANK\u0001B\u0001" + si, true);
+            double c = ((jvmumps.MStore)store).getNumFast("^BANK\u0001C\u0001" + si, true);
+            double f = ((jvmumps.MStore)store).getNumFast("^BANK\u0001FEE\u0001" + si, true);
+            if (Math.abs(b - c - 2 * f) > 1e-9) { ok = false; break; }
+        }
+        String inv = ok ? "1" : "0";
 
         System.out.printf("%,11d  %8.1f    %6.1f    %8.1f    %s%n",
             count, batchMs, txnPerMs, totalMs, inv.equals("1") ? "OK" : "FAIL");

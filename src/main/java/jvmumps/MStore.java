@@ -40,13 +40,9 @@ public final class MStore implements StoreApi {
     private final ConcurrentHashMap<String, String[]> keyCache = new ConcurrentHashMap<>();
 
     // === Primitive numeric cache for global gets/sets ===
-    // Flat double[] indexed by a hash of the path. Avoids MValue boxing + tree walk.
-    private static final int CACHE_BITS = 18; // 256K entries
-    private static final int CACHE_SIZE = 1 << CACHE_BITS;
-    private static final int CACHE_MASK = CACHE_SIZE - 1;
-    private final double[] numCache = new double[CACHE_SIZE];
-    private final long[] numCacheHash = new long[CACHE_SIZE]; // stores hash of key (0 = empty)
-    private final boolean[] numCacheValid = new boolean[CACHE_SIZE];
+    // ConcurrentHashMap<String, double[]> — avoids MValue boxing + tree walk.
+    // Uses key comparison for correctness (no hash collisions).
+    private final ConcurrentHashMap<String, double[]> numCache = new ConcurrentHashMap<>();
     /** Displaced local nodes for NEW restore. */
     private final List<Map<String, Node>> scopeStack = new ArrayList<>();
 
@@ -131,24 +127,11 @@ public final class MStore implements StoreApi {
         return java.util.Arrays.asList(parts);
     }
 
-    /** Fast hash for cache indexing (mix of key chars). */
-    private static long fastHash(String key) {
-        long h = 0;
-        for (int i = 0; i < key.length(); i++) {
-            h = h * 31 + key.charAt(i);
-        }
-        return h | 1; // never 0
-    }
-
     @Override
     public MValue get(String key, boolean global) {
         if (global) {
-            // Try primitive numeric cache first
-            long h = fastHash(key);
-            int idx = (int)(h & CACHE_MASK);
-            if (numCacheValid[idx] && numCacheHash[idx] == h) {
-                return MValue.ofNumber(numCache[idx]);
-            }
+            double[] cached = numCache.get(key);
+            if (cached != null) return MValue.ofNumber(cached[0]);
         }
         return get(toList(splitCached(key)), global);
     }
@@ -156,12 +139,7 @@ public final class MStore implements StoreApi {
     @Override
     public void set(String key, boolean global, MValue v) {
         if (global && v.isnum) {
-            // Store in primitive cache + tree
-            long h = fastHash(key);
-            int idx = (int)(h & CACHE_MASK);
-            numCache[idx] = v.num;
-            numCacheHash[idx] = h;
-            numCacheValid[idx] = true;
+            numCache.put(key, new double[]{v.num});
         }
         set(toList(splitCached(key)), global, v);
     }
@@ -170,11 +148,7 @@ public final class MStore implements StoreApi {
      *  Use with getNumFast for read-back. For tree visibility use set() instead. */
     public void setNum(String key, boolean global, double val) {
         if (global) {
-            long h = fastHash(key);
-            int idx = (int)(h & CACHE_MASK);
-            numCache[idx] = val;
-            numCacheHash[idx] = h;
-            numCacheValid[idx] = true;
+            numCache.put(key, new double[]{val});
         }
     }
 
@@ -187,11 +161,8 @@ public final class MStore implements StoreApi {
     /** Ultra-fast numeric get: returns double, skips MValue boxing. */
     public double getNumFast(String key, boolean global) {
         if (global) {
-            long h = fastHash(key);
-            int idx = (int)(h & CACHE_MASK);
-            if (numCacheValid[idx] && numCacheHash[idx] == h) {
-                return numCache[idx];
-            }
+            double[] cached = numCache.get(key);
+            if (cached != null) return cached[0];
         }
         return get(toList(splitCached(key)), global).asNum();
     }
@@ -219,7 +190,11 @@ public final class MStore implements StoreApi {
     }
 
     public void kill(List<String> path, boolean global) {
-        if (global) ops.incrementAndGet();
+        if (global) {
+            ops.incrementAndGet();
+            // Clear numeric cache (kills can remove subtrees)
+            numCache.clear();
+        }
         if (path.size() == 1) {
             root(global).remove(path.get(0));
             return;
