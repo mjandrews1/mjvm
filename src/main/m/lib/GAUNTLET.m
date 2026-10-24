@@ -669,26 +669,26 @@ GRP15 ; Complex $ORDER traversal
 GRP16 ; Tight loops for throughput measurement
  N G16I,G16N,G16S,G16A,G16B
  S G16P=0 S G16F=0
- ; Arithmetic loop (100K iterations)
+ ; Arithmetic loop (1M iterations)
  S G16N=0
- F G16I=1:1:100000 S G16N=G16N+G16I
- I G16N=5000050000 S G16P=G16P+1
+ F G16I=1:1:1000000 S G16N=G16N+G16I
+ I G16N=500000500000 S G16P=G16P+1
  E  S G16F=G16F+1
- ; String concatenation loop (10K iterations)
+ ; String concatenation loop (1M iterations)
  S G16S=""
- F G16I=1:1:10000 S G16S=G16S_"x"
- I $L(G16S)=10000 S G16P=G16P+1
+ F G16I=1:1:1000000 S G16S=G16S_"x"
+ I $L(G16S)=1000000 S G16P=G16P+1
  E  S G16F=G16F+1
- ; Global write loop (10K iterations)
- F G16I=1:1:10000 S ^GAUNTLET("P",G16I)=G16I
+ ; Global write loop (1M iterations)
+ F G16I=1:1:1000000 S ^GAUNTLET("P",G16I)=G16I
  S G16A=0
- F G16I=1:1:10000 S G16A=G16A+^GAUNTLET("P",G16I)
- I G16A=50005000 S G16P=G16P+1
+ F G16I=1:1:1000000 S G16A=G16A+^GAUNTLET("P",G16I)
+ I G16A=500000500000 S G16P=G16P+1
  E  S G16F=G16F+1
- ; Mixed arithmetic/string loop (10K iterations)
+ ; Mixed arithmetic/string loop (1M iterations)
  S G16B=0
- F G16I=1:1:10000 S G16B=G16B+(G16I#2)
- I G16B=5000 S G16P=G16P+1
+ F G16I=1:1:1000000 S G16B=G16B+(G16I#2)
+ I G16B=500000 S G16P=G16P+1
  E  S G16F=G16F+1
  ; Kill cleanup
  K ^GAUNTLET("P") I $D(^GAUNTLET("P"))=0 S G16P=G16P+1
