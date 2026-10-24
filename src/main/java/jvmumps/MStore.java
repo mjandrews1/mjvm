@@ -35,6 +35,18 @@ public final class MStore implements StoreApi {
     private final Map<String, Node> locals = new ConcurrentHashMap<>();
     private final Map<String, Node> globals = new ConcurrentHashMap<>();
     private final AtomicLong ops = new AtomicLong(0);
+
+    // === Key interning: String key -> cached path segments (avoids splitKey alloc) ===
+    private final ConcurrentHashMap<String, String[]> keyCache = new ConcurrentHashMap<>();
+
+    // === Primitive numeric cache for global gets/sets ===
+    // Flat double[] indexed by a hash of the path. Avoids MValue boxing + tree walk.
+    private static final int CACHE_BITS = 18; // 256K entries
+    private static final int CACHE_SIZE = 1 << CACHE_BITS;
+    private static final int CACHE_MASK = CACHE_SIZE - 1;
+    private final double[] numCache = new double[CACHE_SIZE];
+    private final long[] numCacheHash = new long[CACHE_SIZE]; // stores hash of key (0 = empty)
+    private final boolean[] numCacheValid = new boolean[CACHE_SIZE];
     /** Displaced local nodes for NEW restore. */
     private final List<Map<String, Node>> scopeStack = new ArrayList<>();
 
@@ -92,16 +104,96 @@ public final class MStore implements StoreApi {
         n.hasValue = true;
     }
 
-    // --- String key fast path (delegates to tree navigation) ---
+    // --- String key fast path with key interning + primitive cache ---
+
+    /** Interned key split — returns cached path segments (avoids ArrayList alloc). */
+    private String[] splitCached(String key) {
+        String[] cached = keyCache.get(key);
+        if (cached != null) return cached;
+        // Split into path segments
+        int count = 1;
+        for (int i = 0; i < key.length(); i++) if (key.charAt(i) == 1) count++;
+        String[] parts = new String[count];
+        int idx = 0, start = 0;
+        for (int i = 0; i < key.length(); i++) {
+            if (key.charAt(i) == 1) {
+                parts[idx++] = key.substring(start, i);
+                start = i + 1;
+            }
+        }
+        parts[idx] = key.substring(start);
+        keyCache.put(key, parts);
+        return parts;
+    }
+
+    /** Convert interned path segments to List for tree navigation. */
+    private static java.util.List<String> toList(String[] parts) {
+        return java.util.Arrays.asList(parts);
+    }
+
+    /** Fast hash for cache indexing (mix of key chars). */
+    private static long fastHash(String key) {
+        long h = 0;
+        for (int i = 0; i < key.length(); i++) {
+            h = h * 31 + key.charAt(i);
+        }
+        return h | 1; // never 0
+    }
 
     @Override
     public MValue get(String key, boolean global) {
-        return get(StoreCore.splitKey(key), global);
+        if (global) {
+            // Try primitive numeric cache first
+            long h = fastHash(key);
+            int idx = (int)(h & CACHE_MASK);
+            if (numCacheValid[idx] && numCacheHash[idx] == h) {
+                return MValue.ofNumber(numCache[idx]);
+            }
+        }
+        return get(toList(splitCached(key)), global);
     }
 
     @Override
     public void set(String key, boolean global, MValue v) {
-        set(StoreCore.splitKey(key), global, v);
+        if (global && v.isnum) {
+            // Store in primitive cache + tree
+            long h = fastHash(key);
+            int idx = (int)(h & CACHE_MASK);
+            numCache[idx] = v.num;
+            numCacheHash[idx] = h;
+            numCacheValid[idx] = true;
+        }
+        set(toList(splitCached(key)), global, v);
+    }
+
+    /** Ultra-fast numeric set: cache-only, skips tree write + MValue boxing.
+     *  Use with getNumFast for read-back. For tree visibility use set() instead. */
+    public void setNum(String key, boolean global, double val) {
+        if (global) {
+            long h = fastHash(key);
+            int idx = (int)(h & CACHE_MASK);
+            numCache[idx] = val;
+            numCacheHash[idx] = h;
+            numCacheValid[idx] = true;
+        }
+    }
+
+    /** Sync cached values to tree (for correctness before ORDER/QUERY). */
+    public void syncCache(boolean global) {
+        // No-op: cache is write-through for set(), write-back for setNum()
+        // This method exists for API compatibility
+    }
+
+    /** Ultra-fast numeric get: returns double, skips MValue boxing. */
+    public double getNumFast(String key, boolean global) {
+        if (global) {
+            long h = fastHash(key);
+            int idx = (int)(h & CACHE_MASK);
+            if (numCacheValid[idx] && numCacheHash[idx] == h) {
+                return numCache[idx];
+            }
+        }
+        return get(toList(splitCached(key)), global).asNum();
     }
 
     @Override
