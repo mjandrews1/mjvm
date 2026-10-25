@@ -52,7 +52,7 @@ public final class H2StoreSmoke {
     } finally {
       s.close();
       // Cleanup
-      new java.io.File(path).delete();
+      if (!new java.io.File(path).delete()) new java.io.File(path).deleteOnExit();
       new java.io.File(path.replace(".mv.db", ".mv.db.temp")).delete();
     }
   }

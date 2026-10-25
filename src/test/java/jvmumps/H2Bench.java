@@ -20,7 +20,7 @@ public final class H2Bench {
       double us = (t1 - t0) / 1e3 / n;
       System.out.printf("H2Store DEP:    %.2f us/txn (n=%d)%n", us, n);
       s.close();
-      new java.io.File(path).delete();
+      if (!new java.io.File(path).delete()) new java.io.File(path).deleteOnExit();
     }
 
     // SqlStore
@@ -46,7 +46,7 @@ public final class H2Bench {
       double us = (t1 - t0) / 1e3 / n;
       System.out.printf("MapDBStore DEP: %.2f us/txn (n=%d)%n", us, n);
       s.close();
-      new java.io.File(path).delete();
+      if (!new java.io.File(path).delete()) new java.io.File(path).deleteOnExit();
     }
 
     // MStore

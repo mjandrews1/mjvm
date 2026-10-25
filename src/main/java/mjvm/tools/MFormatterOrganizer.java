@@ -132,12 +132,12 @@ public final class MFormatterOrganizer {
         sb.append(" (written by ").append(String.join(", ", globalWriters.get(g))).append(")");
       sb.append('\n');
     }
-    for (String g : globalWriters.keySet()) {
-      if (!globalReaders.containsKey(g))
+    for (var e : globalWriters.entrySet()) {
+      if (!globalReaders.containsKey(e.getKey()))
         sb.append("  ")
-            .append(g)
+            .append(e.getKey())
             .append(" (written by ")
-            .append(String.join(", ", globalWriters.get(g)))
+            .append(String.join(", ", e.getValue()))
             .append(")\n");
     }
 

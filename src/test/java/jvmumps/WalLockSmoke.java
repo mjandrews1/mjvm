@@ -37,7 +37,7 @@ public final class WalLockSmoke {
     wal3.close();
 
     // Cleanup
-    new java.io.File(walPath).delete();
+    if (!new java.io.File(walPath).delete()) new java.io.File(walPath).deleteOnExit();
     System.out.println("WAL LOCK SMOKE OK");
   }
 }

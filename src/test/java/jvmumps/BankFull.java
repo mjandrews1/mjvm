@@ -49,7 +49,7 @@ public final class BankFull {
   }
 
   // Service record
-  public static final class Service {
+  public static final @SuppressWarnings("unused") class Service {
     public int id;
     public int accountId;
     public int type;
@@ -61,7 +61,7 @@ public final class BankFull {
   }
 
   // Account record
-  public static final class Account {
+  public static final @SuppressWarnings("unused") class Account {
     public int id;
     public int type; // ACCT_PERSONAL or ACCT_BUSINESS
     public String owner;
@@ -75,9 +75,9 @@ public final class BankFull {
   public final double[] rates = new double[MAX_ACCTS + 1];
   public final double[] monthlyFees = new double[MAX_ACCTS + 1];
   public final double[] advances = new double[MAX_ACCTS + 1];
-  public int nextAccountId = 0;
-  public double bankBalance = 1_000_000;
-  public long txnCount = 0;
+  private int nextAccountId = 0;
+  private double bankBalance = 1_000_000;
+  private long txnCount = 0;
 
   // === Core operations ===
 

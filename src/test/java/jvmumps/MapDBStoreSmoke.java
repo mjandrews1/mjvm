@@ -40,7 +40,7 @@ public final class MapDBStoreSmoke {
       System.out.println("MAPDB SMOKE OK");
     } finally {
       s.close();
-      new java.io.File(path).delete();
+      if (!new java.io.File(path).delete()) new java.io.File(path).deleteOnExit();
     }
   }
 }

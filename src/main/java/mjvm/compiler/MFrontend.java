@@ -38,7 +38,7 @@ public final class MFrontend {
     }
     if (++compileDepth > 30) {
       System.err.println("DEPTH30 HIT at line=" + line.substring(0, Math.min(40, line.length())));
-      compileDepth--;
+      compileDepth = compileDepth - 1;
       return out; // depth limit — return empty IR (VistA routines with deep FOR nesting)
     }
     int i = 0;
@@ -156,7 +156,7 @@ public final class MFrontend {
               pk[1] += base;
               activePatches.add(pk);
             }
-            if (j0 >= 0 && j0 < out.size()) out.set(j0, Ir.jmp0(out.size()));
+            if (j0 < out.size()) out.set(j0, Ir.jmp0(out.size())); // j0 >= 0 guaranteed by init to -1 and check
             if (isG) i = line.length();
             continue;
           }
@@ -354,7 +354,7 @@ public final class MFrontend {
     if (terminate) {
       out.add(Ir.ret());
     }
-    compileDepth--;
+    compileDepth = compileDepth - 1;
     return out;
   }
 
@@ -507,14 +507,14 @@ public final class MFrontend {
       activeLabels = labels;
       activePatches = patches;
       activeSelfLine = li;
-      compileDepth++;
+      compileDepth = compileDepth + 1;
       try {
         compile(body, false, out);
       } catch (MError e) {
         out.clear();
         out.add(Ir.ret());
       } finally {
-        compileDepth--;
+        compileDepth = compileDepth - 1;
         activeLabels = null;
         activePatches = null;
       }
@@ -795,8 +795,9 @@ public final class MFrontend {
   }
 
   private int compileForSpec(String line, int varStart, List<Ir> out, String var) {
-    if (++compileRecursionDepth > 30) {
-      compileRecursionDepth--;
+    compileRecursionDepth = compileRecursionDepth + 1;
+    if (compileRecursionDepth > 30) {
+      compileRecursionDepth = compileRecursionDepth - 1;
       return line.length(); // depth limit — skip this FOR
     }
     try {
@@ -911,17 +912,18 @@ public final class MFrontend {
       }
       return line.length();
     } finally {
-      compileRecursionDepth--;
+      compileRecursionDepth = compileRecursionDepth - 1;
     }
   }
 
-  private int compileRecursionDepth = 0;
+  private volatile int compileRecursionDepth = 0;
   private static final int MAX_COMPILE_DEPTH = 100;
 
   void compileInto(String body, List<Ir> out) {
     if (body.isEmpty()) return;
-    if (++compileRecursionDepth > 30) {
-      compileRecursionDepth--;
+    compileRecursionDepth = compileRecursionDepth + 1;
+    if (compileRecursionDepth > 30) {
+      compileRecursionDepth = compileRecursionDepth - 1;
       return; // depth limit — skip
     }
     try {
@@ -937,7 +939,7 @@ public final class MFrontend {
         }
       }
     } finally {
-      compileRecursionDepth--;
+      compileRecursionDepth = compileRecursionDepth - 1;
     }
   }
 

@@ -116,7 +116,7 @@ public final class IrMachine {
     // Pre-read cache: batch all global LOADs in this program into one getBatch()
     java.util.Map<String, jvmumps.MValue> preRead = new java.util.HashMap<>();
     int preReadHits = 0;
-    if (rt.getStore() instanceof jvmumps.StoreCore sc) { // NOPMD — always true but type-safe
+    if (rt.getStore() instanceof jvmumps.StoreCore sc) { // NOPMD — StoreApi extends StoreCore, always true but type-safe // NOPMD — always true but type-safe
       // Collect all global variable names from LOAD ops
       java.util.LinkedHashSet<String> globalNames = new java.util.LinkedHashSet<>();
       for (Ir iop : prog) {

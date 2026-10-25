@@ -58,8 +58,8 @@ public final class TieredStoreRwSmoke {
     reader2.close();
 
     // Cleanup
-    new java.io.File(diskPath).delete();
-    new java.io.File(walPath).delete();
+    if (!new java.io.File(diskPath).delete()) new java.io.File(diskPath).deleteOnExit();
+    if (!new java.io.File(walPath).delete()) new java.io.File(walPath).deleteOnExit();
     System.out.println("TIERED STORE RW SMOKE OK");
   }
 }

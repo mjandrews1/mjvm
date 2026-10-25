@@ -29,11 +29,11 @@ public final class MRuntime {
   // M5 devices
   private final Map<Integer, java.io.BufferedReader> devices = new HashMap<>();
   private final Map<Integer, java.io.Writer> writers = new HashMap<>();
-  private int io = 0;
+  private volatile int io = 0;
   // M6 locks / TX (per-level undo, same contract as JvMumps LineInterp)
   private final java.util.Set<String> locks = new java.util.HashSet<>();
   private final java.util.List<java.util.List<Object[]>> txUndo = new ArrayList<>();
-  private int tlevel = 0;
+  private volatile int tlevel = 0;
 
   /** Shared JvMumps evaluator for $intrinsics / patterns / indirection (M11). */
   private final jvmumps.ExprEval exprEval;
