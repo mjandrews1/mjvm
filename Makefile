@@ -233,6 +233,15 @@ install-hooks:
 	'    exit 1' \
 	'fi' \
 	'' \
+	'echo "=== Pre-commit: SpotBugs ==="' \
+	'make spotbugs 2>&1 | tail -5' \
+	'SPOTBUGS_STATUS=$${PIPESTATUS[0]}' \
+	'if [ "$$SPOTBUGS_STATUS" -ne 0 ]; then' \
+	'    echo ""' \
+	'    echo "SPOTBUGS FAILED. Fix findings or bypass with: git commit --no-verify"' \
+	'    exit 1' \
+	'fi' \
+	'' \
 	'echo "=== Pre-commit: OK ==="' \
 	> .git/hooks/pre-commit
 	@chmod +x .git/hooks/pre-commit
