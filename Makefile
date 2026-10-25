@@ -222,6 +222,8 @@ hooks: install-hooks
 install-hooks:
 	@mkdir -p .git/hooks
 	@printf '%s\n' '#!/bin/bash' \
+	'export JAVA_HOME=$${JAVA_HOME:-/opt/homebrew/opt/java}' \
+	'export PATH="$$JAVA_HOME/bin:$$PATH"' \
 	'# Pre-commit hook: format check + Error Prone lint before every commit.' \
 	'# Bypass with: git commit --no-verify' \
 	'' \
