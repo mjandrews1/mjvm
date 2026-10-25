@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Routine / DO / GOTO / QUIT / extrinsic runner for {@link LineInterp} (deep split, #58). */
+@SuppressWarnings("deprecation")
 final class LineRoutine {
         static java.util.List<LineState.RtLine> parseRoutine(String code) {
             java.util.List<LineState.RtLine> lines = new ArrayList<>();

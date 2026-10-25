@@ -6,6 +6,7 @@ import jvmumps.MError;
 import jvmumps.MValue;
 
 /** SET / WRITE for {@link LineInterp} (deep split, #58). */
+@SuppressWarnings("deprecation")
 final class LineCmds {
     private LineCmds() {}
 

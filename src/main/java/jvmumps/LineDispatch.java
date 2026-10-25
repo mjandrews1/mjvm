@@ -1,6 +1,7 @@
 package jvmumps;
 
 /** Command dispatch for {@link LineInterp} (deep split, #58). */
+@SuppressWarnings("deprecation")
 final class LineDispatch {
     private LineDispatch() {}
 

@@ -6,6 +6,7 @@ import java.util.List;
  * {@link ExprEval.Env} bridge for {@link LineInterp} (deep split, #58).
  * Maps names to store paths via {@link LineRefs}; extrinsics → LineRoutine.
  */
+@SuppressWarnings("deprecation")
 final class LineEnv implements ExprEval.Env {
     private final LineInterp fe;
     private final StoreApi store;

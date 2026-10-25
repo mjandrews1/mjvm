@@ -23,6 +23,7 @@ import java.nio.file.Path;
  * {@code CDB2PIPE} (default {@code tools/cdb2pipe}), {@code CDB2DB} (default
  * {@code testdb}), {@code CDB2TYPE} (default {@code local}).
  */
+@SuppressWarnings("deprecation")
 public final class Stores {
     private Stores() {}
 

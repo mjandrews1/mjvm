@@ -7,6 +7,7 @@ package jvmumps;
  * {@link #evalLine} runs one physical line against a fresh-or-persistent
  * interpreter; {@link #reset} starts a clean session.
  */
+@SuppressWarnings("deprecation")
 public final class LineEngine implements Engine {
     private LineInterp interp = new LineInterp();
 

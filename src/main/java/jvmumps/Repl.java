@@ -21,6 +21,7 @@ import jvmumps.LineInterp;
  * Env:
  *   REPL_INIT       path to a script file run at startup (one M line per line)
  */
+@SuppressWarnings("deprecation")
 public final class Repl {
     static final String PROMPT = "JavaM> ";
     static final int HISTORY_MAX = 500;

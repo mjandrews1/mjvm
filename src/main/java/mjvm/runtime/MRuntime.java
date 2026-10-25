@@ -402,11 +402,12 @@ public final class MRuntime {
         // Fast path: simple global with no indirection
         if (name.startsWith("^") && name.indexOf('@') < 0) {
             boolean glob = true;
+            String key = keyOf(name, this);
             if (tlevel > 0) {
-                MValue old = store.get(name, glob);
-                recordUndo(List.of(name), glob, old);
+                MValue old = store.get(key, glob);
+                recordUndo(List.of(key), glob, old);
             }
-            store.set(name, true, v);
+            store.set(key, glob, v);
             return;
         }
         List<String> path = pathOf(name, this);
@@ -653,7 +654,7 @@ public final class MRuntime {
         List<String> path = pathOf(ref, this);
         boolean glob = path.get(0).startsWith("^");
         String cur = store.get(path, glob).asStr();
-        setVar(ref, jvmumps.MValue.ofString(jvmumps.LineInterp.setPieceOf(cur, d, from, to, v)));
+        setVar(ref, jvmumps.MValue.ofString(setPieceOf(cur, d, from, to, v)));
     }
 
     /** MERGE dst ← src (tree). */
@@ -796,6 +797,32 @@ public final class MRuntime {
 
     public int tlevel() {
         return tlevel;
+    }
+
+    /** Set $PIECE: replace pieces from..to of s delimited by d with v. */
+    private static String setPieceOf(String s, String d, int from, int to, String v) {
+        if (to < from) to = from;
+        if (from < 1) from = 1;
+        if (d.isEmpty()) return s;
+        int dl = d.length();
+        int piece = 1;
+        int start = 0;
+        int n = s.indexOf(d);
+        while (piece < from && n >= 0) {
+            start = n + dl;
+            n = s.indexOf(d, start);
+            piece++;
+        }
+        int end = n;
+        while (piece < to && n >= 0) {
+            n = s.indexOf(d, n + dl);
+            piece++;
+        }
+        if (n < 0) end = s.length();
+        else if (end < 0) end = s.length();
+        String prefix = s.substring(0, start);
+        String suffix = end < 0 ? "" : s.substring(end);
+        return prefix + v + suffix;
     }
 
     /** Record undo for SET when inside a transaction. */
