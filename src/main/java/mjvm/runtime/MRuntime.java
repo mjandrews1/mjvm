@@ -79,7 +79,7 @@ public final class MRuntime {
                     tok.add(src.substring(i, j)); knd.add(0); // NUM
                     i = j;
                 } else if (Character.isLetter(c) || c == '%' || c == '^') {
-                    int j = i;
+                    int j = i + 1; // consume first char (handles ^ not followed by alnum)
                     while (j < src.length() && (Character.isLetterOrDigit(src.charAt(j)) || src.charAt(j) == '%')) j++;
                     tok.add(src.substring(i, j)); knd.add(1); // NAME
                     i = j;

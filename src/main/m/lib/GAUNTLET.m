@@ -271,7 +271,7 @@ GRP5 ; IF, ELSE, FOR, DO, QUIT, postconditionals
  S G5X=$$EXTF^GAUNTLET(3,4) I G5X=7 S G5P=G5P+1
  E  S G5F=G5F+1
  ; QUIT with value
- S G5X=$$QVAL^GAUNTLET() I G5X=99 S G5P=G5P+1
+ S G5X=$$QVAL^GAUNTLET(0) I G5X=99 S G5P=G5P+1
  E  S G5F=G5F+1
  ; GOTO
  D GOTOTEST^GAUNTLET I $G(^GAUNTLET("GOTO"))=1 S G5P=G5P+1
@@ -289,7 +289,7 @@ DOARG(%DA) ; DO with argument
 EXTF(%EA,%EB) ; Extrinsic function
  Q %EA+%EB
 
-QVAL() ; QUIT with value
+QVAL(%X) ; QUIT with value
  Q 99
 
 GOTOTEST ; GOTO within routine
@@ -588,7 +588,7 @@ GRP13 ; Error handling
  S $ZT=""
  Q
 
-ERHDLR() ; Error handler
+ERHDLR(%X) ; Error handler
  Q 0
 
 ERTRAP ; $ETRAP handler
@@ -637,9 +637,15 @@ GRP15 ; Complex $ORDER traversal
  ; Traverse all
  S G15C=0
  S G15I=""
- F  S G15I=$O(G15A(G15I)) Q:G15I=""  D
- . S G15J=""
- . F  S G15J=$O(G15A(G15I,G15J)) Q:G15J=""  S G15C=G15C+1
+AA15 S G15I=$O(G15A(G15I))
+ I G15I="" G AD15
+ S G15J=""
+AB15 S G15J=$O(G15A(G15I,G15J))
+ I G15J="" G AC15
+ S G15C=G15C+1
+ G AB15
+AC15 G AA15
+AD15
  I G15C=4 S G15P=G15P+1
  E  S G15F=G15F+1
  ; $ORDER with direction

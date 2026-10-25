@@ -52,7 +52,7 @@ LOG(%LT,%LAC,%LA,%LB) ; Append journal entry. %LB = known balance.
 BAL(%AC) ; Checking balance for account
  Q $G(^BANK("C",%AC))
 
-STAT() ; Status string
+STAT(%X) ; Status string
  Q "TXN="_$G(^BANK("N"))_" CHECK="_$G(^BANK("C",0))_" BANK="_$G(^BANK("B",0))
 
 STAT2(%AC) ; Status for one account
