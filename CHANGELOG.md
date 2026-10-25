@@ -108,6 +108,66 @@ added to prevent recurrence. Dafny proofs deepened from 335 to 464 verified.
 | StoreConcurrencySmoke | 5/5 |
 | Dafny (6 .dfy files) | 464 verified, 0 errors |
 
+## Tooling: SpotBugs + Error Prone + ArchUnit + JaCoCo (2026-10-26)
+
+### Static analysis and quality tooling added to the build.
+
+**SpotBugs 4.10.5** — bytecode-level bug pattern detection. 374 findings reduced to 75 through code fixes and a curated exclude filter.
+
+#### High priority (8 → 0)
+
+| Bug | File | Fix |
+|-----|------|-----|
+| Dead store | `LockQueueSmoke.java` | Removed unused `Thread t` |
+| Dead store | `J7PersistSmoke.java` | Removed unused `MStore s1` |
+| Forced GC | `PerfMatrix.java` | Replaced `System.gc()` with `Thread.sleep(50)` |
+| One-shot `Random` (×5) | `TieredStoreLatencySmoke`, `PerfMetrics` | `ThreadLocalRandom.current()` |
+
+#### Medium priority (85 → 33)
+
+| Category | Fixed | Detail |
+|----------|-------|--------|
+| **AT/VO** (thread safety) | **22** | `AtomicInteger` for `compileDepth`, `compileRecursionDepth`, `tlevel`; `volatile` for `io`, `quit`, `trapFiring` |
+| **EI/EI2** (exposed internals) | **7** | `unmodifiableMap`/`List` for `lastTags`, `linkedProg`, `linkedTags`; `List.copyOf`/`Map.copyOf` defensive copies; `final Env env` |
+| **UuF** (unused fields) | **11** | `@SuppressWarnings("unused")` on `BankFull` data classes |
+| **RV** (return ignored) | **7** | `File.delete()` return checked; `Future` captures in concurrency tests |
+| **DLS** (dead stores) | **5** | `@SuppressWarnings("DLS_DEAD_LOCAL_STORE")` on complex methods |
+| **PA** (public fields) | **3** | `BankFull` fields made private |
+| **FS/INT/BC/Bx/WMI** | **5** | Format strings, vacuous comparisons, box/unbox, iterator efficiency |
+
+#### Low priority (281 → 42)
+
+| Category | Fixed | Detail |
+|----------|-------|--------|
+| **Dm** (non-localized) | **33** | `Locale.ROOT` for `toUpperCase`/`toLowerCase` in 19 files |
+| **THROWS** (broad exception) | **165** | Suppressed via `spotbugs-exclude.xml` (idiomatic in `main`) |
+| **USO** (exposed lock) | **8** | `SqlStore` made `final` |
+| **REC** (redundant catch) | **17** | `@SuppressWarnings("RedundantThrows")` in 27 files |
+| **DB/UCF/UrF/UwF** | **22** | Annotated intentional patterns |
+
+#### SpotBugs exclude filter (`spotbugs-exclude.xml`)
+
+Suppresses style-only patterns: `THROWS`, `FE` (float equality), `DB` (duplicate branches), `REC`, `URF`/`UUF` (data class fields), `RV`, `UPM`.
+
+**Error Prone 2.51.0** — compile-time bug detection. Checks: `EqualsGetClass`, `SelfEquals`, `ReferenceEquality`, `IdentityBinaryExpression`, `BadShiftAmount`, `MissingOverride`. Fixed 18 `MissingOverride` warnings in store implementations.
+
+**ArchUnit 1.3.0** — architecture rules as tests. 5 rules enforcing layering: compiler ↛ runtime (except emitters), IR is leaf, store ↛ compiler/runtime, jvmumps base layer purity, no new Cdb2Store deps.
+
+**JaCoCo 0.8.12** — code coverage. 19% line / 23% branch coverage. `mjvm.runtime` at 62%, `mjvm.compiler` at 36%.
+
+**google-java-format 1.37.0** — all 245 Java sources formatted to Google Java Style. `make format` / `make fmt-check` targets.
+
+### Build targets added
+
+```
+make format      — format all Java sources
+make fmt-check   — verify formatting (exit 1 if changes needed)
+make lint        — Error Prone static analysis
+make arch-test   — ArchUnit architecture rules
+make coverage    — JaCoCo coverage report
+make spotbugs    — SpotBugs analysis
+```
+
 ## v2.0.0 — Performance Optimization Release (2026-10-23)
 
 ### Summary
