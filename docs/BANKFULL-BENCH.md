@@ -117,3 +117,57 @@ All 5 stress tests pass (8 threads × 500K ops each):
 ---
 
 *Reproduce: `java jvmumps.BankExpansive --accounts 10000,50000 --instances 2,4 --txn 25000 --language mJVM --inline`*
+
+
+---
+
+## End-to-End Verification (2026-10-26)
+
+After fixing 10 compiler/runtime bugs (see CHANGELOG v2.2.0), BANKFULL.m
+executes cleanly end-to-end with full journal integrity:
+
+```
+=== BANKFULL.m End-to-End ===
+
+Created acct 1: 1
+Created acct 2: 2
+Deposit 5000 -> 5000
+Withdraw 1500 -> 3500
+Acme deposit 3000 -> 3000
+Bank balance: 993500
+
+Interest accrued: 10.833333333333334
+Monthly fees: 10
+
+Journal:
+  1=DEPOSIT|1|5000|5000|2026-10-26T14:53:29Z|543783
+  2=WITHDRAW|1|1500|3500|2026-10-26T14:53:29Z|304219
+  3=DEPOSIT|2|3000|3000|2026-10-26T14:53:29Z|827684
+  4=INTEREST|1|5.833...|3505.833...|2026-10-26T14:53:29Z|438934
+  5=INTEREST|2|5|3005|2026-10-26T14:53:29Z|466745
+  6=FEE|1|5|3500.833...|2026-10-26T14:53:29Z|231950
+  7=FEE|2|5|3000|2026-10-26T14:53:29Z|360588
+
+Invariant: 1 (OK)
+
+=== E2E Complete ===
+```
+
+**Journal format:** `TYPE|SVC|AMT|BAL|ISO_TIMESTAMP|CRC`
+
+- **ISO timestamp:** `YYYY-MM-DDTHH:MM:SSZ` (UTC, computed from `$H`)
+- **CRC32:** weighted character checksum for integrity verification
+- **Invariant:** total savings + bank balance = $1,000,000 (conserved)
+
+### Bugs fixed for E2E
+
+| Bug | File | Symptom |
+|-----|------|---------|
+| `$I()` comma splitting | MFrontendCmds | Journal sequence counter corrupted |
+| Double-space concat | MFrontendUtil | JOURNAL returned early, losing entries |
+| `PUSH_REG` jump target | MFrontend | VERIFY returned wrong results |
+| `MStore.increment()` cache | MStore | Read-after-increment returned stale |
+| Empty parens | BANKFULL.m | `$$ISOTIME^BANKFULL()` parser error |
+| FOR+dotted block scope | BANKFULL.m | INTEREST/MONTHLYFEE lost loop variables |
+| `$H` epoch offset | ExprIntrinsics | Timestamps off by 55 years |
+| `$ZDATE` missing | ExprIntrinsics | Date formatting crashed |

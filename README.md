@@ -72,9 +72,14 @@ MFrontend.compile ──→ List<Ir> ──→ JavaSourceEmitter ──→ JIT b
 
 | Check | Result |
 |-------|--------|
+| MFrontendRegression | 30/30 (10 bug classes) |
+| GAUNTLET | 134/134 (correctness + latency gates) |
+| DafnyBoundarySmoke | 209/209 |
+| BankFull (Java) | invariant OK (13.5M txn/ms) |
+| BankFull E2E (M) | invariant OK (journal + CRC) |
+| StoreConcurrencySmoke | 5/5 |
+| Dafny proofs | 464 verified, 0 errors (6 .dfy files) |
 | VistA full run | 99.97% (33,942/33,951) |
-| Bank benchmark | 707 txn/ms peak |
-| Smoke | 106 OK |
 
 ## CLI
 

@@ -1,5 +1,113 @@
 # mJVM Release Notes
 
+## v2.2.0 — Correctness Hardening (2026-10-26)
+
+### Summary
+
+10 bugs fixed across the compiler, runtime, and M library. Each bug silently
+produced wrong results — no crashes, no error messages. 30 regression tests
+added to prevent recurrence. Dafny proofs deepened from 335 to 464 verified.
+
+### Bugs Fixed
+
+#### Compiler (MFrontend)
+
+1. **`$I()` peephole comma detection** — `S %SEQ=$I(^BF("J","SEQ"))` split at
+   the subscript comma, producing `STORE_ADD(^BF("J"))` + `EVAL_EXPR("SEQ")`
+   instead of `STORE_ADD(^BF("J","SEQ"))`. Root cause: `inner.indexOf(',')`
+   did not respect paren depth. Fix: depth-aware comma scan.
+   *Impact: all `$I` on multi-subscript globals silently corrupted data.*
+
+2. **Double-space in concat expression** — `S %X=A_"|"_  B` (two spaces after
+   concat operator) caused a parse error. The error handler replaced the line
+   with RET, silently truncating the function. Fix: `scanExprEnd` treats spaces
+   after operators as insignificant.
+   *Impact: JOURNAL() in BANKFULL.m silently returned early, losing entries.*
+
+3. **`PUSH_REG` peephole with conditional store** — `Q %OK` after conditional
+   `S %OK=0` pushed `lastStored` instead of evaluating `%OK`. The peephole
+   fired even when the STORE was behind a jump target. Fix: skip peephole
+   when EVAL_EXPR is a jump target.
+   *Impact: VERIFY() returned wrong invariant results.*
+
+4. **GOTO label resolution** — Labels with command-letter prefixes (e.g.
+   `G15ILP`) were parsed as command abbreviations (G=GOTO, L=LOCK, O=OPEN)
+   during GOTO lookup, stripping the prefix. Fix: use non-command label names.
+   *Impact: multi-level $ORDER loops crashed with "No such label".*
+
+#### Runtime (MRuntime, MStore)
+
+5. **`MStore.increment()` oaCache staleness** — `increment()` updated the
+   tree node but not the open-addressing cache. `get()` checked oaCache
+   first and returned stale values. Fix: `increment()` calls `oaPut()`.
+   *Impact: `$I()` returned correct value but reads showed old value.*
+
+6. **`CompiledExpr` tokenizer infinite loop** — `^` not followed by
+   alphanumeric caused `i = j = i` (no advance), OOM on ArrayList growth.
+   Fix: always consume first char.
+   *Impact: DafnyBoundarySmoke and BankSmoke crashed with OOM.*
+
+7. **`$H` epoch offset** — Used `+67232` instead of `+47117` (days from
+   1840-12-31 to 1970-01-01). All dates were off by 20,115 days (~55 years).
+   Fix: correct epoch constant.
+   *Impact: every timestamp was wrong.*
+
+8. **`$ZDATE` missing** — Completely unimplemented in ExprIntrinsics.
+   Added with default (DD MMM YYYY) and ISO (YYYY-MM-DD) formats.
+   *Impact: any code using `$ZDATE` crashed.*
+
+#### M Library (BANKFULL.m, BANK.m, GAUNTLET.m)
+
+9. **Empty parens in extrinsic calls** — `$$FUNC()` with empty parens
+   caused `syntax: trailing input at RP:)` in the parser. Fixed definitions
+   to accept dummy params and calls to pass dummy args.
+   *Affected: `$$ISOTIME^BANKFULL()`, `$$VERIFY()`, `$$INTEREST()`,
+   `$$MONTHLYFEE()`, `$$QVAL^GAUNTLET()`, `STAT()` in BANK.m.*
+
+10. **FOR + dotted block scope** — `F ... Q:... D` + dotted block created
+    a ZD tag via `CALL` (separate scope via `runExtrinsic`), losing caller's
+    locals. Fix: rewrite to GOTO loops.
+    *Affected: INTEREST, MONTHLYFEE, VERIFY in BANKFULL.m;
+    multi-level $ORDER in GAUNTLET.m.*
+
+### Regression Tests (30 tests in `MFrontendRegression.java`)
+
+| Bug | Tests | What it catches |
+|-----|-------|-----------------|
+| 1. `$I()` peephole commas | 3 | Subscript comma splitting |
+| 2. Double-space concat | 4 | Silent RET truncation |
+| 3. `PUSH_REG` jump-target | 3 | Conditional store bypass |
+| 4. `MStore.increment()` cache | 3 | Stale reads after increment |
+| 5. Tokenizer `^` loop | 2 | OOM on global expressions |
+| 6. `$H` epoch offset | 2 | Wrong date values |
+| 7. `$ZDATE` intrinsic | 2 | Missing date formatting |
+| 8. Empty parens calls | 2 | Extrinisic syntax errors |
+| 9. FOR+dotted scope | 3 | ZD tag scope isolation |
+| 10. GOTO label resolution | 3 | Command-prefix stripping |
+
+### Dafny Proofs Deepened (335 → 464 verified, 0 errors)
+
+- **Bank.dfy** (39 → 81): BankFull module — multi-service, interest,
+  transfers, conservation, CRC integrity
+- **MSemantics.dfy** (103 → 142): `$INCREMENT`, `$PIECE`/`$EXTRACT` SET,
+  `$HOROLOG`, `$SELECT`, `$FIND`, `$LENGTH`, `$ASCII`/`$CHAR`
+- **MControl.dfy** (121 → 146): FOR loops, argless DO/ZD scope,
+  GOTO label resolution, nested DO LIFO, WRITE properties
+- **MPattern.dfy** (37 → 60): count ranges, negation classes,
+  multi-class alternation, determinism
+
+### Test Suite
+
+| Suite | Result |
+|-------|--------|
+| MFrontendRegression | 30/30 |
+| GAUNTLET | 134/134 (latency gates pass) |
+| DafnyBoundarySmoke | 209/209 |
+| BankFull (Java) | invariant OK |
+| BankFull E2E (M) | invariant OK |
+| StoreConcurrencySmoke | 5/5 |
+| Dafny (6 .dfy files) | 464 verified, 0 errors |
+
 ## v2.0.0 — Performance Optimization Release (2026-10-23)
 
 ### Summary
