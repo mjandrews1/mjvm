@@ -242,6 +242,18 @@ install-hooks:
 	'    exit 1' \
 	'fi' \
 	'' \
+	'echo "=== Pre-commit: tests ==="' \
+	'make all mjvm 2>/dev/null' \
+	'java -cp "build:lib/*" jvmumps.MFrontendRegression 2>&1 | tail -3' \
+	'TEST1=$${PIPESTATUS[0]}' \
+	'java -cp "build:lib/*:src/main/m/lib" jvmumps.GauntletRun 2>&1 | tail -5' \
+	'TEST2=$${PIPESTATUS[0]}' \
+	'if [ "$$TEST1" -ne 0 ] || [ "$$TEST2" -ne 0 ]; then' \
+	'    echo ""' \
+	'    echo "TESTS FAILED. Fix failures or bypass with: git commit --no-verify"' \
+	'    exit 1' \
+	'fi' \
+	'' \
 	'echo "=== Pre-commit: OK ==="' \
 	> .git/hooks/pre-commit
 	@chmod +x .git/hooks/pre-commit
