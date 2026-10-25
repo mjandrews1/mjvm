@@ -203,5 +203,40 @@ spotbugs: all mjvm
 	@echo "Report: $(OUT)/spotbugs-report.txt"
 	@tail -5 $(OUT)/spotbugs-report.txt 2>/dev/null || true
 
+# --- Pre-commit hook ---
+.PHONY: hooks install-hooks
+
+hooks: install-hooks
+
+install-hooks:
+	@mkdir -p .git/hooks
+	@printf '%s\n' '#!/bin/bash' \
+	'# Pre-commit hook: format check + Error Prone lint before every commit.' \
+	'# Bypass with: git commit --no-verify' \
+	'' \
+	'set -e' \
+	'' \
+	'echo "=== Pre-commit: format check ==="' \
+	'make fmt-check || {' \
+	'    echo ""' \
+	'    echo "FORMAT CHANGES NEEDED. Run make format then re-stage."' \
+	'    echo "Or bypass with: git commit --no-verify"' \
+	'    exit 1' \
+	'}' \
+	'' \
+	'echo "=== Pre-commit: Error Prone lint ==="' \
+	'make lint 2>&1 | grep -E "warning|error|Exception" | head -5' \
+	'LINT_STATUS=$${PIPESTATUS[0]}' \
+	'if [ "$$LINT_STATUS" -ne 0 ]; then' \
+	'    echo ""' \
+	'    echo "LINT FAILED. Fix warnings or bypass with: git commit --no-verify"' \
+	'    exit 1' \
+	'fi' \
+	'' \
+	'echo "=== Pre-commit: OK ==="' \
+	> .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "Pre-commit hook installed: .git/hooks/pre-commit"
+
 clean:
 	rm -rf $(OUT) dist
