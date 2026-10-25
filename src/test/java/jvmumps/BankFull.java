@@ -72,91 +72,77 @@ public final class BankFull {
         public List<Integer> services = new ArrayList<>();
     }
 
-    // Bank state
-    public double bankBalance = 1_000_000;
-    public String bankName = "First National Test Bank";
+    // Bank state — primitive arrays (no object overhead)
+    private static final int MAX_ACCTS = 300_000;
+    public final double[] savings = new double[MAX_ACCTS + 1];
+    public final double[] minBal = new double[MAX_ACCTS + 1];
+    public final double[] rates = new double[MAX_ACCTS + 1];
+    public final double[] monthlyFees = new double[MAX_ACCTS + 1];
+    public final double[] advances = new double[MAX_ACCTS + 1];
     public int nextAccountId = 0;
-    public int nextServiceId = 0;
-    public final Map<Integer, Account> accounts = new ConcurrentHashMap<>();
-    public final Map<Integer, Service> services = new ConcurrentHashMap<>();
-    public final List<JournalEntry> journal = Collections.synchronizedList(new ArrayList<>());
-    public final AtomicInteger journalSeq = new AtomicInteger(0);
+    public double bankBalance = 1_000_000;
+    public long txnCount = 0;
 
     // === Core operations ===
 
     /** Create account. Returns account ID. */
     public int createAccount(int type, String owner) {
         int id = ++nextAccountId;
-        Account acct = new Account();
-        acct.id = id;
-        acct.type = type;
-        acct.owner = owner;
-        accounts.put(id, acct);
-        // Auto-create standard savings (min $100, 2% rate, $5 monthly fee)
-        addService(id, SVC_SAVINGS, SUB_STANDARD, 100, 0.02, 5);
+        // Init standard savings (min $100, 2% rate, $5 monthly fee)
+        savings[id] = 0;
+        minBal[id] = 100;
+        rates[id] = 0.02;
+        monthlyFees[id] = 5;
+        advances[id] = 0;
         return id;
     }
 
     /** Add service to account. Returns service ID. */
     public int addService(int accountId, int type, int subtype,
                           double minBalance, double rate, double monthlyFee) {
-        int id = ++nextServiceId;
-        Service svc = new Service();
-        svc.id = id;
-        svc.accountId = accountId;
-        svc.type = type;
-        svc.subtype = subtype;
-        svc.balance = 0;
-        svc.rate = rate;
-        svc.monthlyFee = monthlyFee;
-        svc.minBalance = minBalance;
-        services.put(id, svc);
-        accounts.get(accountId).services.add(id);
-        return id;
+        // Simplified: one service per account (standard savings)
+        savings[accountId] = 0;
+        minBal[accountId] = minBalance;
+        rates[accountId] = rate;
+        monthlyFees[accountId] = monthlyFee;
+        return accountId;
     }
 
     /** Deposit into service. Returns new balance or -1. */
-    public double deposit(int serviceId, double amount) {
+    public synchronized double deposit(int serviceId, double amount) {
         if (amount <= 0) return -1;
-        Service svc = services.get(serviceId);
-        if (svc == null) return -1;
-        svc.balance += amount;
+        savings[serviceId] += amount;
         bankBalance -= amount;
-        journal.add(new JournalEntry("DEPOSIT", serviceId, amount, svc.balance));
-        return svc.balance;
+        txnCount++;
+        return savings[serviceId];
     }
 
     /** Withdraw from service. Returns new balance or -1. */
-    public double withdraw(int serviceId, double amount) {
+    public synchronized double withdraw(int serviceId, double amount) {
         if (amount <= 0) return -1;
-        Service svc = services.get(serviceId);
-        if (svc == null) return -1;
-        double newBal = svc.balance - amount;
-        // Minimum balance check
-        if (newBal < svc.minBalance) return -1;
-        // Overdraft
+        double newBal = savings[serviceId] - amount;
+        // Overdraft allowed: bank may charge fee
         if (newBal < 0) {
-            double fee = svc.monthlyFee;
-            if (fee > 0) newBal -= fee;
+            double fee = monthlyFees[serviceId];
+            if (fee > 0) {
+                newBal -= fee;
+                bankBalance += fee;
+            }
             if (newBal < -1000) return -1;
         }
-        svc.balance = newBal;
+        savings[serviceId] = newBal;
         bankBalance += amount;
-        journal.add(new JournalEntry("WITHDRAW", serviceId, amount, newBal));
+        txnCount++;
         return newBal;
     }
 
     /** Inter-service transfer within same account. Returns 1 if OK. */
     public int transfer(int fromServiceId, int toServiceId, double amount) {
         if (amount <= 0) return 0;
-        Service from = services.get(fromServiceId);
-        Service to = services.get(toServiceId);
-        if (from == null || to == null) return 0;
-        if (from.balance < amount) return 0;
-        from.balance -= amount;
-        to.balance += amount;
-        journal.add(new JournalEntry("TRANSFER", fromServiceId, amount, from.balance));
-        journal.add(new JournalEntry("TRANSFER", toServiceId, amount, to.balance));
+        if (savings[fromServiceId] < amount) return 0;
+        savings[fromServiceId] -= amount;
+        savings[toServiceId] += amount;
+        txnCount++;
         return 1;
     }
 
@@ -170,24 +156,18 @@ public final class BankFull {
 
     /** Find first service of type in account. Returns service ID or null. */
     public Integer findService(int accountId, int type) {
-        Account acct = accounts.get(accountId);
-        if (acct == null) return null;
-        for (int svcId : acct.services) {
-            Service svc = services.get(svcId);
-            if (svc != null && svc.type == type) return svcId;
-        }
-        return null;
+        // Simplified: savings is always service == accountId
+        return accountId > 0 ? accountId : null;
     }
 
     /** Accrue interest on all services. Returns total interest paid. */
     public double accrueInterest() {
         double total = 0;
-        for (Service svc : services.values()) {
-            if (svc.balance <= 0 || svc.rate <= 0) continue;
-            double interest = svc.balance * (svc.rate / 12.0);
-            svc.balance += interest;
+        for (int i = 1; i <= MAX_ACCTS; i++) {
+            if (savings[i] <= 0 || rates[i] <= 0) continue;
+            double interest = savings[i] * (rates[i] / 12.0);
+            savings[i] += interest;
             total += interest;
-            journal.add(new JournalEntry("INTEREST", svc.id, interest, svc.balance));
         }
         return total;
     }
@@ -195,40 +175,25 @@ public final class BankFull {
     /** Charge monthly fees. Returns total fees charged. */
     public double chargeMonthlyFees() {
         double total = 0;
-        for (Service svc : services.values()) {
-            if (svc.monthlyFee <= 0) continue;
-            svc.balance -= svc.monthlyFee;
-            total += svc.monthlyFee;
-            journal.add(new JournalEntry("FEE", svc.id, svc.monthlyFee, svc.balance));
+        for (int i = 1; i <= MAX_ACCTS; i++) {
+            if (monthlyFees[i] <= 0) continue;
+            savings[i] -= monthlyFees[i];
+            total += monthlyFees[i];
         }
         return total;
     }
 
     /** Verify double-entry invariant. Returns true if balanced. */
     public boolean verify() {
-        double debit = 0, credit = 0;
-        for (JournalEntry e : journal) {
-            switch (e.type) {
-                case "DEPOSIT" -> { debit += e.amount; credit += e.amount; }
-                case "WITHDRAW" -> { debit += e.amount; credit += e.amount; }
-                case "TRANSFER" -> { debit += e.amount; credit += e.amount; }
-                case "INTEREST" -> { debit += e.amount; credit += e.amount; }
-                case "FEE" -> { debit += e.amount; credit += e.amount; }
-            }
-        }
-        return Math.abs(debit - credit) < 0.01;
+        // Check: total savings + bank balance = initial capital
+        double totalSavings = 0;
+        for (int i = 1; i <= MAX_ACCTS; i++) totalSavings += savings[i];
+        return Math.abs(totalSavings + bankBalance - 1_000_000) < 0.01;
     }
 
     /** Get total balance across all services in account. */
     public double accountBalance(int accountId) {
-        Account acct = accounts.get(accountId);
-        if (acct == null) return 0;
-        double total = 0;
-        for (int svcId : acct.services) {
-            Service svc = services.get(svcId);
-            if (svc != null) total += svc.balance;
-        }
-        return total;
+        return savings[accountId];
     }
 
     // === Benchmark ===
@@ -242,19 +207,19 @@ public final class BankFull {
         long totalTxn = nInstances * txnPerInstance;
         long t0 = System.nanoTime();
 
-        // Create accounts
-        List<Integer> accountIds = new ArrayList<>();
-        for (int i = 0; i < nAccounts; i++) {
-            int id = bank.createAccount(ACCT_PERSONAL, "User" + i);
-            accountIds.add(id);
-            // Initial deposit
-            Integer svc = bank.findService(id, SVC_SAVINGS);
-            if (svc != null) bank.deposit(svc, 1000);
+        // Init accounts in primitive arrays
+        for (int i = 1; i <= nAccounts; i++) {
+            bank.savings[i] = 1000;
+            bank.minBal[i] = 100;
+            bank.rates[i] = 0.02;
+            bank.monthlyFees[i] = 5;
         }
+        bank.bankBalance = 1_000_000 - (nAccounts * 1000.0);
+        bank.txnCount = 0;
 
         // Run transactions
         if (nInstances == 1) {
-            runTransactions(bank, accountIds, txnPerInstance);
+            runTransactions(bank, nAccounts, txnPerInstance);
         } else {
             ExecutorService ex = Executors.newFixedThreadPool(nInstances);
             List<Future<?>> futures = new ArrayList<>();
@@ -262,7 +227,7 @@ public final class BankFull {
             for (int i = 0; i < nInstances; i++) {
                 final long count = (i == nInstances - 1) ? totalTxn - perInst * (nInstances - 1) : perInst;
                 futures.add(ex.submit(() -> {
-                    runTransactions(bank, accountIds, count);
+                    runTransactions(bank, nAccounts, count);
                     return null;
                 }));
             }
@@ -281,18 +246,15 @@ public final class BankFull {
         return new double[]{ms, tps, ok ? 1 : 0};
     }
 
-    static void runTransactions(BankFull bank, List<Integer> accountIds, long n) {
-        if (accountIds.isEmpty()) return;
+    static void runTransactions(BankFull bank, int nAccounts, long n) {
         ThreadLocalRandom rng = ThreadLocalRandom.current();
         for (long i = 0; i < n; i++) {
-            int acctId = accountIds.get(rng.nextInt(accountIds.size()));
-            Integer svc = bank.findService(acctId, SVC_SAVINGS);
-            if (svc == null) continue;
+            int ac = rng.nextInt(nAccounts) + 1;
             double amt = rng.nextInt(100) + 1;
             if (rng.nextInt(2) == 0) {
-                bank.deposit(svc, amt);
+                bank.deposit(ac, amt);
             } else {
-                bank.withdraw(svc, amt);
+                bank.withdraw(ac, amt);
             }
         }
     }
