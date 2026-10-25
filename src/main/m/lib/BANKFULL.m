@@ -160,13 +160,18 @@ JOURNAL(%TYPE,%SVC,%AMT,%BAL) ; Record immutable journal entry with ISO timestam
  S ^BF("J","E",%SEQ)=%DATA_"|"_%TS_"|"_%CRC
  Q
 
-ISOTIME() ; ISO 8601 date/time from $H
- N %D,%T,%HH,%MM,%SS
- S %D=+$H S %T=$P($H,",",2)
- S %HH=%T\3600
- S %MM=(%T#3600)\60
- S %SS=%T#60
- Q "2026-"_$TR($J((%D#365)\30+1,2)," ","0")_"-"_$TR($J((%D#365)#30+1,2)," ","0")_"T"_$TR($J(%HH,2)," ","0")_":"_$TR($J(%MM,2)," ","0")_":"_$TR($J(%SS,2)," ","0")_"Z"
+ISOTIME() ; ISO 8601 UTC date/time
+ N %T,%HH,%MM,%SS,%D,%YY,%MO,%DD,%LEFT,%DY,%I
+ S %T=$P($H,",",2)
+ S %HH=%T\3600 S %MM=(%T#3600)\60 S %SS=%T#60
+ ; Compute date from $H days (standard M: days since 1840-12-31)
+ S %D=$P($H,",",1)
+ S %YY=1841 S %LEFT=%D
+ F %I=1:1:250 S %DY=365 S:%YY#4=0 %DY=366 S:%YY#100=0 %DY=365 S:%YY#400=0 %DY=366 I %LEFT'<%DY S %LEFT=%LEFT-%DY S %YY=%YY+1
+ S %MO=1
+ F %I=1:1:12 S %DY=31 S:%MO=2 %DY=28 S:%MO=4 %DY=30 S:%MO=6 %DY=30 S:%MO=9 %DY=30 S:%MO=11 %DY=30 I %LEFT'<%DY S %LEFT=%LEFT-%DY S %MO=%MO+1
+ S %DD=%LEFT+1
+ Q %YY_"-"_$TR($J(%MO,2)," ","0")_"-"_$TR($J(%DD,2)," ","0")_"T"_$TR($J(%HH,2)," ","0")_":"_$TR($J(%MM,2)," ","0")_":"_$TR($J(%SS,2)," ","0")_"Z"
 
 CRC32(%DATA) ; Simple checksum for journal integrity
  N %SUM,%I
