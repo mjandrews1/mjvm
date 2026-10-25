@@ -70,6 +70,55 @@ public class JmhMStore {
     return v.asNum();
   }
 
+  // === Insertion-heavy workloads — measure sortedKeys cache invalidation ===
+
+  @Benchmark
+  public void setNumExisting() {
+    // Write to existing key — should NOT invalidate cache (but does currently)
+    store.set("KEY" + (char) 1 + "42", true, MValue.ofNumber(3.14));
+  }
+
+  @Benchmark
+  public void insertNewKey() {
+    // Insert a brand-new key — MUST invalidate cache
+    store.set("NEW" + (char) 1 + String.valueOf(System.nanoTime()), true, MValue.ofNumber(1));
+  }
+
+  @Benchmark
+  public void insertHeavy() {
+    // Rapid inserts — worst case for cache invalidation
+    for (int i = 0; i < 10; i++) {
+      store.set("INS" + (char) 1 + String.valueOf(System.nanoTime() + i), true, MValue.ofNumber(i));
+    }
+  }
+
+  @Benchmark
+  public int insertThenOrder() {
+    // Mixed: insert then order — forces cache rebuild each time
+    store.set("MX" + (char) 1 + String.valueOf(System.nanoTime()), true, MValue.ofNumber(1));
+    String k = "";
+    int count = 0;
+    for (int i = 0; i < 50; i++) {
+      k = store.order(java.util.List.of("KEY", k), true, 0);
+      if (k.isEmpty()) break;
+      count++;
+    }
+    return count;
+  }
+
+  @Benchmark
+  public int orderOnly() {
+    // Baseline: order without any writes — cache should stay warm
+    String k = "";
+    int count = 0;
+    for (int i = 0; i < 100; i++) {
+      k = store.order(java.util.List.of("KEY", k), true, 0);
+      if (k.isEmpty()) break;
+      count++;
+    }
+    return count;
+  }
+
   public static void main(String[] args) throws RunnerException {
     new Runner(new OptionsBuilder().include(JmhMStore.class.getSimpleName()).build()).run();
   }
