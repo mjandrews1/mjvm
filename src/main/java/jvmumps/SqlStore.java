@@ -308,6 +308,7 @@ public final class SqlStore implements StoreApi {
    * <p><b>Polarity:</b> {@code true} = held (idempotent reacquire); {@code false} = timed out. Do
    * not invert in tests. Returns false if {@code timeoutMs} elapses before both are held.
    */
+  @Override
   public boolean lockAcquire(String key, String pid, long timeoutMs) {
     long t0 = System.currentTimeMillis();
     long budget = Math.max(0, timeoutMs);
@@ -386,6 +387,7 @@ public final class SqlStore implements StoreApi {
     return v == null ? -1L : v;
   }
 
+  @Override
   public void lockRelease(String key, String pid) {
     try (PreparedStatement ps = conn.prepareStatement("DELETE FROM mlocks WHERE lk=? AND pid=?")) {
       ps.setString(1, key);

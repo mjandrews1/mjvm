@@ -388,17 +388,21 @@ public final class TieredStore implements StoreApi, AutoCloseable {
     return ops.get();
   }
 
+  @Override
   public void newScope(List<String> names) {}
 
+  @Override
   public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal) {
     MValue v = get(src, sGlobal);
     if (v != MValue.EMPTY) set(dst, dGlobal, v);
   }
 
+  @Override
   public boolean lockAcquire(String key, String pid, long timeoutMs) {
     return disk.lockAcquire(key, pid, timeoutMs);
   }
 
+  @Override
   public void lockRelease(String key, String pid) {
     disk.lockRelease(key, pid);
   }

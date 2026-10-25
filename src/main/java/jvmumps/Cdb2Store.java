@@ -201,6 +201,7 @@ public final class Cdb2Store implements StoreApi {
    * keys. Empty for missing keys. Used by bank DEP/WDR to read C, B, N in one round-trip instead of
    * three.
    */
+  @Override
   public MValue[] getBatch(List<List<String>> paths, boolean global) {
     int n = paths.size();
     MValue[] results = new MValue[n];

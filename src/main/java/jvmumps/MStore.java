@@ -566,6 +566,7 @@ public final class MStore implements StoreApi {
   private final List<Map<String, Node>> scopeStack = new ArrayList<>();
 
   /** NEW (names==null: hide all locals). Displaced nodes are restored on pop. */
+  @Override
   public void newScope(List<String> names) {
     Map<String, Node> displaced = new ConcurrentHashMap<>();
     if (names == null) {
@@ -602,16 +603,19 @@ public final class MStore implements StoreApi {
     return n;
   }
 
+  @Override
   public long storeOps() {
     return ops.get();
   }
 
+  @Override
   public MValue get(List<String> path, boolean global) {
     if (global) ops.incrementAndGet();
     Node n = find(path, global);
     return n != null && n.hasValue ? n.value : MValue.EMPTY;
   }
 
+  @Override
   public void set(List<String> path, boolean global, MValue v) {
     if (global) ops.incrementAndGet();
     Node n = node(path, global);
@@ -693,6 +697,7 @@ public final class MStore implements StoreApi {
    * Ultra-fast numeric set: cache-only, skips tree write + MValue boxing. Use with getNumFast for
    * read-back. For tree visibility use set() instead.
    */
+  @Override
   public void setNum(String key, boolean global, double val) {
     if (global) {
       oaPut(key, val);
@@ -729,6 +734,7 @@ public final class MStore implements StoreApi {
   }
 
   /** Atomic increment: single node update, counts as 1 store op. */
+  @Override
   public MValue increment(List<String> path, boolean global, double amount) {
     if (global) ops.incrementAndGet();
     Node n = node(path, global);
@@ -740,6 +746,7 @@ public final class MStore implements StoreApi {
     return nv;
   }
 
+  @Override
   public void kill(List<String> path, boolean global) {
     if (global) {
       ops.incrementAndGet();
@@ -766,6 +773,7 @@ public final class MStore implements StoreApi {
   }
 
   /** $DATA: 0/1/10/11 */
+  @Override
   public int data(List<String> path, boolean global) {
     Node n = find(path, global);
     if (n == null) {
@@ -783,6 +791,7 @@ public final class MStore implements StoreApi {
   }
 
   /** $ORDER next sibling key at path[0..n-2] after last subscript. */
+  @Override
   public String order(List<String> path, boolean global, double dir) {
     if (path.size() < 2) {
       return "";
@@ -829,6 +838,7 @@ public final class MStore implements StoreApi {
     return a.compareTo(b);
   }
 
+  @Override
   public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal) {
     Node s = find(src, sGlobal);
     if (s == null) {
@@ -849,6 +859,7 @@ public final class MStore implements StoreApi {
   }
 
   /** $QUERY: next defined node in preorder tree walk from a closed ref path. */
+  @Override
   public String queryNext(List<String> path, boolean global, int dir) {
     if (path == null || path.isEmpty() || path.get(0).isEmpty()) {
       return queryAnyStart(dir);
