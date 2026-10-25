@@ -24,7 +24,7 @@ final class LineTxLocks {
 
   void recordUndo(List<String> path, MValue old) {
     if (tlevel > 0) {
-      boolean glob = path.get(0).startsWith("^");
+      // Removed dead store: glob
       txUndo.get(txUndo.size() - 1).add(new Object[] {path, old});
     }
   }

@@ -23,7 +23,7 @@ public final class MRuntime {
 
   private final StringBuilder out = new StringBuilder();
   private final Map<String, MValue> locals = new HashMap<>();
-  private boolean quit;
+  private volatile  boolean quit;
   // M5 devices
   private final Map<Integer, java.io.BufferedReader> devices = new HashMap<>();
   private final Map<Integer, java.io.Writer> writers = new HashMap<>();
@@ -153,7 +153,7 @@ public final class MRuntime {
     }
   }
 
-  private boolean trapFiring;
+  private volatile  boolean trapFiring;
 
   /**
    * M11: run $ETRAP/$ZTRAP once for a command error. Returns true if a trap was fired (error

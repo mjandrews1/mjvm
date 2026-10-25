@@ -80,7 +80,7 @@ public final class WriteAheadLog implements Closeable {
     byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
     byte[] valBytes = value.getBytes(StandardCharsets.UTF_8);
     if (keyBytes.length > 65535) throw new IOException("WAL key too long: " + keyBytes.length);
-    if (valBytes.length > Integer.MAX_VALUE) throw new IOException("WAL value too long");
+    // value length is int, always <= Integer.MAX_VALUE
 
     // Build entry
     int entrySize = HEADER_SIZE + keyBytes.length + valBytes.length + CRC_SIZE;

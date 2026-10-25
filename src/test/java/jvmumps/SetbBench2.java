@@ -67,7 +67,7 @@ public final class SetbBench2 {
     StringBuilder sb = new StringBuilder("SETB\t").append(n).append('\n');
     for (int i = 0; i < n; i++) {
       sb.append(
-          String.format("%02x%02x%02x\t00\t%s\t1\t00\n", prefix.hashCode() & 0xff, i & 0xff, 0, i));
+          String.format("%02x%02x%02x\t00\t%s\t1\t00%n", prefix.hashCode() & 0xff, i & 0xff, 0, i));
     }
     in.write(sb.toString());
     in.flush();

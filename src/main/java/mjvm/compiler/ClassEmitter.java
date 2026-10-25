@@ -334,6 +334,7 @@ public final class ClassEmitter {
   }
 
   private static String jstr(String s) {
+    if (s == null) s = "";
     StringBuilder b = new StringBuilder("\"");
     for (int i = 0; i < s.length(); i++) {
       char c = s.charAt(i);

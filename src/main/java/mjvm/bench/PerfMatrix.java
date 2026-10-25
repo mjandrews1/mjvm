@@ -143,7 +143,7 @@ public final class PerfMatrix {
       m.put("store.sqlite.set_ops", (long) (n / (sqlSetMs / 1000.0)));
       m.put("store.sqlite.get_ops", (long) (n / (sqlGetMs / 1000.0)));
       sq.close();
-    } catch (Exception e) {
+    } catch (@SuppressWarnings("unused") Exception e) {
       m.put("store.sqlite.error", e.toString());
     }
   }
@@ -162,7 +162,7 @@ public final class PerfMatrix {
       if (ok) st.lockRelease("k", "p0");
       m.put("lock.uncontended_us", us);
       st.close();
-    } catch (Exception e) {
+    } catch (@SuppressWarnings("unused") Exception e) {
       m.put("lock.error", e.toString());
     }
   }
@@ -190,7 +190,7 @@ public final class PerfMatrix {
       if (!rss.isEmpty()) {
         m.put("footprint.rss_kb", Long.parseLong(rss.trim()));
       }
-    } catch (Exception ignored) {
+    } catch (@SuppressWarnings("unused") Exception ignored) {
       // macOS / no /proc — omit
     }
   }

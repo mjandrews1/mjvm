@@ -407,8 +407,8 @@ public final class MFrontend {
 
   private java.util.Map<String, Integer> activeLabels;
   private java.util.List<int[]> activePatches;
-  private int activeSelfLine;
-  private boolean activeGoto;
+  private volatile  int activeSelfLine;
+  private volatile  boolean activeGoto;
 
   /** Tags of the most recent compileRoutine — linked into the runtime (GAP-2). */
   private java.util.Map<String, Integer> lastTags = java.util.Map.of();
@@ -417,7 +417,7 @@ public final class MFrontend {
     return lastTags;
   }
 
-  private int compileDepth;
+  private volatile  int compileDepth;
 
   List<Ir> compileRoutine(String code) {
     lastTags = java.util.Map.of();

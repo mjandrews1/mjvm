@@ -75,7 +75,7 @@ public final class MjvmM7Smoke {
     chkContains(out, "status stopped", "M7-status-stop");
 
     // rsm: RSM_DBFILE env — create without positional db
-    String prev = System.getenv("RSM_DBFILE");
+    // Removed dead store: prev
     // (cannot set env in-process; exercise doInfo null path instead)
     out = cap(null, new String[] {"-i"});
     chkContains(out, "RSM_DBFILE", "M7-rsm-dbfile-msg");

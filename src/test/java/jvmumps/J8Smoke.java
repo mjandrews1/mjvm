@@ -21,7 +21,7 @@ public final class J8Smoke {
     if (!out.startsWith("0 0")) {
       throw new IllegalStateException("w8b " + out);
     }
-    f.delete();
+    if (!f.delete()) f.deleteOnExit();
     System.out.println("J8 DEVICES + W8 SPECIALS OK");
   }
 }

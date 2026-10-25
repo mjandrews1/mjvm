@@ -142,7 +142,7 @@ public final class FootprintBench {
               .start();
       String s = new String(p.getInputStream().readAllBytes()).trim();
       return s.isEmpty() ? -1 : Long.parseLong(s);
-    } catch (Exception e) {
+    } catch (@SuppressWarnings("unused") Exception e) {
       return -1;
     }
   }

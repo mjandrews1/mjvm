@@ -4,7 +4,7 @@ package jvmumps;
 final class Cursor {
   final String s;
   int i = 0;
-  boolean elsePending = false;
+  boolean elsePending_UNUSED = false;
 
   Cursor(String s) {
     this.s = s;
@@ -80,7 +80,7 @@ final class Cursor {
   }
 
   void markElse() {
-    elsePending = true;
+    elsePending_UNUSED = true;
   }
 
   String rest() {

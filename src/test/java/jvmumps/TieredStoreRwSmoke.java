@@ -42,7 +42,7 @@ public final class TieredStoreRwSmoke {
 
     // Phase 5: Writer still owns WAL (exclusive)
     try {
-      var writer2 = new TieredStore(diskPath, walPath, 10000, 100, false);
+      // Removed dead store: writer2
       System.out.println("FAIL: second writer opened");
       System.exit(1);
     } catch (Exception e) {
