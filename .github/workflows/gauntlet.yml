@@ -50,3 +50,21 @@ jobs:
         run: |
           java -cp "build:lib/*" jvmumps.LatencyBench 2>&1
           echo "LATENCY BENCH PASSED"
+
+      - name: Run BankFull benchmark (Java)
+        run: |
+          echo "=== BankFull: Java native ==="
+          java -cp "build:lib/*" jvmumps.BankFull 10000 4 25000 2>&1
+          echo "JAVA BENCH PASSED"
+
+      - name: Run BankFull benchmark (mJVM JIT)
+        run: |
+          echo "=== BankFull: mJVM JIT ==="
+          java -cp "build:lib/*" jvmumps.BankExpansive --accounts 10000 --instances 4 --txn 25000 --machine ci --language mJVM --jit 2>&1
+          echo "JIT BENCH PASSED"
+
+      - name: Run BankFull benchmark (mJVM IR)
+        run: |
+          echo "=== BankFull: mJVM IR ==="
+          java -cp "build:lib/*" jvmumps.BankExpansive --accounts 10000 --instances 4 --txn 25000 --machine ci --language mJVM 2>&1
+          echo "IR BENCH PASSED"
