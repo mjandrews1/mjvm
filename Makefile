@@ -34,9 +34,6 @@ ARCHUNIT := lib/archunit-1.3.0.jar
 SPOTBUGS := lib/spotbugs-4.8.6.jar
 SPOTBUGS_ANN := lib/spotbugs-annotations-4.8.6.jar
 
-# --- JMH ---
-JMH_CP := lib/jmh-core-1.37.jar:lib/jmh-generator-annprocess-1.37.jar:lib/jopt-simple-5.0.4.jar:lib/commons-math3-3.6.1.jar
-
 CORPUS ?= ../pymumps/tests/conformance.json
 # FileMan Tier A (jvmumps#32) — env, never hardcoded in tests.
 FILEMAN_CORPUS ?= $(HOME)/_fileman
@@ -202,6 +199,20 @@ spotbugs: all mjvm
 	  $(OUT)/jvmumps $(OUT)/mjvm 2>&1 || true
 	@echo "Report: $(OUT)/spotbugs-report.txt"
 	@tail -5 $(OUT)/spotbugs-report.txt 2>/dev/null || true
+
+# --- JMH benchmarks ---
+JMH_CP := lib/jmh-core-1.37.jar:lib/jmh-generator-annprocess-1.37.jar:lib/jopt-simple-5.0.4.jar:lib/commons-math3-3.6.1.jar
+JMH_PROC := lib/jmh-core-1.37.jar:lib/jmh-generator-annprocess-1.37.jar
+
+.PHONY: jmh jmh-quick
+
+jmh: all mjvm
+	$(JAVAC) --release 21 -cp $(CP):$(JMH_CP) -processorpath $(JMH_PROC) -d $(OUT) src/test/java/jvmumps/JmhMStore.java
+	$(JAVA) -cp $(CP):$(JMH_CP) jvmumps.JmhMStore
+
+jmh-quick: all mjvm
+	$(JAVAC) --release 21 -cp $(CP):$(JMH_CP) -processorpath $(JMH_PROC) -d $(OUT) src/test/java/jvmumps/JmhMStore.java
+	$(JAVA) -cp $(CP):$(JMH_CP) jvmumps.JmhMStore -f 1 -wi 2 -i 2
 
 # --- Pre-commit hook ---
 .PHONY: hooks install-hooks
