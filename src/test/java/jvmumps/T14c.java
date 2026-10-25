@@ -1,10 +1,12 @@
 package jvmumps;
+
 public class T14c {
   static void t(LineInterp m, String s) {
-    System.err.println("IN  "+s);
+    System.err.println("IN  " + s);
     String r = m.run(s);
-    System.err.println("OUT "+r.replace("\n","\\n"));
+    System.err.println("OUT " + r.replace("\n", "\\n"));
   }
+
   public static void main(String[] a) {
     LineInterp m = new LineInterp();
     t(m, "S A=1");

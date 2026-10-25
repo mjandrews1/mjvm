@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Multi-level $ORDER must advance past a cursor subtree (no infinite related()).
- * SqlStore side always runs (CI); Cdb2 side skips without a pipe.
+ * Multi-level $ORDER must advance past a cursor subtree (no infinite related()). SqlStore side
+ * always runs (CI); Cdb2 side skips without a pipe.
  */
 public class MultiLevelOrderSmoke {
   public static void main(String[] a) throws Exception {
@@ -19,9 +19,11 @@ public class MultiLevelOrderSmoke {
     String pipe = Cdb2OrderParitySmoke.cdb2Pipe(a);
     if (pipe != null) {
       try {
-        cd = new Cdb2Store(pipe,
-            Cdb2OrderParitySmoke.envOr("CDB2DB", "testdb"),
-            Cdb2OrderParitySmoke.envOr("CDB2TYPE", "local"));
+        cd =
+            new Cdb2Store(
+                pipe,
+                Cdb2OrderParitySmoke.envOr("CDB2DB", "testdb"),
+                Cdb2OrderParitySmoke.envOr("CDB2TYPE", "local"));
         cd.kill(List.of("^G"), true);
         stores.add(cd);
       } catch (Exception e) {

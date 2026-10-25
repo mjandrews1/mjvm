@@ -1,8 +1,11 @@
 package jvmumps;
+
 import java.io.File;
+
 public class J12W12Smoke {
   public static void main(String[] a) throws Exception {
-    File db = File.createTempFile("j12w", ".db"); db.deleteOnExit();
+    File db = File.createTempFile("j12w", ".db");
+    db.deleteOnExit();
     SqlStore st = new SqlStore(db.getAbsolutePath());
     LineInterp m = new LineInterp(st);
     // J12: parent lock, JOB child that would take same lock (must not steal)
@@ -11,7 +14,8 @@ public class J12W12Smoke {
     if (!"spawned\n".equals(out)) throw new IllegalStateException(out);
     if (st.lockAcquire("^J12", "child", 20)) throw new IllegalStateException("child stole lock");
     st.lockRelease("^J12", "parent");
-    if (!st.lockAcquire("^J12", "child", 40)) throw new IllegalStateException("child after release");
+    if (!st.lockAcquire("^J12", "child", 40))
+      throw new IllegalStateException("child after release");
     st.lockRelease("^J12", "child");
 
     // W12: pattern edge cases
@@ -25,8 +29,9 @@ public class J12W12Smoke {
     System.out.println("J12 LOCK-JOB + W12 PATTERNS OK");
     st.close();
   }
+
   static void check(LineInterp m, String c, String w) {
     String g = m.run(c);
-    if (!w.equals(g)) throw new IllegalStateException(c+" got "+g+" want "+w);
+    if (!w.equals(g)) throw new IllegalStateException(c + " got " + g + " want " + w);
   }
 }

@@ -1,4 +1,5 @@
 package jvmumps;
+
 public final class Gap2Probe {
   public static void main(String[] a) {
     mjvm.runtime.MRuntime rt = new mjvm.runtime.MRuntime(new MStore());
@@ -9,7 +10,7 @@ public final class Gap2Probe {
     System.out.println("after link, linkedTags=" + rt.linkedTags());
 
     // direct extrinsic call
-    MValue v = rt.callExtrinsic("P2", new MValue[]{ MValue.ofString("z") });
+    MValue v = rt.callExtrinsic("P2", new MValue[] {MValue.ofString("z")});
     System.out.println("direct callExtrinsic -> [" + v.asStr() + "]");
 
     rt.reset();

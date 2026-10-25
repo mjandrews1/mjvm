@@ -1,4 +1,5 @@
 package jvmumps;
+
 public class PatG {
   public static void main(String[] a) {
     // real VistA patterns
@@ -23,8 +24,10 @@ public class PatG {
     t("hihi", "2\"hi\"", true);
     t("hello", "1\"hello\"", true);
   }
+
   static void t(String s, String p, boolean want) {
     boolean got = PatternMatch.match(s, p);
-    System.out.println((got==want?"OK  ":"FAIL") + " [" + s + "] ? [" + p + "] -> " + got + " want " + want);
+    System.out.println(
+        (got == want ? "OK  " : "FAIL") + " [" + s + "] ? [" + p + "] -> " + got + " want " + want);
   }
 }

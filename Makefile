@@ -18,6 +18,11 @@ RELEASE ?= 21
 OUT   := build
 LIBS  := lib/sqlite-jdbc.jar:lib/slf4j-api.jar:lib/slf4j-nop.jar:lib/h2.jar:lib/abcl.jar:lib/abcl-contrib.jar:lib/mapdb.jar:lib/elsa.jar:lib/lz4-java.jar:lib/guava.jar:lib/kotlin-stdlib.jar:lib/eclipse-collections-api.jar:lib/eclipse-collections.jar
 CP    := $(OUT):$(LIBS)
+# --- Static analysis + formatting ---
+GJF := lib/google-java-format-1.37.0-all-deps.jar
+EP_DEPS := lib/error_prone_core-2.51.0.jar:lib/error_prone_check_api-2.51.0.jar:lib/error_prone_annotations-2.51.0.jar:lib/error_prone_annotation-2.51.0.jar:lib/error_prone_type_annotations-2.51.0.jar:lib/dataflow-3.49.2.jar:lib/checker-qual-3.49.2.jar:lib/pcollections-4.0.2.jar:lib/auto-value-annotations-1.11.0.jar:lib/guava-33.4.0-jre.jar:lib/failureaccess-1.0.2.jar:lib/caffeine-3.2.0.jar:lib/threeten-extra-1.8.0.jar
+EP_FLAGS := -XDcompilePolicy=simple -Xplugin:"ErrorProne -XepDisableAllChecks -Xep:EqualsGetClass:WARN -Xep:SelfEquals:WARN -Xep:ReferenceEquality:WARN -Xep:IdentityBinaryExpression:WARN -Xep:BadShiftAmount:WARN -Xep:MissingOverride:WARN" --should-stop=ifError=FLOW
+EP_JAVAC_EXPORTS := -J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED
 CORPUS ?= ../pymumps/tests/conformance.json
 # FileMan Tier A (jvmumps#32) — env, never hardcoded in tests.
 FILEMAN_CORPUS ?= $(HOME)/_fileman
@@ -117,6 +122,31 @@ dist: mjvm
 	cp -R build lib bin man docs install.sh README.md CRITICAL_PATH.md dist/mjvm-0.1.0/
 	cd dist && tar czf mjvm-0.1.0.tar.gz mjvm-0.1.0
 	@echo "dist/mjvm-0.1.0.tar.gz"
+
+# --- Format (google-java-format) ---
+.PHONY: format fmt-check lint lint-build
+
+format:
+	$(JAVA) -jar $(GJF) --replace $$(find src/main/java src/test/java bench -name '*.java' 2>/dev/null)
+	@echo "Formatted all Java sources"
+
+fmt-check:
+	@$(JAVA) -jar $(GJF) --dry-run --set-exit-if-changed $$(find src/main/java src/test/java bench -name '*.java' 2>/dev/null) && echo "FORMAT OK" || (echo "FORMAT CHANGES NEEDED — run 'make format'" && exit 1)
+
+# --- Lint (Error Prone) ---
+lint: lint-build
+
+lint-build:
+	@mkdir -p $(OUT)
+	@echo "=== Error Prone: main sources ==="
+	$(JAVAC) --release 21 $(EP_JAVAC_EXPORTS) $(EP_FLAGS) \
+	  -processorpath $(EP_DEPS) \
+	  -cp $(LIBS) -d $(OUT) src/main/java/jvmumps/*.java src/main/java/jvmumps/store/*.java 2>&1 || true
+	@echo "=== Error Prone: mjvm sources ==="
+	$(JAVAC) --release 21 $(EP_JAVAC_EXPORTS) $(EP_FLAGS) \
+	  -processorpath $(EP_DEPS) \
+	  -cp $(CP) -d $(OUT) src/main/java/mjvm/*/*.java 2>&1 || true
+	@echo "LINT DONE"
 
 clean:
 	rm -rf $(OUT) dist

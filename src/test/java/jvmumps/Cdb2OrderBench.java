@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * $ORDER walk bench over {@link Cdb2Store} — mirror of {@link SqlOrderBench}
- * so the Comdb2 vs SQLite walk comparison is apples-to-apples (same collation,
- * same 20k numeric subscripts, same cursor loop).
+ * $ORDER walk bench over {@link Cdb2Store} — mirror of {@link SqlOrderBench} so the Comdb2 vs
+ * SQLite walk comparison is apples-to-apples (same collation, same 20k numeric subscripts, same
+ * cursor loop).
  *
- * Usage: Cdb2OrderBench [pipePath] [db] [type] [n]
- * Defaults: tools/cdb2pipe · testdb · local · 20000
+ * <p>Usage: Cdb2OrderBench [pipePath] [db] [type] [n] Defaults: tools/cdb2pipe · testdb · local ·
+ * 20000
  */
 public class Cdb2OrderBench {
   public static void main(String[] a) throws Exception {
@@ -41,7 +41,8 @@ public class Cdb2OrderBench {
     }
     long t2 = System.currentTimeMillis();
 
-    System.out.println("CDB2 ORDER insert=" + (t1 - t0) + "ms walk=" + cnt + " keys in " + (t2 - t1) + "ms");
+    System.out.println(
+        "CDB2 ORDER insert=" + (t1 - t0) + "ms walk=" + cnt + " keys in " + (t2 - t1) + "ms");
     if (cnt < n) throw new IllegalStateException("walked " + cnt);
     System.out.println("CDB2 ORDER LARGE OK");
     st.close();

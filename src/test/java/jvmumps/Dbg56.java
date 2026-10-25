@@ -1,7 +1,9 @@
 package jvmumps;
+
+import java.util.List;
 import mjvm.compiler.MFrontend;
 import mjvm.ir.Ir;
-import java.util.List;
+
 public class Dbg56 {
   public static void main(String[] a) {
     String[] codes = {
@@ -11,12 +13,12 @@ public class Dbg56 {
       "J \"W 1\" W \"parent\",!",
     };
     for (String c : codes) {
-      System.out.println("CODE "+c);
+      System.out.println("CODE " + c);
       try {
         List<Ir> p = new MFrontend().compileLine(c);
-        for (Ir op : p) System.out.println("  "+op);
+        for (Ir op : p) System.out.println("  " + op);
       } catch (Exception e) {
-        System.out.println("  ERR "+e);
+        System.out.println("  ERR " + e);
       }
     }
   }

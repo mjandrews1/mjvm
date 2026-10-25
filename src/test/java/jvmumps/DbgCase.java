@@ -1,5 +1,7 @@
 package jvmumps;
+
 import java.util.*;
+
 public class DbgCase {
   public static void main(String[] a) throws Exception {
     List<CorpusCase> cs = CorpusCase.load(CorpusCase.corpusPath(new String[0]));

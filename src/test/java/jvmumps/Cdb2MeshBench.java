@@ -3,10 +3,10 @@ package jvmumps;
 import java.util.List;
 
 /**
- * Mesh-plane shape over {@link Cdb2Store}: bidirectional GRAPH edges
- * (ydb-mesh emit_edge) + related() / $ORDER adjacency walks.
+ * Mesh-plane shape over {@link Cdb2Store}: bidirectional GRAPH edges (ydb-mesh emit_edge) +
+ * related() / $ORDER adjacency walks.
  *
- * Usage: Cdb2MeshBench [pipePath] [db] [type] [nEdges] [nWalks]
+ * <p>Usage: Cdb2MeshBench [pipePath] [db] [type] [nEdges] [nWalks]
  */
 public class Cdb2MeshBench {
   public static void main(String[] a) throws Exception {
@@ -26,7 +26,10 @@ public class Cdb2MeshBench {
       String ui = "D" + (100000 + i);
       String pmid = String.valueOf(14000000 + i);
       st.set(List.of("^GRAPH", "mesh", ui, "has_mesh", "pubmed", pmid), true, MValue.ofString("1"));
-      st.set(List.of("^GRAPHREV", "pubmed", pmid, "has_subject", "mesh", ui), true, MValue.ofString("1"));
+      st.set(
+          List.of("^GRAPHREV", "pubmed", pmid, "has_subject", "mesh", ui),
+          true,
+          MValue.ofString("1"));
     }
     st.flush();
     long t1 = System.currentTimeMillis();
@@ -70,8 +73,10 @@ public class Cdb2MeshBench {
     st.flush();
     long t5 = System.currentTimeMillis();
 
-    System.out.println("CDB2 MESH emit_edge " + n + " pairs (" + (n * 2) + " nodes) in " + (t1 - t0) + "ms");
-    System.out.println("CDB2 MESH related walk " + walks + " hubs -> " + seen + " edges in " + (t3 - t2) + "ms");
+    System.out.println(
+        "CDB2 MESH emit_edge " + n + " pairs (" + (n * 2) + " nodes) in " + (t1 - t0) + "ms");
+    System.out.println(
+        "CDB2 MESH related walk " + walks + " hubs -> " + seen + " edges in " + (t3 - t2) + "ms");
     System.out.println("CDB2 MESH pubmed-adj walk " + rev + " pmids in " + (t5 - t4) + "ms");
     if (seen <= 0 || rev <= 0) {
       throw new IllegalStateException("mesh walk empty seen=" + seen + " rev=" + rev);

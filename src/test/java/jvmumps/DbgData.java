@@ -1,4 +1,5 @@
 package jvmumps;
+
 public class DbgData {
   public static void main(String[] a) {
     LineInterp m = new LineInterp();

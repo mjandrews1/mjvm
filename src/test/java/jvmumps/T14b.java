@@ -1,4 +1,5 @@
 package jvmumps;
+
 public class T14b {
   public static void main(String[] a) {
     LineInterp m = new LineInterp();
@@ -13,9 +14,9 @@ public class T14b {
       "W \"s=\",K,!",
     };
     for (String s : steps) {
-      System.err.println("STEP "+s);
+      System.err.println("STEP " + s);
       String r = m.run(s);
-      System.err.println("  -> "+r.replace("\n","\\n"));
+      System.err.println("  -> " + r.replace("\n", "\\n"));
     }
     System.err.println("done");
   }

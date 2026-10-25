@@ -1,4 +1,5 @@
 package jvmumps;
+
 public class T14 {
   public static void main(String[] a) {
     LineInterp m = new LineInterp();

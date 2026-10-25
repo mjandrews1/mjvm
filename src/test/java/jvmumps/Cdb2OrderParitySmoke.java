@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * $ORDER sequence must match SqlStore collation (Cdb2Store shim).
- * Skips when no Comdb2 pipe (CI has no testdb).
+ * $ORDER sequence must match SqlStore collation (Cdb2Store shim). Skips when no Comdb2 pipe (CI has
+ * no testdb).
  */
 public class Cdb2OrderParitySmoke {
   public static void main(String[] a) throws Exception {
@@ -43,7 +43,8 @@ public class Cdb2OrderParitySmoke {
     if (!s1.equals(s2)) {
       throw new IllegalStateException("ORDER mismatch at " + firstDiff(s1, s2));
     }
-    System.out.println("CDB2 ORDER PARITY OK n=" + n + " first=" + s1.get(0) + " last=" + s1.get(n - 1));
+    System.out.println(
+        "CDB2 ORDER PARITY OK n=" + n + " first=" + s1.get(0) + " last=" + s1.get(n - 1));
     sq.close();
     cd.close();
   }
