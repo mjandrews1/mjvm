@@ -683,7 +683,11 @@ public final class MStore implements StoreApi {
 
     @Override
     public MValue increment(String key, boolean global, double amount) {
-        return increment(StoreCore.splitKey(key), global, amount);
+        MValue nv = increment(StoreCore.splitKey(key), global, amount);
+        if (global && nv.isnum) {
+            oaPut(key, nv.num);
+        }
+        return nv;
     }
 
     /** Atomic increment: single node update, counts as 1 store op. */

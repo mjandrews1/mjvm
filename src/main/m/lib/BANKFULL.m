@@ -124,7 +124,7 @@ FSLOOP I %POS>$L(%LIST,",") G FSDONE
  G FSLOOP
 FSDONE Q %FOUND
 
-INTEREST() ; Accrue interest on all services. Returns total interest paid.
+INTEREST(%X) ; Accrue interest on all services. Returns total interest paid.
  N %SID,%TOTAL,%BAL,%RATE,%INT
  S %TOTAL=0
  S %SID=""
@@ -139,7 +139,7 @@ INTEREST() ; Accrue interest on all services. Returns total interest paid.
  . D JOURNAL("INTEREST",%SID,%INT,%BAL+%INT)
  Q %TOTAL
 
-MONTHLYFEE() ; Charge monthly fees. Returns total fees charged.
+MONTHLYFEE(%X) ; Charge monthly fees. Returns total fees charged.
  N %SID,%TOTAL,%FEE
  S %TOTAL=0
  S %SID=""
@@ -154,13 +154,13 @@ MONTHLYFEE() ; Charge monthly fees. Returns total fees charged.
 JOURNAL(%TYPE,%SVC,%AMT,%BAL) ; Record immutable journal entry with ISO timestamp and CRC
  N %SEQ,%TS,%CRC,%DATA
  S %SEQ=$I(^BF("J","SEQ"))
- S %TS=$$ISOTIME^BANKFULL()
- S %DATA=%TYPE_"|"_  %SVC_"|"_%AMT_"|"_%BAL
+ S %TS=$$ISOTIME^BANKFULL(0)
+ S %DATA=%TYPE_"|"_%SVC_"|"_%AMT_"|"_%BAL
  S %CRC=$$CRC32^BANKFULL(%DATA)
  S ^BF("J","E",%SEQ)=%DATA_"|"_%TS_"|"_%CRC
  Q
 
-ISOTIME() ; ISO 8601 UTC date/time
+ISOTIME(%X) ; ISO 8601 UTC date/time
  N %T,%HH,%MM,%SS,%D,%YY,%MO,%DD,%LEFT,%DY,%I
  S %T=$P($H,",",2)
  S %HH=%T\3600 S %MM=(%T#3600)\60 S %SS=%T#60
@@ -192,7 +192,7 @@ ACCOUNTBAL(%ACCT) ; Total balance across all services in account
  . S %TOTAL=%TOTAL+$G(^BF("SVC",%SID,"BAL"))
  Q %TOTAL
 
-VERIFY() ; Verify double-entry invariant. Returns 1 if balanced.
+VERIFY(%X) ; Verify double-entry invariant. Returns 1 if balanced.
  N %SEQ,%TYPE,%AMT,%DEBIT,%CREDIT,%OK
  S %DEBIT=0 S %CREDIT=0 S %OK=1
  S %SEQ=""
@@ -241,6 +241,6 @@ BENCH(%NACCTS,%NINST,%NTXN) ; Benchmark: %NACCTS accounts, %NINST instances, %NT
  . . I $R(2)=0 D DEPOSIT(%SVC,%AMT)
  . . E  D WITHDRAW(%SVC,%AMT)
  ; Verify
- I $$VERIFY()=1 W "BENCH_OK",!
+ I $$VERIFY(0)=1 W "BENCH_OK",!
  E  W "BENCH_FAIL",!
  Q

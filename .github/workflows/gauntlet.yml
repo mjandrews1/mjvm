@@ -33,6 +33,11 @@ jobs:
           java -cp "build:lib/*" jvmumps.GauntletRun 2>&1
           echo "GAUNTLET PASSED"
 
+      - name: Run MFrontend regression
+        run: |
+          java -cp "build:lib/*" jvmumps.MFrontendRegression 2>&1
+          echo "REGRESSION PASSED"
+
       - name: Run conformance corpus
         run: |
           if [ -f tests/conformance.json ]; then

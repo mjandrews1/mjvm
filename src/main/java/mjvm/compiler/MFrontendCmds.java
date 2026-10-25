@@ -178,8 +178,24 @@ final class MFrontendCmds {
                 }
                 if (ge > gl) {
                     String inner = val.substring(gl + 1, ge).trim();
-                    // inner is "path" or "path,amount"
-                    int comma = inner.indexOf(',');
+                    // inner is "path" or "path,amount" — comma must be at paren-depth 0
+                    int comma = -1;
+                    int d = 0;
+                    boolean inStr = false;
+                    for (int ci = 0; ci < inner.length(); ci++) {
+                        char c = inner.charAt(ci);
+                        if (inStr) {
+                            if (c == '"') {
+                                if (ci + 1 < inner.length() && inner.charAt(ci + 1) == '"') { ci++; continue; }
+                                inStr = false;
+                            }
+                            continue;
+                        }
+                        if (c == '"') { inStr = true; continue; }
+                        if (c == '(') d++;
+                        else if (c == ')') d--;
+                        else if (c == ',' && d == 0) { comma = ci; break; }
+                    }
                     String path = comma >= 0 ? inner.substring(0, comma).trim() : inner;
                     String amount = comma >= 0 ? inner.substring(comma + 1).trim() : "1";
                     out.add(Ir.evalExpr(amount));

@@ -121,13 +121,33 @@ final class MFrontendUtil {
                 i++;
                 continue;
             }
-            if (depth == 0 && term.indexOf(c) >= 0) break;
-            // command start ends an expression in arg position
+            // Space at depth 0: if previous non-space char is an operator, spaces are
+            // insignificant (e.g. A_"|"_  B). Otherwise space terminates (command separator).
             if (depth == 0 && c == ' ') {
-                int k = i + 1;
-                while (k < line.length() && line.charAt(k) == ' ') k++;
-                if (isCmdStart(line, k)) break;
+                // Find previous non-space character
+                int p = i - 1;
+                while (p >= 0 && line.charAt(p) == ' ') p--;
+                char prev = p >= 0 ? line.charAt(p) : ' ';
+                boolean afterOp = prev == '_' || prev == '+' || prev == '-' || prev == '*'
+                        || prev == '/' || prev == '\\' || prev == '#' || prev == '='
+                        || prev == '(' || prev == ',';
+                if (!afterOp) {
+                    // Check for multi-char operators: '= , '< , '> , <= , >=
+                    if (p >= 1) {
+                        char prev2 = line.charAt(p - 1);
+                        if (prev == '=' && (prev2 == '\'' || prev2 == '<' || prev2 == '>')) afterOp = true;
+                        if (prev == '<' && prev2 == '\'' ) afterOp = true;
+                        if (prev == '>' && prev2 == '\'') afterOp = true;
+                        if (prev == '>' && prev2 == '<') afterOp = true;
+                        if (prev == '=' && prev2 == '<') afterOp = true;
+                        if (prev == '=' && prev2 == '>') afterOp = true;
+                    }
+                }
+                if (!afterOp) break;
+                i++;
+                continue;
             }
+            if (depth == 0 && term.indexOf(c) >= 0) break;
             i++;
         }
         return i;

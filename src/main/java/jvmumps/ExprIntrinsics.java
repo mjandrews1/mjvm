@@ -13,8 +13,40 @@ final class ExprIntrinsics {
       case "$HOROLOG":
           {
           long secs = System.currentTimeMillis() / 1000;
-          long days = secs / 86400 + 67232;
+          // Standard M: $H = days since 1840-12-31
+          // Java epoch: 1970-01-01 = 47117 days after 1840-12-31
+          long days = secs / 86400 + 47117;
           return MValue.ofString(days + "," + (secs % 86400));
+          }
+      case "$ZDATE":
+          {
+          // $ZDATE(horolog,format) - format date from $H
+          // Default format: DD MMM YYYY
+          if (args.isEmpty()) return MValue.ofString("");
+          String h = args.get(0).asStr();
+          int comma = h.indexOf(',');
+          long days = comma > 0 ? Long.parseLong(h.substring(0, comma)) : 0;
+          // Convert days since 1840-12-31 to calendar date
+          int year = 1841; long rem = days;
+          while (rem >= 365) {
+              long dy = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 366 : 365;
+              if (rem < dy) break;
+              rem -= dy;
+              year++;
+          }
+          int month = 1;
+          while (month <= 12) {
+              int dim = (month == 2) ? ((year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 29 : 28)
+                      : (month == 4 || month == 6 || month == 9 || month == 11) ? 30 : 31;
+              if (rem < dim) break;
+              rem -= dim;
+              month++;
+          }
+          int day = (int)rem + 1;
+          String[] months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+          if (args.size() > 1 && args.get(1).asStr().equals("YYYY-MM-DD"))
+              return MValue.ofString(String.format("%04d-%02d-%02d", year, month, day));
+          return MValue.ofString(String.format("%02d %s %04d", day, months[month-1], year));
           }
       case "$D":
       case "$DATA":
