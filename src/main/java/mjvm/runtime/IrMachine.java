@@ -72,6 +72,9 @@ public final class IrMachine {
      * extrinsic invocation (GAP-2).
      */
     public static jvmumps.MValue runExtrinsic(List<Ir> prog, MRuntime rt, int startPc, MValue[] args) {
+        if (startPc < 0 || startPc >= prog.size()) {
+            throw new jvmumps.MError("Invalid call target pc=" + startPc + " (prog size=" + prog.size() + ")");
+        }
         return run(prog, rt, startPc, args);
     }
 
@@ -135,7 +138,7 @@ public final class IrMachine {
         if (extrinsic) {
             for (MValue a : args) vals[sp++] = a == null ? MValue.EMPTY : a;
         }
-        while (pc < prog.size() && !rt.isQuit()) {
+        while (pc >= 0 && pc < prog.size() && !rt.isQuit()) {
             Ir op = prog.get(pc);
             switch (op.op) {
                 case Ir.PUSH -> {
@@ -285,12 +288,12 @@ public final class IrMachine {
                     int argc = op.iarg;
                     MValue[] argsBuf = ARGS_POOL.get();
                     for (int k = argc - 1; k >= 0; k--) { MValue av = vals[--sp]; argsBuf[k] = av != null ? av : MValue.ofNumber(dvals[sp]); }
+                    // Trim to actual argc — pool buffer may be larger
+                    MValue[] actualArgs = (argc == argsBuf.length) ? argsBuf : java.util.Arrays.copyOf(argsBuf, argc);
                     if (op.name != null && op.name.startsWith("$")) {
-                        // extrinsic $$fn — run tag via nested program
-                        vals[sp++] = rt.callExtrinsic(op.name.substring(1), argsBuf);
+                        vals[sp++] = rt.callExtrinsic(op.name.substring(1), actualArgs);
                     } else {
-                        // DO tag — run tag via nested program
-                        rt.call(op.name, argsBuf);
+                        rt.call(op.name, actualArgs);
                     }
                 }
                 case Ir.OPEN -> {

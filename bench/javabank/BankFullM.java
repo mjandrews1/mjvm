@@ -15,16 +15,16 @@ public final class BankFullM {
 
     // Primitive caches for hot path (no MValue boxing)
     static final int MAX_ACCTS = 300_000;
-    static final double[] checking = new double[MAX_ACCTS];
-    static final double[] bank = new double[MAX_ACCTS];
-    static final double[] fees = new double[MAX_ACCTS];
-    static final double[] advances = new double[MAX_ACCTS];
-    static final double[] savings = new double[MAX_ACCTS];
-    static final double[] minBal = new double[MAX_ACCTS];
+    public static final double[] checking = new double[MAX_ACCTS];
+    public static final double[] bank = new double[MAX_ACCTS];
+    public static final double[] fees = new double[MAX_ACCTS];
+    public static final double[] advances = new double[MAX_ACCTS];
+    public static final double[] savings = new double[MAX_ACCTS];
+    public static final double[] minBal = new double[MAX_ACCTS];
     static final double[] rates = new double[MAX_ACCTS];
     static final double[] monthlyFees = new double[MAX_ACCTS];
-    static long txnCount = 0;
-    static double bankBalance = 1_000_000;
+    public static long txnCount = 0;
+    public static double bankBalance = 1_000_000;
 
     private static final char SEP = '\u0001';
 

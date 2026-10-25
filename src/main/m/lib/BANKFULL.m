@@ -186,8 +186,12 @@ VERIFY() ; Verify double-entry invariant. Returns 1 if balanced.
 
 BENCHFAST(%NACCTS,%NTXN) ; Inlined hot loop — postconditionals + cached values
  N %I,%AC,%AMT,%T,%BAL,%NEW,%MIN
- D INIT
- F %I=1:1:%NACCTS S ^BF("SVC",%I,"BAL")=0
+ W "NACCTS=["_%NACCTS_"] NTXN=["_%NTXN_"]",!
+ D INIT^BANKFULL
+ W "AFTER_INIT",!
+ F %I=1:1:%NACCTS S ^BF("SVC",%I,"BAL")=0 W "SET_"_%I,!
+ W "AFTER_LOOP",!
+
  S %MIN=100
  F %I=1:1:%NTXN D
  . S %AC=$R(%NACCTS)+1

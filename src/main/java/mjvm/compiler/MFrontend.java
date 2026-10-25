@@ -549,9 +549,19 @@ public final class MFrontend {
         // Then DO/GOTO patches (absolute, overwrite)
         for (int li = 0; li < lines.size(); li++) {
             for (int[] pk : patchesPer.get(li)) {
-                int abs = base[pk[2]];
                 int idx = base[li] + pk[1];
                 if (idx < 0 || idx >= prog.size()) continue;
+                int labelIdx = pk[2];
+                // Check if label index is valid for base array
+                if (labelIdx < 0 || labelIdx >= base.length) {
+                    // Invalid label — replace CALL_PC with CALL to original target
+                    Ir oldIr = prog.get(idx);
+                    if (oldIr.op == Ir.CALL_PC) {
+                        prog.set(idx, new Ir(Ir.CALL, oldIr.name, oldIr.ival, oldIr.dval, oldIr.iarg));
+                    }
+                    continue;
+                }
+                int abs = base[labelIdx];
                 Ir oldIr = prog.get(idx);
                 if (oldIr.op == Ir.CALL_PC) prog.set(idx, Ir.callPc(abs));
                 else if (oldIr.op == Ir.JMP) prog.set(idx, Ir.jmp(abs));

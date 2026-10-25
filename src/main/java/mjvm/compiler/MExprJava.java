@@ -40,7 +40,7 @@ public final class MExprJava {
         // $G(global) — get global value
         if (e.startsWith("$G(") && e.endsWith(")")) {
             String inner = e.substring(3, e.length() - 1);
-            String gl = compileGlobalRef(inner);
+            String gl = compileGlobalRef(inner, s, p);
             if (gl != null) {
                 return "    " + s + "[" + p + "++] = rt.getVar(" + gl + ");\n";
             }
@@ -48,7 +48,7 @@ public final class MExprJava {
         // $I(global) — atomic increment
         if (e.startsWith("$I(") && e.endsWith(")")) {
             String inner = e.substring(3, e.length() - 1);
-            String gl = compileGlobalRef(inner);
+            String gl = compileGlobalRef(inner, s, p);
             if (gl != null) {
                 return "    " + s + "[" + p + "++] = rt.increment(" + gl + ", true, 1);\n";
             }
@@ -172,7 +172,28 @@ public final class MExprJava {
     }
 
     /** Compile global reference like ^BANK("C",%AC) to Java string expression. Returns null if complex. */
-    static String compileGlobalRef(String e) {
+    /** Compile global ref with variable subscripts — generates string concat code. */
+    static String compileGlobalRefWithVars(String name, String[] parts, String s, String p) {
+        StringBuilder code = new StringBuilder();
+        code.append("    { String __k = \"").append(esc(name)).append("\";");
+        for (String part : parts) {
+            part = part.trim();
+            code.append(" __k += \"\u0001\";");
+            if (part.matches("%[A-Za-z][A-Za-z0-9]*")) {
+                code.append(" __k += rt.getVar(\"").append(esc(part)).append("\").asStr();");
+            } else if (part.matches("\"[^\"]*\"")) {
+                code.append(" __k += \"").append(esc(part.substring(1, part.length() - 1))).append("\";");
+            } else if (part.matches("\\d+")) {
+                code.append(" __k += \"").append(part).append("\";");
+            } else {
+                return null;
+            }
+        }
+        code.append(" ").append(s).append("[").append(p).append("++] = rt.getVar(__k); }\n");
+        return code.toString();
+    }
+
+    static String compileGlobalRef(String e, String s, String p) {
         if (!e.startsWith("^")) return null;
         // Simple global: ^NAME
         if (e.matches("\\^[A-Za-z][A-Za-z0-9]*")) {
@@ -191,8 +212,8 @@ public final class MExprJava {
                 part = part.trim();
                 sb.append("\\u0001\"");
                 if (part.matches("%[A-Za-z][A-Za-z0-9]*")) {
-                    // Variable subscript — use string concat
-                    return null; // too complex for simple ref
+                    // Variable subscript — generate string concat code
+                    return compileGlobalRefWithVars(name, parts, s, p);
                 }
                 if (part.matches("\"[^\"]*\"")) {
                     sb.append(esc(part.substring(1, part.length() - 1)));
