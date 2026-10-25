@@ -105,8 +105,13 @@ public final class MjvmBench {
   }
 
   /** Counted loop: S I=N then repeat body N times (JMP back). */
-  @SuppressWarnings({"DLS_DEAD_LOCAL_STORE", "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE", "UCF_USELESS_CONTROL_FLOW", "DB_DUPLICATE_BRANCHES"})
-  public static List<Ir> loopProg(int n, String kind)  {
+  @SuppressWarnings({
+    "DLS_DEAD_LOCAL_STORE",
+    "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
+    "UCF_USELESS_CONTROL_FLOW",
+    "DB_DUPLICATE_BRANCHES"
+  })
+  public static List<Ir> loopProg(int n, String kind) {
     MFrontend fe = new MFrontend();
     List<Ir> prog = new ArrayList<>();
     prog.addAll(fe.compileLine("S I=" + n));

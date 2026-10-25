@@ -18,7 +18,8 @@ public final class MemoryProbe2 {
         String code = java.nio.file.Files.readString(paths.get(i));
         var fe = new mjvm.compiler.MFrontend();
         fe.compileProgram(code);
-      } catch (Exception e) { System.err.println("Error: " + e.getMessage()); // | StackOverflowError e) {
+      } catch (Exception e) {
+        System.err.println("Error: " + e.getMessage()); // | StackOverflowError e) {
         // skip
       }
       if (i % 1000 == 0) {

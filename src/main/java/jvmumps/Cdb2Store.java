@@ -118,7 +118,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   /** Write a command without reading its response. Caller must {@link #recv}. */
-  private void send(String line)  {
+  private void send(String line) {
     try {
       in.write(line);
       in.write(10);
@@ -128,7 +128,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   /** Read one response line. */
-  private String recv()  {
+  private String recv() {
     try {
       in.flush();
       String r = out.readLine();
@@ -145,7 +145,7 @@ public final class Cdb2Store implements StoreApi {
    * Flush pending SETs (if any) and send {@code nextCmd} in one pipe write. Returns the response to
    * {@code nextCmd} (flush response is checked for OK).
    */
-  private String flushAndCmd(String nextCmd)  {
+  private String flushAndCmd(String nextCmd) {
     if (pending.isEmpty()) {
       return cmd(nextCmd);
     }
@@ -178,7 +178,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public MValue get(List<String> path, boolean global)  {
+  public MValue get(List<String> path, boolean global) {
     String k = key(path.get(0), path);
     String hk = hex(k);
     synchronized (this) {
@@ -269,7 +269,7 @@ public final class Cdb2Store implements StoreApi {
     flushLocked();
   }
 
-  private void flushLocked()  {
+  private void flushLocked() {
     if (pending.isEmpty()) return;
     int n = pending.size();
     StringBuilder sb = new StringBuilder("SETB\t").append(n).append('\n');
@@ -282,7 +282,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public void set(List<String> path, boolean global, MValue v)  {
+  public void set(List<String> path, boolean global, MValue v) {
     String val = v.isnum ? ExprEval.mstr(v.num) : v.str;
     String k = key(path.get(0), path);
     String row =
@@ -307,7 +307,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public void kill(List<String> path, boolean global)  {
+  public void kill(List<String> path, boolean global) {
     String k = key(path.get(0), path);
     String hk = hex(k);
     synchronized (this) {
@@ -325,7 +325,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public int data(List<String> path, boolean global)  {
+  public int data(List<String> path, boolean global) {
     synchronized (this) {
       String r = flushAndCmd("DATA\t" + hex(key(path.get(0), path)));
       if (r.startsWith("NUM ")) return Integer.parseInt(r.substring(4));
@@ -334,7 +334,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public String order(List<String> path, boolean global, double dir)   {
+  public String order(List<String> path, boolean global, double dir) {
     if (path.size() < 2) return "";
     synchronized (this) {
       List<String> parent = path.subList(0, path.size() - 1);
@@ -383,15 +383,15 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public String queryNext(List<String> path, boolean global, int dir)  {
+  public String queryNext(List<String> path, boolean global, int dir) {
     return order(path, global, dir);
   }
 
   @Override
-  public void newScope(List<String> names)  {}
+  public void newScope(List<String> names) {}
 
   @Override
-  public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal)  {
+  public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal) {
     MValue v = get(src, sGlobal);
     if (v != MValue.EMPTY) set(dst, dGlobal, v);
   }
@@ -401,7 +401,7 @@ public final class Cdb2Store implements StoreApi {
    * {@link SqlStore#lockAcquire}: idempotent reacquire, full unlock on {@link #lockRelease}.
    */
   @Override
-  public boolean lockAcquire(String key, String pid, long timeoutMs)  {
+  public boolean lockAcquire(String key, String pid, long timeoutMs) {
     long t0 = System.currentTimeMillis();
     long deadline = t0 + Math.max(0, timeoutMs);
     LockQueue q = lockQueues.computeIfAbsent(key, k -> LockQueue.oneWriter(64));
@@ -443,11 +443,13 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  public void lockRelease(String key, String pid)  {
+  public void lockRelease(String key, String pid) {
     synchronized (this) {
       try {
         cmd("LOCKR\t" + hex(pid) + "\t" + hex(key));
-      } catch (Exception ignored) { ignored.printStackTrace(); }
+      } catch (Exception ignored) {
+        ignored.printStackTrace();
+      }
     }
     LockQueue q = lockQueues.get(key);
     if (q != null) {
@@ -456,7 +458,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   /** Idempotent close — always reaps the cdb2pipe process. */
-  public void close()  {
+  public void close() {
     synchronized (this) {
       if (closed) {
         return;
@@ -467,11 +469,15 @@ public final class Cdb2Store implements StoreApi {
       try {
         flushLocked();
         cmd("QUIT");
-      } catch (Exception ignored) { ignored.printStackTrace(); }
+      } catch (Exception ignored) {
+        ignored.printStackTrace();
+      }
       try {
         in.close();
         out.close();
-      } catch (Exception ignored) { ignored.printStackTrace(); }
+      } catch (Exception ignored) {
+        ignored.printStackTrace();
+      }
     }
     proc.destroyForcibly();
     try {

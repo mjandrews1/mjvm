@@ -201,9 +201,7 @@ public final class Repl {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static boolean isKnownCmd(String line)  {
+  static boolean isKnownCmd(String line) {
     if (line.isEmpty()) return false;
     int i = 0;
     while (i < line.length() && Character.isLetter(line.charAt(i))) i++;

@@ -140,9 +140,7 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static void printHelp()  {
+  static void printHelp() {
     System.out.print(BANNER);
     System.out.println(
         """
@@ -181,17 +179,13 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static Path envFile(String dbFile)  {
+  static Path envFile(String dbFile) {
     Path db = Path.of(dbFile == null ? "mjvm.dat" : dbFile);
     return db.resolveSibling(db.getFileName() + ".env");
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static int doInfo(String dbFile) throws Exception  {
+  static int doInfo(String dbFile) throws Exception {
     Path db = Path.of(dbFile == null ? "mjvm.dat" : dbFile);
     Path env = envFile(dbFile);
     if (dbFile == null) {
@@ -215,11 +209,9 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
   static int doCreate(
       String volume, Integer bs, Integer sz, Integer ms, String envName, String dbFile)
-      throws Exception  {
+      throws Exception {
     if (volume == null || !volume.matches("[A-Za-z]{1,32}")) {
       System.err.println("mjvm -v: volume-name must be 1-32 alpha characters");
       return 2;
@@ -245,10 +237,8 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
   static int doStart(int maxJobs, Integer gbuf, Integer rbuf, String dbFile, String envName)
-      throws Exception  {
+      throws Exception {
     Path db = Path.of(dbFile == null ? "mjvm.dat" : dbFile);
     if (!Files.exists(db)) {
       System.err.println("mjvm: no such database: " + db + " (use mjvm -v first)");
@@ -276,9 +266,7 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static int doKill(String dbFile) throws Exception  {
+  static int doKill(String dbFile) throws Exception {
     Path env = envFile(dbFile);
     if (Files.exists(env)) {
       List<String> lines = new ArrayList<>(Files.readAllLines(env));
@@ -291,10 +279,8 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
   static int doRun(String code, String file, boolean useClass, String dbFile, String storeKind)
-      throws Exception  {
+      throws Exception {
     if (code == null && file != null) {
       code = Files.readString(Path.of(file));
     }
@@ -309,8 +295,6 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
   static int doDirect(
       String storeKind,
       String dbFile,
@@ -318,7 +302,7 @@ public final class Mjvm {
       String envName,
       boolean restricted,
       boolean useClass)
-      throws Exception  {
+      throws Exception {
     StoreApi store = Stores.open(storeKind, dbFile);
     MRuntime rt = new MRuntime(store);
     if (code != null) {
@@ -370,9 +354,7 @@ public final class Mjvm {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static void runCode(MRuntime rt, String code, boolean useClass) throws Exception  {
+  static void runCode(MRuntime rt, String code, boolean useClass) throws Exception {
     MFrontend fe = new MFrontend();
     List<Ir> prog = code.indexOf('\n') >= 0 ? fe.compileProgram(code) : fe.compileLine(code);
     if (useClass) {

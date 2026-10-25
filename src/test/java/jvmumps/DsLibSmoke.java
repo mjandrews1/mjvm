@@ -12,9 +12,7 @@ import java.util.*;
 public final class DsLibSmoke {
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String libDir()  {
+  static String libDir() {
     String env = System.getenv("DS_LIB");
     return env != null && !env.isEmpty() ? env : "src/main/m/lib";
   }

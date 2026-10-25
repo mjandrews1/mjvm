@@ -14,9 +14,7 @@ import java.nio.file.*;
 public final class BankSmoke {
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String libDir()  {
+  static String libDir() {
     String env = System.getenv("DS_LIB");
     return env != null && !env.isEmpty() ? env : "src/main/m/lib";
   }

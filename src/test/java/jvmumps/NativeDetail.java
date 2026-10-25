@@ -63,9 +63,7 @@ public final class NativeDetail {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String q(String s)  {
+  static String q(String s) {
     return "\"" + s.replace("\n", "\\n").replace("\"", "\\\"") + "\"";
   }
 }

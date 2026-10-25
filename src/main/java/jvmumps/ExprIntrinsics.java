@@ -391,7 +391,8 @@ final class ExprIntrinsics {
             return MValue.ofNumber(0);
           }
           double lev = args.get(0).asNum();
-          String what = args.size() > 1 ? args.get(1).asStr().toUpperCase(java.util.Locale.ROOT) : "";
+          String what =
+              args.size() > 1 ? args.get(1).asStr().toUpperCase(java.util.Locale.ROOT) : "";
           if (what.equals("PLACE")) {
             return MValue.ofString(lev == 0 ? "@" : "");
           }

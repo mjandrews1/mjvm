@@ -37,9 +37,7 @@ public final class CrossStackBench {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String norm(String s)  {
+  static String norm(String s) {
     String t = s.replace("\r\n", "\n");
     while (t.endsWith("\n")) t = t.substring(0, t.length() - 1);
     return t;

@@ -156,7 +156,8 @@ public final class MFrontend {
               pk[1] += base;
               activePatches.add(pk);
             }
-            if (j0 < out.size()) out.set(j0, Ir.jmp0(out.size())); // j0 >= 0 guaranteed by init to -1 and check
+            if (j0 < out.size())
+              out.set(j0, Ir.jmp0(out.size())); // j0 >= 0 guaranteed by init to -1 and check
             if (isG) i = line.length();
             continue;
           }
@@ -405,8 +406,8 @@ public final class MFrontend {
 
   private java.util.Map<String, Integer> activeLabels;
   private java.util.List<int[]> activePatches;
-  private volatile  int activeSelfLine;
-  private volatile  boolean activeGoto;
+  private volatile int activeSelfLine;
+  private volatile boolean activeGoto;
 
   /** Tags of the most recent compileRoutine — linked into the runtime (GAP-2). */
   private java.util.Map<String, Integer> lastTags = java.util.Map.of();
@@ -415,7 +416,8 @@ public final class MFrontend {
     return java.util.Collections.unmodifiableMap(lastTags);
   }
 
-  private final java.util.concurrent.atomic.AtomicInteger compileDepth = new java.util.concurrent.atomic.AtomicInteger(0);
+  private final java.util.concurrent.atomic.AtomicInteger compileDepth =
+      new java.util.concurrent.atomic.AtomicInteger(0);
 
   List<Ir> compileRoutine(String code) {
     lastTags = java.util.Map.of();
@@ -440,7 +442,8 @@ public final class MFrontend {
             if (i < raw.length() && raw.charAt(i) == '(') {
               int j = raw.indexOf(')', i);
               if (j > i) {
-                formalsOf.putIfAbsent(tag.toUpperCase(java.util.Locale.ROOT), raw.substring(i + 1, j));
+                formalsOf.putIfAbsent(
+                    tag.toUpperCase(java.util.Locale.ROOT), raw.substring(i + 1, j));
                 i = j + 1;
               }
             }
@@ -794,7 +797,7 @@ public final class MFrontend {
     for (int[] pk : activePatches) pk[1] += offset;
   }
 
-  private int compileForSpec(String line, int varStart, List<Ir> out, String var)  {
+  private int compileForSpec(String line, int varStart, List<Ir> out, String var) {
     compileRecursionDepth.incrementAndGet();
     if (compileRecursionDepth.get() > 30) {
       compileRecursionDepth.decrementAndGet();
@@ -916,7 +919,8 @@ public final class MFrontend {
     }
   }
 
-  private final java.util.concurrent.atomic.AtomicInteger compileRecursionDepth = new java.util.concurrent.atomic.AtomicInteger(0);
+  private final java.util.concurrent.atomic.AtomicInteger compileRecursionDepth =
+      new java.util.concurrent.atomic.AtomicInteger(0);
   private static final int MAX_COMPILE_DEPTH = 100;
 
   void compileInto(String body, List<Ir> out) {

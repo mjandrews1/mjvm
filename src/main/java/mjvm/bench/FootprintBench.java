@@ -18,8 +18,13 @@ import mjvm.runtime.MRuntime;
  * mjvm.bench.FootprintBench --json
  */
 public final class FootprintBench {
-  @SuppressWarnings({"DLS_DEAD_LOCAL_STORE", "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE", "UCF_USELESS_CONTROL_FLOW", "DB_DUPLICATE_BRANCHES"})
-  public static void main(String[] args) throws Exception  {
+  @SuppressWarnings({
+    "DLS_DEAD_LOCAL_STORE",
+    "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
+    "UCF_USELESS_CONTROL_FLOW",
+    "DB_DUPLICATE_BRANCHES"
+  })
+  public static void main(String[] args) throws Exception {
     boolean json = false;
     int lines = 200;
     int iters = 50_000;
@@ -143,7 +148,9 @@ public final class FootprintBench {
               .start();
       String s = new String(p.getInputStream().readAllBytes()).trim();
       return s.isEmpty() ? -1 : Long.parseLong(s);
-    } catch (@SuppressWarnings("unused") Exception e) {
+    } catch (
+        @SuppressWarnings("unused")
+        Exception e) {
       return -1;
     }
   }

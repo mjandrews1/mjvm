@@ -79,8 +79,7 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public MValue get(List<String> path, boolean global)  {
+  public MValue get(List<String> path, boolean global) {
     synchronized (conn) {
       try (PreparedStatement ps = conn.prepareStatement("SELECT val, isnum FROM nodes WHERE k=?")) {
         ps.setString(1, key(path.get(0), path));
@@ -100,8 +99,7 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public void set(List<String> path, boolean global, MValue v)  {
+  public void set(List<String> path, boolean global, MValue v) {
     synchronized (conn) {
       String key = key(path.get(0), path);
       StringBuilder sk = new StringBuilder();
@@ -127,8 +125,7 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public void kill(List<String> path, boolean global)  {
+  public void kill(List<String> path, boolean global) {
     synchronized (conn) {
       String k = key(path.get(0), path);
       try (PreparedStatement ps =
@@ -166,8 +163,7 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings({"RedundantThrows", "DLS_DEAD_LOCAL_STORE"})
-
-  public MValue increment(List<String> path, boolean global, double amount)  {
+  public MValue increment(List<String> path, boolean global, double amount) {
     String k = key(path.get(0), path);
     synchronized (this) {
       // Single round-trip: read current, add, write back
@@ -181,8 +177,7 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public int data(List<String> path, boolean global)  {
+  public int data(List<String> path, boolean global) {
     synchronized (conn) {
       String k = key(path.get(0), path);
       boolean hasVal = false;
@@ -216,8 +211,7 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public String order(List<String> path, boolean global, double dir)  {
+  public String order(List<String> path, boolean global, double dir) {
     synchronized (conn) {
       if (path.size() < 2) {
         return "";
@@ -265,15 +259,13 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public void newScope(List<String> names)  {
+  public void newScope(List<String> names) {
     // SQLite rows persist across NEW (live backend).
   }
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal)  {
+  public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal) {
     MValue v = get(src, sGlobal);
     if (v != MValue.EMPTY) {
       set(dst, dGlobal, v);
@@ -282,15 +274,13 @@ public final class SqlStore implements StoreApi {
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public String queryNext(List<String> path, boolean global, int dir)  {
+  public String queryNext(List<String> path, boolean global, int dir) {
     return order(path, global, dir);
   }
 
   /** Drop locks older than ttlMs (stale holders + their in-process queue holds). */
   @SuppressWarnings("RedundantThrows")
-
-  public int lockSweep(long ttlMs)  {
+  public int lockSweep(long ttlMs) {
     long cutoff = System.currentTimeMillis() - ttlMs;
     synchronized (conn) {
       List<String[]> stale = new ArrayList<>();
@@ -330,8 +320,7 @@ public final class SqlStore implements StoreApi {
    */
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public boolean lockAcquire(String key, String pid, long timeoutMs)  {
+  public boolean lockAcquire(String key, String pid, long timeoutMs) {
     long t0 = System.currentTimeMillis();
     long budget = Math.max(0, timeoutMs);
     long deadline = t0 + budget;
@@ -405,16 +394,14 @@ public final class SqlStore implements StoreApi {
 
   /** Last lockAcquire wait duration (ms) for key; -1 if never measured. */
   @SuppressWarnings("RedundantThrows")
-
-  public long lastLockWaitMs(String key)  {
+  public long lastLockWaitMs(String key) {
     Long v = lastWaitMs.get(key);
     return v == null ? -1L : v;
   }
 
   @Override
   @SuppressWarnings("RedundantThrows")
-
-  public void lockRelease(String key, String pid)  {
+  public void lockRelease(String key, String pid) {
     try (PreparedStatement ps = conn.prepareStatement("DELETE FROM mlocks WHERE lk=? AND pid=?")) {
       ps.setString(1, key);
       ps.setString(2, pid);
@@ -429,8 +416,7 @@ public final class SqlStore implements StoreApi {
 
   /** Idempotent close — drop queues and JDBC connection (leak fix). */
   @SuppressWarnings("RedundantThrows")
-
-  public void close()  {
+  public void close() {
     lockQueues.clear();
     lastWaitMs.clear();
     synchronized (conn) {

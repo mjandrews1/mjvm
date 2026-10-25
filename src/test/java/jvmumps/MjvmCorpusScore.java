@@ -54,9 +54,7 @@ public final class MjvmCorpusScore {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String q(String s)  {
+  static String q(String s) {
     return "\"" + s.replace("\n", "\\n") + "\"";
   }
 

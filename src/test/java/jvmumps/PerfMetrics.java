@@ -105,9 +105,13 @@ public final class PerfMetrics {
     }
   }
 
-  @SuppressWarnings({"DLS_DEAD_LOCAL_STORE", "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE", "UCF_USELESS_CONTROL_FLOW", "DB_DUPLICATE_BRANCHES"})
-
-  public static void main(String[] args) throws Exception  {
+  @SuppressWarnings({
+    "DLS_DEAD_LOCAL_STORE",
+    "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
+    "UCF_USELESS_CONTROL_FLOW",
+    "DB_DUPLICATE_BRANCHES"
+  })
+  public static void main(String[] args) throws Exception {
     String storeType = args.length > 0 ? args[0] : "mem";
     int seconds = args.length > 1 ? Integer.parseInt(args[1]) : 10;
     int threads = args.length > 2 ? Integer.parseInt(args[2]) : 4;
@@ -171,7 +175,8 @@ public final class PerfMetrics {
       futures.add(
           ex.submit(
               () -> {
-                java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
+                java.util.concurrent.ThreadLocalRandom rng =
+                    java.util.concurrent.ThreadLocalRandom.current();
                 while (running.get()) {
                   long t0 = System.nanoTime();
                   bankTxn(store, rng.nextInt(1000000));
@@ -191,7 +196,9 @@ public final class PerfMetrics {
     for (Future<?> f : futures) {
       try {
         f.get(5, TimeUnit.SECONDS);
-      } catch (Exception e) { e.printStackTrace(); }
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
     }
     ex.shutdown();
     sampler.shutdown();
@@ -240,8 +247,7 @@ public final class PerfMetrics {
 
   /** Run one bank transaction (DEP or WDR). */
   @SuppressWarnings("RedundantThrows")
-
-  static void bankTxn(StoreApi store, int seed)  {
+  static void bankTxn(StoreApi store, int seed) {
     java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
     String acct = String.valueOf(rng.nextInt(10));
     double amount = rng.nextInt(100) + 1;
@@ -279,9 +285,7 @@ public final class PerfMetrics {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static double stddev(TpsRecorder tps)  {
+  static double stddev(TpsRecorder tps) {
     double mean = tps.mean();
     double variance =
         tps.samples.stream().mapToDouble(s -> (s[1] - mean) * (s[1] - mean)).average().orElse(0);

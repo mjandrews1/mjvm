@@ -70,9 +70,7 @@ public final class FileManTierASmoke {
   static final String EXTRINSIC_ROUTINE = " Q\n" + "P2(Y) ; extrinsic\n" + " S Y=Y_\"ab\" Q Y\n";
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String filemanRoot()  {
+  static String filemanRoot() {
     String env = System.getenv("FILEMAN_CORPUS");
     return env != null && !env.isEmpty() ? env : System.getProperty("user.home") + "/_fileman";
   }
@@ -106,9 +104,7 @@ public final class FileManTierASmoke {
   // ---- A5 READ: golden parse ----------------------------------------
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static int runGoldenParse(String root)  {
+  static int runGoldenParse(String root) {
     System.out.println("### READ: routine parse + labels (golden subset)");
     Path base = Path.of(root);
     if (!Files.isDirectory(base)) {
@@ -158,9 +154,7 @@ public final class FileManTierASmoke {
   // ---- RUN cases ----------------------------------------------------
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static int runCases()  {
+  static int runCases() {
     System.out.println("### FileMan-shaped RUN cases");
     int fail = 0;
     for (String[] c : RUN_CASES) {
@@ -171,9 +165,7 @@ public final class FileManTierASmoke {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static int runExtrinsic()  {
+  static int runExtrinsic() {
     System.out.println("### A6 extrinsic dispatch");
     int fail = 0;
     // one shared interpreter so the loaded routine is visible to $$ calls
@@ -190,9 +182,7 @@ public final class FileManTierASmoke {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static int runOne(LineInterp m, String name, String code, String want)  {
+  static int runOne(LineInterp m, String name, String code, String want) {
     String got;
     try {
       got = m.run(code).strip();
@@ -223,8 +213,7 @@ public final class FileManTierASmoke {
    * error string as a WRITE mismatch.
    */
   @SuppressWarnings("RedundantThrows")
-
-  static boolean looksLikeError(String got)  {
+  static boolean looksLikeError(String got) {
     if (got == null || got.isEmpty()) {
       return false;
     }
@@ -242,8 +231,7 @@ public final class FileManTierASmoke {
    * problem).
    */
   @SuppressWarnings("RedundantThrows")
-
-  static String classify(String msg)  {
+  static String classify(String msg) {
     String m = String.valueOf(msg).toLowerCase(java.util.Locale.ROOT);
     // pass-by-reference args (.var) in $$ / DO arg lists — jvmumps#32 ENGINE GAP
     if (m.contains("op:.") || m.contains("unexpected op:.")) {
@@ -269,9 +257,7 @@ public final class FileManTierASmoke {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String classifyMismatch(String code, String want, String got)  {
+  static String classifyMismatch(String code, String want, String got) {
     String c = code.toLowerCase(java.util.Locale.ROOT);
     if (c.contains("^") && (c.contains("$d") || c.contains("$o") || c.contains("$g"))) {
       return "DATA";
@@ -283,9 +269,7 @@ public final class FileManTierASmoke {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String quote(String s)  {
+  static String quote(String s) {
     return "\"" + s.replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"") + "\"";
   }
 

@@ -18,9 +18,7 @@ import java.util.stream.Stream;
 public final class FileManCorpusWalk {
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String root()  {
+  static String root() {
     String env = System.getenv("FILEMAN_CORPUS");
     return env != null && !env.isEmpty() ? env : System.getProperty("user.home") + "/_fileman";
   }
@@ -110,9 +108,7 @@ public final class FileManCorpusWalk {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String rel(String base, Path p)  {
+  static String rel(String base, Path p) {
     return Path.of(base).relativize(p).toString();
   }
 

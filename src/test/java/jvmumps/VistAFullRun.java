@@ -22,9 +22,7 @@ import java.util.stream.Stream;
 public final class VistAFullRun {
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String root()  {
+  static String root() {
     String env = System.getenv("VISTA_CORPUS");
     return env != null && !env.isEmpty()
         ? env
@@ -198,9 +196,7 @@ public final class VistAFullRun {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String packageOf(String base, Path p)  {
+  static String packageOf(String base, Path p) {
     // .../Packages/<PackageName>/Routines/<file>.m → <PackageName>
     Path rel = Path.of(base).relativize(p);
     String[] parts = rel.toString().split("/");
@@ -211,16 +207,12 @@ public final class VistAFullRun {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String rel(String base, Path p)  {
+  static String rel(String base, Path p) {
     return Path.of(base).relativize(p).toString();
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String truncate(String s)  {
+  static String truncate(String s) {
     if (s == null) return "";
     return s.length() > 120 ? s.substring(0, 120) + "…" : s;
   }
@@ -235,9 +227,7 @@ public final class VistAFullRun {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String truncateName(String s)  {
+  static String truncateName(String s) {
     return s.length() > 40 ? s.substring(0, 37) + "…" : s;
   }
 

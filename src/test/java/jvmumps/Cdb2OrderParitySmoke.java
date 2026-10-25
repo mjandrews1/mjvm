@@ -51,8 +51,7 @@ public class Cdb2OrderParitySmoke {
 
   /** Resolve cdb2pipe; ignore smoke-suite argv (CORPUS path). Null if absent. */
   @SuppressWarnings("RedundantThrows")
-
-  static String cdb2Pipe(String[] a)  {
+  static String cdb2Pipe(String[] a) {
     String pipe = System.getenv("CDB2PIPE");
     if (pipe == null || pipe.isEmpty()) pipe = "tools/cdb2pipe";
     // make smoke passes $(CORPUS) — never treat a data file as the pipe
@@ -63,17 +62,13 @@ public class Cdb2OrderParitySmoke {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String envOr(String k, String d)  {
+  static String envOr(String k, String d) {
     String v = System.getenv(k);
     return v == null || v.isEmpty() ? d : v;
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static String firstDiff(List<String> a, List<String> b)  {
+  static String firstDiff(List<String> a, List<String> b) {
     for (int i = 0; i < Math.min(a.size(), b.size()); i++) {
       if (!a.get(i).equals(b.get(i))) return "i=" + i + " sqlite=" + a.get(i) + " cdb2=" + b.get(i);
     }
@@ -81,9 +76,7 @@ public class Cdb2OrderParitySmoke {
   }
 
   @SuppressWarnings("RedundantThrows")
-
-
-  static List<String> walk(StoreApi st)  {
+  static List<String> walk(StoreApi st) {
     List<String> out = new ArrayList<>();
     String k = "";
     while (true) {

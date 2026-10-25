@@ -6,8 +6,7 @@ package jvmumps;
  */
 public final class GapProbe {
   @SuppressWarnings("RedundantThrows")
-
-  static void run(String label, String code)  {
+  static void run(String label, String code) {
     try {
       mjvm.runtime.MRuntime rt = new mjvm.runtime.MRuntime(new MStore());
       rt.setExtrinsicHandler(
@@ -41,8 +40,7 @@ public final class GapProbe {
 
   /** ZLINK shape: load a tagged routine, then run a call against it. */
   @SuppressWarnings("RedundantThrows")
-
-  static void runZlink(String label, String prelude, String code)  {
+  static void runZlink(String label, String prelude, String code) {
     try {
       mjvm.runtime.MRuntime rt = new mjvm.runtime.MRuntime(new MStore());
       mjvm.compiler.MFrontend fe = new mjvm.compiler.MFrontend();

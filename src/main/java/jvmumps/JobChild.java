@@ -9,6 +9,8 @@ public final class JobChild {
     }
     try {
       new LineInterp().run(args[0]);
-    } catch (Exception ignored) { ignored.printStackTrace(); }
+    } catch (Exception ignored) {
+      ignored.printStackTrace();
+    }
   }
 }

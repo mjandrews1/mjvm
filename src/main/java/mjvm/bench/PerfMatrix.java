@@ -143,7 +143,9 @@ public final class PerfMatrix {
       m.put("store.sqlite.set_ops", (long) (n / (sqlSetMs / 1000.0)));
       m.put("store.sqlite.get_ops", (long) (n / (sqlGetMs / 1000.0)));
       sq.close();
-    } catch (@SuppressWarnings("unused") Exception e) {
+    } catch (
+        @SuppressWarnings("unused")
+        Exception e) {
       m.put("store.sqlite.error", e.toString());
     }
   }
@@ -162,21 +164,31 @@ public final class PerfMatrix {
       if (ok) st.lockRelease("k", "p0");
       m.put("lock.uncontended_us", us);
       st.close();
-    } catch (@SuppressWarnings("unused") Exception e) {
+    } catch (
+        @SuppressWarnings("unused")
+        Exception e) {
       m.put("lock.error", e.toString());
     }
   }
 
   static void captureFootprint(Map<String, Object> m, int iters) {
     Runtime rt = Runtime.getRuntime();
-    try { Thread.sleep(50); } catch (InterruptedException ignored) {};
+    try {
+      Thread.sleep(50);
+    } catch (InterruptedException ignored) {
+    }
+    ;
     long before = rt.totalMemory() - rt.freeMemory();
     // allocate a realistic M store tree
     MStore mem = new MStore();
     for (int i = 0; i < Math.min(iters, 50_000); i++) {
       mem.set(List.of("^F", String.valueOf(i)), true, MValue.ofNumber(i));
     }
-    try { Thread.sleep(50); } catch (InterruptedException ignored) {};
+    try {
+      Thread.sleep(50);
+    } catch (InterruptedException ignored) {
+    }
+    ;
     long after = rt.totalMemory() - rt.freeMemory();
     m.put("footprint.heap_before_mb", before / (1024 * 1024));
     m.put("footprint.heap_after_store_mb", after / (1024 * 1024));
@@ -190,7 +202,9 @@ public final class PerfMatrix {
       if (!rss.isEmpty()) {
         m.put("footprint.rss_kb", Long.parseLong(rss.trim()));
       }
-    } catch (@SuppressWarnings("unused") Exception ignored) {
+    } catch (
+        @SuppressWarnings("unused")
+        Exception ignored) {
       // macOS / no /proc — omit
     }
   }

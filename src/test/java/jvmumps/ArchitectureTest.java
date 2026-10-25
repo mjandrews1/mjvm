@@ -10,21 +10,15 @@ import com.tngtech.archunit.lang.ArchRule;
 /**
  * Architecture rules for mJVM — enforced as JUnit-style checks.
  *
- * Layering (top to bottom):
- *   mjvm.cli       → mjvm.runtime, mjvm.compiler, mjvm.ir, jvmumps
- *   mjvm.compiler  → mjvm.ir, jvmumps (MValue, MError)
- *   mjvm.runtime   → mjvm.ir, jvmumps
- *   mjvm.ir        → (leaf)
- *   jvmumps.store  → jvmumps (StoreApi, MValue)
- *   jvmumps        → (base)
+ * <p>Layering (top to bottom): mjvm.cli → mjvm.runtime, mjvm.compiler, mjvm.ir, jvmumps
+ * mjvm.compiler → mjvm.ir, jvmumps (MValue, MError) mjvm.runtime → mjvm.ir, jvmumps mjvm.ir →
+ * (leaf) jvmumps.store → jvmumps (StoreApi, MValue) jvmumps → (base)
  *
- * Invariants:
- *   1. Compiler must not depend on runtime (one-way: runtime calls compiler output)
- *   2. IR must not depend on runtime or compiler (leaf module)
- *   3. Store implementations must not depend on compiler or runtime
- *   4. No classes in jvmumps may depend on mjvm.* (base layer purity)
+ * <p>Invariants: 1. Compiler must not depend on runtime (one-way: runtime calls compiler output) 2.
+ * IR must not depend on runtime or compiler (leaf module) 3. Store implementations must not depend
+ * on compiler or runtime 4. No classes in jvmumps may depend on mjvm.* (base layer purity)
  *
- * Usage: java -cp build:lib/... jvmumps.ArchitectureTest
+ * <p>Usage: java -cp build:lib/... jvmumps.ArchitectureTest
  */
 public final class ArchitectureTest {
 
@@ -87,7 +81,8 @@ public final class ArchitectureTest {
             .and()
             .resideOutsideOfPackage("jvmumps.store..")
             .and()
-            .haveNameMatching(".*\\.(MStore|MValue|MError|StoreApi|StoreCore|StoreDb|StoreLock|ExprEval|ExprEngine|ExprIntrinsics|ExprTokens|Engine|Cursor|LineInterp|LineCmds|LineDevices|LineDispatch|LineEngine|LineEnv|LineErrors|LineExec|LineRefs|LineRoutine|LineState|LineTxLocks|LockQueue|PatternMatch|PemdasEval|CorpusCase|CorpusRunner|CorpusScore|JobChild|Repl|Cdb2Store|H2Store|MapDBStore|SqlStore)")
+            .haveNameMatching(
+                ".*\\.(MStore|MValue|MError|StoreApi|StoreCore|StoreDb|StoreLock|ExprEval|ExprEngine|ExprIntrinsics|ExprTokens|Engine|Cursor|LineInterp|LineCmds|LineDevices|LineDispatch|LineEngine|LineEnv|LineErrors|LineExec|LineRefs|LineRoutine|LineState|LineTxLocks|LockQueue|PatternMatch|PemdasEval|CorpusCase|CorpusRunner|CorpusScore|JobChild|Repl|Cdb2Store|H2Store|MapDBStore|SqlStore)")
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage("mjvm.compiler..", "mjvm.runtime..", "mjvm.ir..")
@@ -107,7 +102,8 @@ public final class ArchitectureTest {
 
     System.out.println();
     System.out.printf("  summary: pass=%d  fail=%d%n", pass, fail);
-    System.out.println(fail == 0 ? "  RESULT: Architecture rules OK" : "  RESULT: Architecture rules FAIL");
+    System.out.println(
+        fail == 0 ? "  RESULT: Architecture rules OK" : "  RESULT: Architecture rules FAIL");
     System.exit(fail > 0 ? 1 : 0);
   }
 
