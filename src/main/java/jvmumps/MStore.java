@@ -23,9 +23,26 @@ public final class MStore implements StoreApi {
     MValue value = MValue.EMPTY;
     boolean hasValue = false;
     final Map<String, Node> kids = new ConcurrentHashMap<>();
+    private volatile String[] sortedKeysCache;
+    private volatile boolean kidsDirty = true;
 
     Node kid(String s) {
+      kidsDirty = true;
       return kids.computeIfAbsent(s, k -> new Node());
+    }
+
+    void markDirty() {
+      kidsDirty = true;
+    }
+
+    String[] sortedKeys() {
+      if (kidsDirty || sortedKeysCache == null) {
+        String[] keys = kids.keySet().toArray(new String[0]);
+        java.util.Arrays.sort(keys, MStore::collate);
+        sortedKeysCache = keys;
+        kidsDirty = false;
+      }
+      return sortedKeysCache;
     }
   }
 
@@ -761,6 +778,7 @@ public final class MStore implements StoreApi {
     Node parent = find(path.subList(0, path.size() - 1), global);
     if (parent != null) {
       parent.kids.remove(path.get(path.size() - 1));
+      parent.markDirty();
     }
   }
 
@@ -801,28 +819,43 @@ public final class MStore implements StoreApi {
       return "";
     }
     String cur = path.get(path.size() - 1);
-    String best = null;
-    for (Map.Entry<String, Node> e : parent.kids.entrySet()) {
-      String k = e.getKey();
-      // $ORDER(A("")) / $ORDER(A(""),-1) — empty cursor starts the walk
-      if (cur.isEmpty()) {
-        if (best == null || (dir > 0 ? collate(k, best) < 0 : collate(k, best) > 0)) {
-          best = k;
-        }
-        continue;
-      }
-      int c = collate(k, cur);
-      if (dir > 0 && c <= 0) {
-        continue;
-      }
-      if (dir <= 0 && c >= 0) {
-        continue;
-      }
-      if (best == null || (dir > 0 ? collate(k, best) < 0 : collate(k, best) > 0)) {
-        best = k;
-      }
+    String[] sorted = parent.sortedKeys();
+    if (sorted.length == 0) {
+      return "";
     }
-    return best == null ? "" : best;
+    if (dir > 0) {
+      // Forward: find first key > cur
+      if (cur.isEmpty()) {
+        return sorted[0];
+      }
+      int lo = 0, hi = sorted.length - 1, ans = -1;
+      while (lo <= hi) {
+        int mid = (lo + hi) >>> 1;
+        if (collate(sorted[mid], cur) > 0) {
+          ans = mid;
+          hi = mid - 1;
+        } else {
+          lo = mid + 1;
+        }
+      }
+      return ans >= 0 ? sorted[ans] : "";
+    } else {
+      // Backward: find last key < cur
+      if (cur.isEmpty()) {
+        return sorted[sorted.length - 1];
+      }
+      int lo = 0, hi = sorted.length - 1, ans = -1;
+      while (lo <= hi) {
+        int mid = (lo + hi) >>> 1;
+        if (collate(sorted[mid], cur) < 0) {
+          ans = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      return ans >= 0 ? sorted[ans] : "";
+    }
   }
 
   static int collate(String a, String b) {
