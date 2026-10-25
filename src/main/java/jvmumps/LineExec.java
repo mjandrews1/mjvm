@@ -18,7 +18,10 @@ final class LineExec {
     }
   }
 
-  static boolean execOneTrapped(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static boolean execOneTrapped(LineInterp fe, Cursor c)  {
     try {
       int before = c.i;
       LineDispatch.execOne(fe, c);

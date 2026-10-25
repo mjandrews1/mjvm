@@ -36,7 +36,7 @@ final class MFrontendCmds {
       if (i < line.length() && line.charAt(i) == '$') {
         int k = i + 1;
         while (k < line.length() && (Character.isLetter(line.charAt(k)))) k++;
-        String sp = line.substring(i, k).toUpperCase();
+        String sp = line.substring(i, k).toUpperCase(java.util.Locale.ROOT);
         if (i < line.length() && k < line.length() && line.charAt(k) == '(') {
           // $E(ref,f[,t])=v / $P(…) — bridge via evalExpr assignment is not
           // supported; skip args and use EVAL of full SET via store of result

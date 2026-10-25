@@ -58,7 +58,7 @@ final class LineCmds {
           fe.tx.recordUndo(path, fe.store.get(path, glob));
           fe.store.set(path, glob, MValue.ofString(fe.setExtractOf(cur, from, to, newv)));
         }
-      } else if (lhs.toUpperCase().startsWith("$P") || lhs.toUpperCase().startsWith("$PIECE")) {
+      } else if (lhs.toUpperCase(java.util.Locale.ROOT).startsWith("$P") || lhs.toUpperCase(java.util.Locale.ROOT).startsWith("$PIECE")) {
         // SET $PIECE(ref,d,f[,t])=val
         int lp = lhs.indexOf('(');
         if (lp > 0) {
@@ -122,7 +122,10 @@ final class LineCmds {
     fe.test = true;
   }
 
-  static void doWrite(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doWrite(LineInterp fe, Cursor c)  {
     // Line-oriented (shared corpus / PyMumps): each WRITE flushes lines on
     // ! / # / *10 and a trailing flush. Append each line + \n to fe.out.
     StringBuilder buf = new StringBuilder();
@@ -205,7 +208,10 @@ final class LineCmds {
     fe.test = true;
   }
 
-  static void doKill(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doKill(LineInterp fe, Cursor c)  {
     while (!c.atEnd()) {
       c.skipWs();
       if (c.atEnd() || c.startsCommand()) {
@@ -227,7 +233,10 @@ final class LineCmds {
     }
   }
 
-  static void doJob(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doJob(LineInterp fe, Cursor c)  {
     // J10: real JOB — spawn a child JVM running the snippet (async)
     c.skipWs();
     String code = c.readExpr();
@@ -249,22 +258,34 @@ final class LineCmds {
     fe.test = true;
   }
 
-  static void doTStart(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doTStart(LineInterp fe, Cursor c)  {
     fe.tx.tstart();
     c.skipCmd();
   }
 
-  static void doTCommit(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doTCommit(LineInterp fe, Cursor c)  {
     fe.tx.tcommit();
     c.skipCmd();
   }
 
-  static void doTRollback(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doTRollback(LineInterp fe, Cursor c)  {
     fe.tx.trollback();
     c.skipCmd();
   }
 
-  static void doOpen(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doOpen(LineInterp fe, Cursor c)  {
     c.skipWs();
     int n = 1;
     String path = null;
@@ -288,7 +309,10 @@ final class LineCmds {
     }
   }
 
-  static void doClose(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doClose(LineInterp fe, Cursor c)  {
     c.skipWs();
     String tok = c.readRefToken();
     int n = 1;
@@ -298,14 +322,20 @@ final class LineCmds {
     fe.devices.close(n);
   }
 
-  static void doUse(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doUse(LineInterp fe, Cursor c)  {
     c.skipWs();
     String tok = c.readRefToken();
     int n = tok.isEmpty() ? 0 : (int) ExprEval.toNum(tok);
     fe.devices.use(n);
   }
 
-  static void doRead(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doRead(LineInterp fe, Cursor c)  {
     String line = fe.devices.readLine();
     c.skipWs();
     String ref = c.readRefToken();
@@ -315,7 +345,10 @@ final class LineCmds {
     }
   }
 
-  static void doLock(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doLock(LineInterp fe, Cursor c)  {
     while (!c.atEnd()) {
       c.skipWs();
       if (c.atEnd() || c.startsCommand()) {
@@ -349,7 +382,10 @@ final class LineCmds {
     fe.test = true;
   }
 
-  static void doNew(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doNew(LineInterp fe, Cursor c)  {
     List<String> names = new ArrayList<>();
     while (!c.atEnd()) {
       c.skipWs();
@@ -370,7 +406,10 @@ final class LineCmds {
     fe.store.newScope(names.isEmpty() ? null : names);
   }
 
-  static void doMerge(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doMerge(LineInterp fe, Cursor c)  {
     c.skipWs();
     String dst = c.readRefToken();
     c.skipWs();
@@ -384,7 +423,10 @@ final class LineCmds {
     fe.store.merge(dp, dp.get(0).startsWith("^"), sp, sp.get(0).startsWith("^"));
   }
 
-  static void doFor(LineInterp fe, Cursor c) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void doFor(LineInterp fe, Cursor c)  {
     c.skipWs();
     String var = c.readRefToken();
     c.skipWs();

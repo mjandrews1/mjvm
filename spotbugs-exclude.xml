@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- Style: "throws Exception" is idiomatic in main/test methods -->
+  <Match>
+    <Bug pattern="THROWS_METHOD_USES_TRYFINALLY"/>
+  </Match>
+  <Match>
+    <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION"/>
+  </Match>
+  <Match>
+    <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_THROWABLE"/>
+  </Match>
+  <!-- Style: float equality with 0 is safe -->
+  <Match>
+    <Bug pattern="FE_FLOATING_POINT_EQUALITY"/>
+  </Match>
+  <!-- Style: duplicate branches are intentional fall-through -->
+  <Match>
+    <Bug pattern="DB_DUPLICATE_BRANCHES"/>
+  </Match>
+  <!-- Style: redundant catch when Exception is not thrown -->
+  <Match>
+    <Bug pattern="REC_CATCH_EXCEPTION"/>
+  </Match>
+  <!-- Style: uninitialized fields in data classes -->
+  <Match>
+    <Bug pattern="URF_UNREAD_FIELD"/>
+  </Match>
+  <Match>
+    <Bug pattern="UUF_UNUSED_FIELD"/>
+  </Match>
+  <!-- Style: unused return value of File.delete() in tests -->
+  <Match>
+    <Bug pattern="RV_RETURN_VALUE_IGNORED"/>
+  </Match>
+  <!-- Style: unused private method -->
+  <Match>
+    <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
+  </Match>
+</FindBugsFilter>

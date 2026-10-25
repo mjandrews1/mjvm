@@ -62,7 +62,10 @@ public final class NativeDetail {
     System.out.printf("NATIVE MATCH=%d MISS=%d ERR=%d%n", match, miss, err);
   }
 
-  static String q(String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String q(String s)  {
     return "\"" + s.replace("\n", "\\n").replace("\"", "\\\"") + "\"";
   }
 }

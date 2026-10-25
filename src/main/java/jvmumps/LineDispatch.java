@@ -14,7 +14,7 @@ final class LineDispatch {
     if (name.isEmpty()) {
       return;
     }
-    String up = name.toUpperCase();
+    String up = name.toUpperCase(java.util.Locale.ROOT);
     // postcond
     if (c.peek() == ':') {
       c.next();

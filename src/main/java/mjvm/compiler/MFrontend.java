@@ -49,7 +49,7 @@ public final class MFrontend {
       if (line.charAt(i) == ';') break; // rest of line is a comment
       int st = i;
       while (i < n && Character.isLetter(line.charAt(i))) i++;
-      String cmd = line.substring(st, i).toUpperCase();
+      String cmd = line.substring(st, i).toUpperCase(java.util.Locale.ROOT);
       if (cmd.isEmpty()) {
         throw new MError("expected command at " + line.substring(st));
       }
@@ -377,9 +377,7 @@ public final class MFrontend {
       cached = IR_CACHE.get(hash);
     }
     if (cached != null) {
-      @SuppressWarnings("unchecked")
       List<Ir> ir = (List<Ir>) cached[0];
-      @SuppressWarnings("unchecked")
       java.util.Map<String, Integer> tags = (java.util.Map<String, Integer>) cached[1];
       lastTags = tags;
       // Return a copy — Ir.iarg is mutable (JMP targets patched at link time)
@@ -442,7 +440,7 @@ public final class MFrontend {
             if (i < raw.length() && raw.charAt(i) == '(') {
               int j = raw.indexOf(')', i);
               if (j > i) {
-                formalsOf.putIfAbsent(tag.toUpperCase(), raw.substring(i + 1, j));
+                formalsOf.putIfAbsent(tag.toUpperCase(java.util.Locale.ROOT), raw.substring(i + 1, j));
                 i = j + 1;
               }
             }
@@ -459,7 +457,7 @@ public final class MFrontend {
       }
       tags.add(tag);
       bodies.add(body);
-      if (tag != null) labels.putIfAbsent(tag.toUpperCase(), tags.size() - 1);
+      if (tag != null) labels.putIfAbsent(tag.toUpperCase(java.util.Locale.ROOT), tags.size() - 1);
     }
     // Argumentless DO + dotted block: D\n . cmd  →  D ZDn  +  tag ZDn
     for (int i = 0; i < bodies.size(); i++) {
@@ -541,9 +539,9 @@ public final class MFrontend {
           out.add(Ir.ret());
         }
       }
-      if (tag != null && formalsOf.containsKey(tag.toUpperCase())) {
+      if (tag != null && formalsOf.containsKey(tag.toUpperCase(java.util.Locale.ROOT))) {
         List<Ir> bound = new ArrayList<>();
-        String[] fs = formalsOf.get(tag.toUpperCase()).split(",");
+        String[] fs = formalsOf.get(tag.toUpperCase(java.util.Locale.ROOT)).split(",");
         for (int fi = fs.length - 1; fi >= 0; fi--) {
           String fn = fs[fi].trim();
           if (!fn.isEmpty()) bound.add(Ir.bindFormal(fn));
@@ -659,7 +657,7 @@ public final class MFrontend {
       java.util.Map<String, Integer> labels,
       int selfLine,
       boolean isGoto) {
-    int startI = i;
+    // Removed dead store: startI
     i = MFrontendUtil.skipWs(line, i);
     if (i + 1 < line.length() && line.charAt(i) == '$' && line.charAt(i + 1) == '$') {
       i += 2;
@@ -691,7 +689,7 @@ public final class MFrontend {
     int tst = i;
     while (i < line.length()
         && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
-    String target = line.substring(tst, i).toUpperCase();
+    String target = line.substring(tst, i).toUpperCase(java.util.Locale.ROOT);
     // TAG^ROUTINE syntax — strip the ^routine part (target is the tag)
     if (i < line.length() && line.charAt(i) == '^') {
       i++;

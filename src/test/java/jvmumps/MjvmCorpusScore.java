@@ -53,7 +53,10 @@ public final class MjvmCorpusScore {
     System.out.printf("MJVM CORPUS MATCH=%d MISS=%d ERR=%d%n", match, miss, err);
   }
 
-  static String q(String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String q(String s)  {
     return "\"" + s.replace("\n", "\\n") + "\"";
   }
 

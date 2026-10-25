@@ -33,12 +33,16 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   private static final char SEP = 1;
 
   /** Get metrics for monitoring. */
-  public StoreMetrics metrics() {
+  @SuppressWarnings("RedundantThrows")
+
+  public StoreMetrics metrics()  {
     return metrics;
   }
 
   /** Check disk space. Returns "OK", "WARN", or "FAIL". */
-  public String checkDisk() {
+  @SuppressWarnings("RedundantThrows")
+
+  public String checkDisk()  {
     return metrics.checkDisk(diskPath);
   }
 
@@ -146,14 +150,20 @@ public final class TieredStore implements StoreApi, AutoCloseable {
 
   // --- Startup ---
 
-  private void loadFromDisk() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  private void loadFromDisk()  {
     // Full load: scan all keys from disk into cache
     // For large stores, this could be lazy — but full load is fast enough (33K keys ~66ms)
     // H2Store doesn't expose a scanAll, so we use the keyIterator pattern
     // For now, we rely on lazy loading on cache miss (simpler)
   }
 
-  private void replayWal() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  private void replayWal()  {
     try {
       List<WriteAheadLog.Entry> entries = wal.replay();
       for (WriteAheadLog.Entry e : entries) {
@@ -183,7 +193,9 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   // --- StoreCore ---
 
   @Override
-  public MValue get(String key, boolean global) {
+  @SuppressWarnings("RedundantThrows")
+
+  public MValue get(String key, boolean global)  {
     long t0 = System.nanoTime();
     ops.incrementAndGet();
     // Check cache first
@@ -205,7 +217,9 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   @Override
-  public void set(String key, boolean global, MValue v) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void set(String key, boolean global, MValue v)  {
     long t0 = System.nanoTime();
     if (readOnly) throw new MError("TieredStore is read-only");
     ops.incrementAndGet();
@@ -225,7 +239,9 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   @Override
-  public void kill(String key, boolean global) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void kill(String key, boolean global)  {
     if (readOnly) throw new MError("TieredStore is read-only");
     ops.incrementAndGet();
     // Remove from cache (ConcurrentHashMap iteration is safe)
@@ -245,18 +261,24 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   @Override
-  public double getNum(String key, boolean global) {
+  @SuppressWarnings("RedundantThrows")
+
+  public double getNum(String key, boolean global)  {
     MValue v = get(key, global);
     return v == MValue.EMPTY ? 0 : v.asNum();
   }
 
   @Override
-  public void setNum(String key, boolean global, double val) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void setNum(String key, boolean global, double val)  {
     set(key, global, MValue.ofNumber(val));
   }
 
   @Override
-  public MValue increment(String key, boolean global, double amount) {
+  @SuppressWarnings("RedundantThrows")
+
+  public MValue increment(String key, boolean global, double amount)  {
     if (readOnly) throw new MError("TieredStore is read-only");
     ops.incrementAndGet();
     // Read from cache (fast path)
@@ -280,29 +302,39 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   @Override
-  public MValue get(List<String> path, boolean global) {
+  @SuppressWarnings("RedundantThrows")
+
+  public MValue get(List<String> path, boolean global)  {
     return get(keyOf(path), global);
   }
 
   @Override
-  public void set(List<String> path, boolean global, MValue v) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void set(List<String> path, boolean global, MValue v)  {
     set(keyOf(path), global, v);
   }
 
   @Override
-  public void kill(List<String> path, boolean global) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void kill(List<String> path, boolean global)  {
     kill(keyOf(path), global);
   }
 
   @Override
-  public MValue increment(List<String> path, boolean global, double amount) {
+  @SuppressWarnings("RedundantThrows")
+
+  public MValue increment(List<String> path, boolean global, double amount)  {
     return increment(keyOf(path), global, amount);
   }
 
   // --- StoreOrder ---
 
   @Override
-  public int data(List<String> path, boolean global) {
+  @SuppressWarnings("RedundantThrows")
+
+  public int data(List<String> path, boolean global)  {
     // Check cache first
     String key = keyOf(path);
     boolean hasVal = cache.containsKey(key) || disk.get(key, global) != MValue.EMPTY;
@@ -321,20 +353,26 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   @Override
-  public String order(List<String> path, boolean global, double dir) {
+  @SuppressWarnings("RedundantThrows")
+
+  public String order(List<String> path, boolean global, double dir)  {
     // Delegate to disk (cache doesn't maintain sorted order)
     return disk.order(path, global, dir);
   }
 
   @Override
-  public String queryNext(List<String> path, boolean global, int dir) {
+  @SuppressWarnings("RedundantThrows")
+
+  public String queryNext(List<String> path, boolean global, int dir)  {
     return order(path, global, dir);
   }
 
   // --- Lifecycle ---
 
   /** Flush all dirty pages to disk. Blocks until complete. No-op in read-only. */
-  public void flush() {
+  @SuppressWarnings("RedundantThrows")
+
+  public void flush()  {
     if (readOnly) return;
     synchronized (this) {
       for (String key : dirty) {
@@ -353,17 +391,19 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   /** Background flusher — runs every 100ms. */
-  private void backgroundFlush() {
+  @SuppressWarnings("RedundantThrows")
+
+  private void backgroundFlush()  {
     if (closed) return;
     try {
       flush();
-    } catch (Exception e) {
-      // Don't crash the flusher — retry next cycle
-    }
+    } catch (Exception e) { e.printStackTrace(); }
   }
 
   @Override
-  public void close() {
+  @SuppressWarnings("RedundantThrows")
+
+  public void close()  {
     closed = true;
     if (readOnly) {
       disk.close();
@@ -378,39 +418,50 @@ public final class TieredStore implements StoreApi, AutoCloseable {
     flush();
     try {
       wal.close();
-    } catch (Exception e) {
-    }
+    } catch (Exception e) { e.printStackTrace(); }
     disk.close();
   }
 
   @Override
-  public long storeOps() {
+  @SuppressWarnings("RedundantThrows")
+
+  public long storeOps()  {
     return ops.get();
   }
 
   @Override
-  public void newScope(List<String> names) {}
+  @SuppressWarnings("RedundantThrows")
+
+  public void newScope(List<String> names)  {}
 
   @Override
-  public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal)  {
     MValue v = get(src, sGlobal);
     if (v != MValue.EMPTY) set(dst, dGlobal, v);
   }
 
   @Override
-  public boolean lockAcquire(String key, String pid, long timeoutMs) {
+  @SuppressWarnings("RedundantThrows")
+
+  public boolean lockAcquire(String key, String pid, long timeoutMs)  {
     return disk.lockAcquire(key, pid, timeoutMs);
   }
 
   @Override
-  public void lockRelease(String key, String pid) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void lockRelease(String key, String pid)  {
     disk.lockRelease(key, pid);
   }
 
   // --- Internal ---
 
   /** Add to cache with LRU eviction. */
-  private void putCache(String key, MValue v) {
+  @SuppressWarnings("RedundantThrows")
+
+  private void putCache(String key, MValue v)  {
     cache.put(key, v);
     touchLru(key);
     // Evict if over limit
@@ -420,12 +471,16 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   /** Mark key as accessed (LinkedHashMap handles LRU order automatically). */
-  private void touchLru(String key) {
+  @SuppressWarnings("RedundantThrows")
+
+  private void touchLru(String key)  {
     // LinkedHashMap access-order mode handles this on get/put
   }
 
   /** Evict least recently used key. Prefer clean pages. */
-  private void evictOldest() {
+  @SuppressWarnings("RedundantThrows")
+
+  private void evictOldest()  {
     // Find clean page (not dirty) — iterate LRU from oldest
     for (String key : lru) {
       if (!dirty.contains(key)) {
@@ -447,7 +502,9 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   /** Convert path list to key string. */
-  static String keyOf(List<String> path) {
+  @SuppressWarnings("RedundantThrows")
+
+  static String keyOf(List<String> path)  {
     StringBuilder sb = new StringBuilder(path.get(0));
     for (int i = 1; i < path.size(); i++) {
       sb.append(SEP).append(path.get(i));
@@ -456,17 +513,23 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   }
 
   /** True if this is a read-only reader. */
-  public boolean isReadOnly() {
+  @SuppressWarnings("RedundantThrows")
+
+  public boolean isReadOnly()  {
     return readOnly;
   }
 
   /** Get cache size (for testing). */
-  public int cacheSize() {
+  @SuppressWarnings("RedundantThrows")
+
+  public int cacheSize()  {
     return cache.size();
   }
 
   /** Get dirty count (for testing). */
-  public int dirtyCount() {
+  @SuppressWarnings("RedundantThrows")
+
+  public int dirtyCount()  {
     return dirty.size();
   }
 }

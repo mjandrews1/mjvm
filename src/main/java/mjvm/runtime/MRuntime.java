@@ -17,7 +17,9 @@ public final class MRuntime {
   private final StoreApi store;
 
   /** Access the underlying store (for batch operations). */
-  public StoreApi getStore() {
+  @SuppressWarnings("RedundantThrows")
+
+  public StoreApi getStore()  {
     return store;
   }
 
@@ -47,22 +49,30 @@ public final class MRuntime {
               }
 
               @Override
-              public void set(String name, jvmumps.MValue v) {
+              @SuppressWarnings("RedundantThrows")
+
+              public void set(String name, jvmumps.MValue v)  {
                 MRuntime.this.setVar(name, v);
               }
 
               @Override
-              public int data(String name) {
+              @SuppressWarnings("RedundantThrows")
+
+              public int data(String name)  {
                 return MRuntime.this.data(name);
               }
 
               @Override
-              public String order(String key, double dir) {
+              @SuppressWarnings("RedundantThrows")
+
+              public String order(String key, double dir)  {
                 return MRuntime.this.order(key, dir);
               }
 
               @Override
-              public String query(String key, int dir) {
+              @SuppressWarnings("RedundantThrows")
+
+              public String query(String key, int dir)  {
                 return MRuntime.this.query(key, dir);
               }
 
@@ -159,7 +169,9 @@ public final class MRuntime {
    * M11: run $ETRAP/$ZTRAP once for a command error. Returns true if a trap was fired (error
    * handled), false if no trap set.
    */
-  public boolean fireTrap() {
+  @SuppressWarnings("RedundantThrows")
+
+  public boolean fireTrap()  {
     if (trapFiring) return true;
     String trap = exprEval.etrap;
     if (trap.isEmpty()) trap = exprEval.ztrap;
@@ -176,8 +188,10 @@ public final class MRuntime {
   }
 
   /** SET $ETRAP / $ECODE / $ZTRAP / $X / $Y. */
-  public void setSpecial(String name, jvmumps.MValue v) {
-    String u = name.toUpperCase();
+  @SuppressWarnings("RedundantThrows")
+
+  public void setSpecial(String name, jvmumps.MValue v)  {
+    String u = name.toUpperCase(java.util.Locale.ROOT);
     switch (u) {
       case "$ETRAP" -> exprEval.etrap = v.asStr();
       case "$ECODE" -> exprEval.ecode = v.asStr();
@@ -190,17 +204,26 @@ public final class MRuntime {
     }
   }
 
-  public String output() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public String output()  {
     return out.toString();
   }
 
-  public void reset() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void reset()  {
     out.setLength(0);
     locals.clear();
     quit = false;
   }
 
-  public void write(String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void write(String s)  {
     if (out.length() > 2_000_000) throw new jvmumps.MError("output limit");
     if (io != 0) {
       writeToDevice(io, s);
@@ -211,7 +234,9 @@ public final class MRuntime {
   }
 
   /** M11 WRITE *n */
-  public void writeChar(int code) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void writeChar(int code)  {
     if (code == 10) {
       writeNl();
       return;
@@ -221,7 +246,9 @@ public final class MRuntime {
   }
 
   /** M11 WRITE ?n — pad to column n (1-based). */
-  public void writeCol(int n) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void writeCol(int n)  {
     String cur = out.toString();
     int lastNl = cur.lastIndexOf('\n');
     int col = cur.length() - lastNl - 1;
@@ -231,7 +258,9 @@ public final class MRuntime {
   }
 
   /** Trailing WRITE line-break: keep $X/$Y (C90). */
-  public void endWrite() {
+  @SuppressWarnings("RedundantThrows")
+
+  public void endWrite()  {
     if (io != 0) {
       writeToDevice(io, "");
       return;
@@ -239,7 +268,10 @@ public final class MRuntime {
     out.append('\n');
   }
 
-  public void writeNl() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void writeNl()  {
     if (io != 0) {
       writeToDevice(io, "");
       return;
@@ -249,12 +281,17 @@ public final class MRuntime {
     exprEval.vy++;
   }
 
-  static List<String> pathOf(String name) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static List<String> pathOf(String name)  {
     return pathOf(name, null);
   }
 
   /** Build interned string key (name\001sub1\001sub2...) — avoids List allocation. */
-  static String keyOf(String name, MRuntime rt) {
+  @SuppressWarnings("RedundantThrows")
+
+  static String keyOf(String name, MRuntime rt)  {
     int p = name.indexOf('(');
     if (p < 0) return name;
     StringBuilder sb = new StringBuilder(name.substring(0, p));
@@ -295,7 +332,10 @@ public final class MRuntime {
     return sb.toString();
   }
 
-  static String evalSub(String s, MRuntime rt) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String evalSub(String s, MRuntime rt)  {
     if (s.isEmpty()) return "";
     if (s.startsWith("\"") && s.endsWith("\"")) return s.substring(1, s.length() - 1);
     if (rt != null) {
@@ -309,7 +349,10 @@ public final class MRuntime {
     return s;
   }
 
-  static List<String> pathOf(String name, MRuntime rt) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static List<String> pathOf(String name, MRuntime rt)  {
     List<String> path = new ArrayList<>();
     int p = name.indexOf('(');
     if (p < 0) {
@@ -362,7 +405,9 @@ public final class MRuntime {
    * non-canonical form and FileMan's numeric field/index subscripts never compare equal to a
    * literal (GAP-1).
    */
-  static String subOf(String s, MRuntime rt) {
+  @SuppressWarnings("RedundantThrows")
+
+  static String subOf(String s, MRuntime rt)  {
     if (s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"') {
       return s.substring(1, s.length() - 1);
     }
@@ -411,7 +456,10 @@ public final class MRuntime {
     return i == s.length();
   }
 
-  public MValue getVar(String name) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public MValue getVar(String name)  {
     if (locals.containsKey(name)) return locals.get(name);
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
@@ -422,7 +470,9 @@ public final class MRuntime {
   }
 
   /** Get numeric value directly (skips string format/parse). */
-  public double getNum(String name) {
+  @SuppressWarnings("RedundantThrows")
+
+  public double getNum(String name)  {
     if (locals.containsKey(name)) return locals.get(name).asNum();
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
@@ -430,7 +480,9 @@ public final class MRuntime {
   }
 
   /** Set numeric value directly (skips string format/parse). */
-  public void setNum(String name, double val) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void setNum(String name, double val)  {
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
     if (glob) {
@@ -445,7 +497,10 @@ public final class MRuntime {
     return jvmumps.StoreCore.splitKey(key);
   }
 
-  public void setVar(String name, MValue v) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void setVar(String name, MValue v)  {
     // Fast path: simple global with no indirection
     if (name.startsWith("^") && name.indexOf('@') < 0) {
       boolean glob = true;
@@ -541,11 +596,17 @@ public final class MRuntime {
     return store.increment(key, glob, amount);
   }
 
-  public boolean isQuit() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public boolean isQuit()  {
     return quit;
   }
 
-  public void requestQuit() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void requestQuit()  {
     quit = true;
   }
 
@@ -557,7 +618,10 @@ public final class MRuntime {
 
   private Resolver resolver;
 
-  public void setResolver(Resolver r) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void setResolver(Resolver r)  {
     this.resolver = r;
   }
 
@@ -570,7 +634,10 @@ public final class MRuntime {
 
   private java.util.Map<String, Integer> linkedTags;
 
-  public void link(java.util.List<mjvm.ir.Ir> prog, java.util.Map<String, Integer> tags) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void link(java.util.List<mjvm.ir.Ir> prog, java.util.Map<String, Integer> tags)  {
     this.linkedProg = prog;
     this.linkedTags = tags;
   }
@@ -583,7 +650,10 @@ public final class MRuntime {
     return linkedTags;
   }
 
-  public void setExtrinsicValue(jvmumps.MValue v) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void setExtrinsicValue(jvmumps.MValue v)  {
     this.extrinsicValue = v == null ? jvmumps.MValue.EMPTY : v;
   }
 
@@ -604,7 +674,7 @@ public final class MRuntime {
     // Linked routine first (ZLINK semantics): $$tag resolves against the
     // routine loaded by the last compile/run. Fall back to the handler.
     if (linkedTags != null && linkedProg != null) {
-      Integer pc = linkedTags.get(name.toUpperCase());
+      Integer pc = linkedTags.get(name.toUpperCase(java.util.Locale.ROOT));
       if (pc != null) {
         jvmumps.MValue[] pass = argv == null ? new jvmumps.MValue[0] : argv;
         return mjvm.runtime.IrMachine.runExtrinsic(linkedProg, this, pc, pass);
@@ -620,20 +690,29 @@ public final class MRuntime {
 
   private ExtrinsicHandler extrinsicHandler;
 
-  public void setExtrinsicHandler(ExtrinsicHandler h) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void setExtrinsicHandler(ExtrinsicHandler h)  {
     this.extrinsicHandler = h;
   }
 
-  public void call(String name, int argc) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void call(String name, int argc)  {
     call(name, new jvmumps.MValue[0]);
   }
 
-  public void call(String name, jvmumps.MValue[] argv) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void call(String name, jvmumps.MValue[] argv)  {
     // argumentless DO — no-op (dotted block continues inline)
     if (name == null || name.isEmpty()) return;
     // Linked routine (ZLINK semantics): DO tag resolves against linked tags.
     if (linkedTags != null && linkedProg != null) {
-      Integer pc = linkedTags.get(name.toUpperCase());
+      Integer pc = linkedTags.get(name.toUpperCase(java.util.Locale.ROOT));
       if (pc != null) {
         mjvm.runtime.IrMachine.runExtrinsic(linkedProg, this, pc, argv);
         return;
@@ -667,7 +746,9 @@ public final class MRuntime {
   }
 
   /** M10 NEW name — hide local (restore later via scope stack in LineInterp; here clear). */
-  public void newVar(String name) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void newVar(String name)  {
     if (name == null) return;
     if (name.startsWith("^")) return;
     locals.remove(name);
@@ -675,7 +756,10 @@ public final class MRuntime {
     store.kill(List.of(name), false);
   }
 
-  public void killVar(String name) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void killVar(String name)  {
     if (name == null || name.isEmpty()) return;
     List<String> path = pathOf(name, this);
     boolean glob = path.get(0).startsWith("^");
@@ -684,18 +768,25 @@ public final class MRuntime {
   }
 
   /** M12: $ORDER / $DATA / $QUERY / $NAME via the store tree. */
-  public String order(String key, double dir) {
+  @SuppressWarnings("RedundantThrows")
+
+  public String order(String key, double dir)  {
     List<String> path = pathOf(key, this);
     return store.order(path, path.get(0).startsWith("^"), dir);
   }
 
-  public int data(String key) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public int data(String key)  {
     List<String> path = pathOf(key, this);
     return store.data(path, path.get(0).startsWith("^"));
   }
 
   /** SET $EXTRACT(ref,from,to)=v / SET $PIECE(ref,d,f,t)=v */
-  public void setExtract(String ref, int from, int to, String v) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void setExtract(String ref, int from, int to, String v)  {
     List<String> path = pathOf(ref, this);
     boolean glob = path.get(0).startsWith("^");
     String cur = store.get(path, glob).asStr();
@@ -715,7 +806,10 @@ public final class MRuntime {
     setVar(ref, jvmumps.MValue.ofString(nu));
   }
 
-  public void setPiece(String ref, String d, int from, int to, String v) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void setPiece(String ref, String d, int from, int to, String v)  {
     List<String> path = pathOf(ref, this);
     boolean glob = path.get(0).startsWith("^");
     String cur = store.get(path, glob).asStr();
@@ -723,7 +817,9 @@ public final class MRuntime {
   }
 
   /** MERGE dst ← src (tree). */
-  public void mergeVar(String dst, String src) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void mergeVar(String dst, String src)  {
     if (dst == null || src == null) return;
     List<String> d = pathOf(dst, this);
     List<String> s = pathOf(src, this);
@@ -733,13 +829,17 @@ public final class MRuntime {
   }
 
   /** $QUERY */
-  public String query(String key, int dir) {
+  @SuppressWarnings("RedundantThrows")
+
+  public String query(String key, int dir)  {
     List<String> path = key.isEmpty() ? List.of("") : pathOf(key, this);
     return store.queryNext(path, !path.isEmpty() && path.get(0).startsWith("^"), dir);
   }
 
   // ---- M5 devices --------------------------------------------------
-  public void openDevice(int n, String path) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void openDevice(int n, String path)  {
     try {
       java.nio.file.Path p = java.nio.file.Path.of(path);
       devices.put(n, java.nio.file.Files.newBufferedReader(p));
@@ -755,7 +855,10 @@ public final class MRuntime {
     }
   }
 
-  public void closeDevice(int n) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void closeDevice(int n)  {
     try {
       if (devices.containsKey(n)) devices.remove(n).close();
       if (writers.containsKey(n)) writers.remove(n).close();
@@ -764,14 +867,20 @@ public final class MRuntime {
     if (io == n) io = 0;
   }
 
-  public void useDevice(int n) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void useDevice(int n)  {
     if (n != 0 && !devices.containsKey(n) && !writers.containsKey(n)) {
       throw new jvmumps.MError("USE on unopened device");
     }
     io = n;
   }
 
-  public String readDevice() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public String readDevice()  {
     try {
       java.io.BufferedReader r = devices.get(io);
       if (r == null) return "";
@@ -782,7 +891,10 @@ public final class MRuntime {
     }
   }
 
-  public void writeToDevice(int n, String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void writeToDevice(int n, String s)  {
     try {
       java.io.Writer w = writers.get(n);
       if (w != null) {
@@ -795,12 +907,17 @@ public final class MRuntime {
     }
   }
 
-  public int currentDevice() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public int currentDevice()  {
     return io;
   }
 
   // ---- M6 JOB / locks / TX ----------------------------------------
-  public void job(String code) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void job(String code)  {
     try {
       ProcessBuilder pb =
           new ProcessBuilder(
@@ -818,23 +935,35 @@ public final class MRuntime {
     }
   }
 
-  public void lockAcquire(String key, long timeoutMs) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void lockAcquire(String key, long timeoutMs)  {
     String k = key;
     locks.add(k);
     store.lockAcquire(k, Long.toString(ProcessHandle.current().pid()), timeoutMs);
   }
 
-  public void lockRelease(String key) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void lockRelease(String key)  {
     locks.remove(key);
     store.lockRelease(key, Long.toString(ProcessHandle.current().pid()));
   }
 
-  public void tstart() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void tstart()  {
     tlevel++;
     txUndo.add(new ArrayList<>());
   }
 
-  public void tcommit() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void tcommit()  {
     if (tlevel > 0) {
       tlevel--;
       java.util.List<Object[]> top = txUndo.remove(txUndo.size() - 1);
@@ -844,7 +973,10 @@ public final class MRuntime {
     }
   }
 
-  public void trollback() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public void trollback()  {
     if (tlevel > 0) {
       tlevel--;
       java.util.List<Object[]> top = txUndo.remove(txUndo.size() - 1);
@@ -867,7 +999,10 @@ public final class MRuntime {
     }
   }
 
-  public int tlevel() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  public int tlevel()  {
     return tlevel;
   }
 
@@ -898,7 +1033,9 @@ public final class MRuntime {
   }
 
   /** Record undo for SET when inside a transaction. */
-  public void recordUndo(java.util.List<String> path, boolean global, MValue old) {
+  @SuppressWarnings("RedundantThrows")
+
+  public void recordUndo(java.util.List<String> path, boolean global, MValue old)  {
     if (tlevel > 0 && !txUndo.isEmpty()) {
       txUndo.get(txUndo.size() - 1).add(new Object[] {path, old});
     }

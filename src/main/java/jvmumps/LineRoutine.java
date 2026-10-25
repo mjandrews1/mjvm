@@ -84,7 +84,7 @@ final class LineRoutine {
     for (int i = 0; i < fe.state.prog.size(); i++) {
       String t = fe.state.prog.get(i).tag;
       if (t != null) {
-        fe.state.tags.putIfAbsent(t.toUpperCase(), i);
+        fe.state.tags.putIfAbsent(t.toUpperCase(java.util.Locale.ROOT), i);
       }
     }
     fe.state.routineMode = true;
@@ -131,7 +131,7 @@ final class LineRoutine {
   }
 
   static int findTag(LineInterp fe, String name) {
-    Integer ix = fe.state.tags.get(name.toUpperCase());
+    Integer ix = fe.state.tags.get(name.toUpperCase(java.util.Locale.ROOT));
     return ix == null ? -1 : ix;
   }
 
@@ -165,7 +165,7 @@ final class LineRoutine {
         }
         fe.eval.set(formal, cur);
         if (frame != null && frame.byref != null) {
-          frame.byref.put(formal.toUpperCase(), by);
+          frame.byref.put(formal.toUpperCase(java.util.Locale.ROOT), by);
         }
       } else {
         MValue v = i < args.size() ? args.get(i) : MValue.EMPTY;
@@ -347,7 +347,7 @@ final class LineRoutine {
       return;
     }
     for (String n : f.savedFormals) {
-      if (f.byref.containsKey(n.toUpperCase())) {
+      if (f.byref.containsKey(n.toUpperCase(java.util.Locale.ROOT))) {
         continue;
       }
       fe.eval.set(n, MValue.EMPTY);

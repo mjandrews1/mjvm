@@ -129,7 +129,7 @@ final class Cursor {
   }
 
   static boolean isCmdWord(String w) {
-    String up = w.toUpperCase();
+    String up = w.toUpperCase(java.util.Locale.ROOT);
     if (up.equals("SET")
         || up.equals("WRITE")
         || up.equals("IF")

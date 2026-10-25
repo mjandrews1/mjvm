@@ -118,7 +118,7 @@ public final class PatternMatch {
           i++;
         }
         if (i == cs) return null;
-        out.add(new Atom(nmin, nmax, null, pat.substring(cs, i).toUpperCase(), true));
+        out.add(new Atom(nmin, nmax, null, pat.substring(cs, i).toUpperCase(java.util.Locale.ROOT), true));
         continue;
       }
       if (Character.isLetter(c)) {
@@ -126,7 +126,7 @@ public final class PatternMatch {
         while (i < end && Character.isLetter(pat.charAt(i))) {
           i++;
         }
-        out.add(new Atom(nmin, nmax, null, pat.substring(cs, i).toUpperCase(), false));
+        out.add(new Atom(nmin, nmax, null, pat.substring(cs, i).toUpperCase(java.util.Locale.ROOT), false));
         continue;
       }
       return null;

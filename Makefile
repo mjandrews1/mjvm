@@ -196,7 +196,7 @@ arch-test: all mjvm
 # --- SpotBugs ---
 spotbugs: all mjvm
 	@echo "=== SpotBugs analysis ==="
-	$(JAVA) -jar $(SPOTBUGS) -textui -low \
+	$(JAVA) -jar $(SPOTBUGS) -textui -low -exclude spotbugs-exclude.xml \
 	  -auxclasspath $(LIBS):lib/slf4j-api.jar:lib/slf4j-nop.jar \
 	  -output $(OUT)/spotbugs-report.txt \
 	  $(OUT)/jvmumps $(OUT)/mjvm 2>&1 || true

@@ -64,7 +64,10 @@ public class MultiLevelOrderSmoke {
     if (cd != null) cd.close();
   }
 
-  static List<String> walk(StoreApi st, String... prefix) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static List<String> walk(StoreApi st, String... prefix)  {
     List<String> out = new ArrayList<>();
     List<String> p = new ArrayList<>(List.of(prefix));
     p.add("");

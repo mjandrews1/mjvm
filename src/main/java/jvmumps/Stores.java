@@ -48,7 +48,7 @@ public final class Stores {
         k = "tiered"; // new file → tiered store
       }
     }
-    switch (k.toLowerCase()) {
+    switch (k.toLowerCase(java.util.Locale.ROOT)) {
       case "memory", "mem", "mstore" -> {
         return new MStore();
       }

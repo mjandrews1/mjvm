@@ -36,7 +36,10 @@ public final class StoreLockBench {
     System.out.println("STORE LOCK BENCH OK");
   }
 
-  static void bulkOps(StoreApi st, String tag, int n) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void bulkOps(StoreApi st, String tag, int n)  {
     long t0 = System.nanoTime();
     for (int i = 0; i < n; i++) {
       st.set(List.of("^T", String.valueOf(i)), true, MValue.ofNumber(i));
@@ -66,7 +69,9 @@ public final class StoreLockBench {
   }
 
   /** TSTART / TCOMMIT / TROLLBACK via LineEngine (undo size = rows). */
-  static void txLatency(SqlStore st) {
+  @SuppressWarnings("RedundantThrows")
+
+  static void txLatency(SqlStore st)  {
     for (int rows : new int[] {0, 10, 100, 500}) {
       LineEngine eng = new LineEngine();
       // empty TSTART/TCOMMIT
@@ -105,7 +110,10 @@ public final class StoreLockBench {
     }
   }
 
-  static void contentionSweep(SqlStore st, int maxT) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void contentionSweep(SqlStore st, int maxT)  {
     System.out.println("CONT sweep (one key \"sweep\", 5 acquires/thread, timeout 8s)");
     System.out.println("threads wall_ms granted timeouts p50 p99 max");
     for (int th : new int[] {1, 2, 4, 8, 16, 32, 64}) {
@@ -162,7 +170,10 @@ public final class StoreLockBench {
     }
   }
 
-  static void multiKey(SqlStore st) throws Exception {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void multiKey(SqlStore st) throws Exception  {
     int threads = 32;
     int iters = 20;
     for (int keys : new int[] {1, 4}) {
@@ -203,7 +214,10 @@ public final class StoreLockBench {
     }
   }
 
-  static long pct(List<Long> s, int p) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static long pct(List<Long> s, int p)  {
     if (s.isEmpty()) return -1;
     int idx = (int) Math.ceil(p / 100.0 * s.size()) - 1;
     if (idx < 0) idx = 0;

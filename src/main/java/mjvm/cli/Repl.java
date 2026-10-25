@@ -126,7 +126,7 @@ public final class Repl {
 
   boolean slash(String cmd) {
     String[] parts = cmd.split("\\s+", 2);
-    String c = parts[0].toLowerCase();
+    String c = parts[0].toLowerCase(java.util.Locale.ROOT);
     String arg = parts.length > 1 ? parts[1].trim() : "";
 
     switch (c) {
@@ -200,11 +200,14 @@ public final class Repl {
     if (history.size() > HISTORY_MAX) history.remove(0);
   }
 
-  static boolean isKnownCmd(String line) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static boolean isKnownCmd(String line)  {
     if (line.isEmpty()) return false;
     int i = 0;
     while (i < line.length() && Character.isLetter(line.charAt(i))) i++;
-    String w = line.substring(0, i).toUpperCase();
+    String w = line.substring(0, i).toUpperCase(java.util.Locale.ROOT);
     return w.equals("S")
         || w.equals("SET")
         || w.equals("W")

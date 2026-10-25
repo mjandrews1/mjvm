@@ -45,7 +45,10 @@ public final class CorpusScore {
     System.out.printf("J2 CORPUS %s MATCH=%d MISS=%d ERR=%d%n", prefix, match, miss, err);
   }
 
-  static String normalize(String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String normalize(String s)  {
     // Corpus expecteds omit trailing newlines from WRITE !
     String t = s.replace("\r\n", "\n");
     while (t.endsWith("\n")) {
@@ -54,7 +57,10 @@ public final class CorpusScore {
     return t;
   }
 
-  static String q(String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String q(String s)  {
     return "\"" + s.replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"") + "\"";
   }
 }

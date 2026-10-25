@@ -94,7 +94,7 @@ public final class Repl {
 
   boolean slash(String cmd) {
     String[] parts = cmd.split("\\s+", 2);
-    String c = parts[0].toLowerCase();
+    String c = parts[0].toLowerCase(java.util.Locale.ROOT);
     String arg = parts.length > 1 ? parts[1].trim() : "";
 
     switch (c) {

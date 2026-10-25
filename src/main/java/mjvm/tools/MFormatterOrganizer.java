@@ -212,7 +212,7 @@ public final class MFormatterOrganizer {
   }
 
   public static boolean isGlobalWrite(String line, int pos) {
-    String before = line.substring(0, pos).toUpperCase();
+    String before = line.substring(0, pos).toUpperCase(java.util.Locale.ROOT);
     return before.contains("SET ")
         || before.endsWith(" S ")
         || before.equals("S")

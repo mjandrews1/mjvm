@@ -231,7 +231,7 @@ public final class WriteAheadLog implements Closeable {
   }
 
   /** WAL entry. */
-  public static final class Entry {
+  public static final @SuppressWarnings("unused") class Entry {
     public final long seq;
     public final byte op;
     public final String key;

@@ -17,8 +17,7 @@ public final class MemoryProbe {
                 try {
                   sources.add(java.nio.file.Files.readString(p));
                   paths.add(p.toString());
-                } catch (Exception e) {
-                }
+                } catch (Exception e) { e.printStackTrace(); }
               });
     }
     System.out.println("Loaded " + sources.size() + " sources");
@@ -45,7 +44,10 @@ public final class MemoryProbe {
     System.out.println("ok=" + ok + " fail=" + fail);
   }
 
-  static void printMem(String label) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void printMem(String label)  {
     var rt = Runtime.getRuntime();
     long used = (rt.totalMemory() - rt.freeMemory()) / 1048576;
     long total = rt.totalMemory() / 1048576;

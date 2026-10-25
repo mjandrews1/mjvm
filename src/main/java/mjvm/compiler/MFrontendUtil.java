@@ -180,7 +180,7 @@ final class MFrontendUtil {
   }
 
   static boolean isKnownCmd(String w) {
-    String u = w.toUpperCase();
+    String u = w.toUpperCase(java.util.Locale.ROOT);
     return u.equals("S")
         || u.equals("SET")
         || u.equals("W")
@@ -241,7 +241,7 @@ final class MFrontendUtil {
     }
     int j = i;
     while (j < s.length() && Character.isLetter(s.charAt(j))) j++;
-    String w = s.substring(i, j).toUpperCase();
+    String w = s.substring(i, j).toUpperCase(java.util.Locale.ROOT);
     // must be a command word followed by space/end (not a variable named X, L, …)
     if (j < s.length() && s.charAt(j) != ' ' && s.charAt(j) != ':') {
       return false;

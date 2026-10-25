@@ -232,7 +232,7 @@ public final class MFormatterExpansions {
 
   /** Expand a single command abbreviation if known. */
   private String expandOneCommand(String word) {
-    String up = word.toUpperCase();
+    String up = word.toUpperCase(java.util.Locale.ROOT);
     // Try longest match first (TC, TR before T)
     for (int len = Math.min(up.length(), 7); len >= 1; len--) {
       String prefix = up.substring(0, len);
@@ -276,7 +276,7 @@ public final class MFormatterExpansions {
         // Standard $ — extract name letters
         while (j < body.length() && Character.isLetter(body.charAt(j))) j++;
         String name = body.substring(i + 1, j);
-        String up = name.toUpperCase();
+        String up = name.toUpperCase(java.util.Locale.ROOT);
         // Try longest abbreviation match
         String expanded = expandOneSvName(up);
         sb.append('$').append(expanded);
@@ -338,7 +338,7 @@ public final class MFormatterExpansions {
   /** Try to extract a command name at the start of the string. */
   String extractCmdAtStart(String s) {
     if (s.isEmpty()) return null;
-    String up = s.toUpperCase();
+    String up = s.toUpperCase(java.util.Locale.ROOT);
     // Try longest match first
     for (int len = Math.min(up.length(), 7); len >= 1; len--) {
       String prefix = up.substring(0, len);

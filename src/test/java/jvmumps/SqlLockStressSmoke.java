@@ -113,7 +113,10 @@ public final class SqlLockStressSmoke {
     double mean;
   }
 
-  static long calibrate(SqlStore st, int n) throws Exception {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static long calibrate(SqlStore st, int n) throws Exception  {
     CyclicBarrier go = new CyclicBarrier(n);
     CountDownLatch done = new CountDownLatch(n);
     List<Long> waits = Collections.synchronizedList(new ArrayList<>());
@@ -143,7 +146,10 @@ public final class SqlLockStressSmoke {
     return s.get(s.size() - 1);
   }
 
-  static Result run(SqlStore st, int nThreads, int nIters, long nTimeoutMs) throws Exception {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static Result run(SqlStore st, int nThreads, int nIters, long nTimeoutMs) throws Exception  {
     List<Long> waits = Collections.synchronizedList(new ArrayList<Long>(nThreads * nIters));
     AtomicInteger granted = new AtomicInteger();
     AtomicInteger timedOut = new AtomicInteger();
@@ -221,7 +227,10 @@ public final class SqlLockStressSmoke {
     return r;
   }
 
-  static long pct(List<Long> sorted, int p) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static long pct(List<Long> sorted, int p)  {
     if (sorted.isEmpty()) {
       return -1;
     }

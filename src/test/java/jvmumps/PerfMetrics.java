@@ -189,8 +189,7 @@ public final class PerfMetrics {
     for (Future<?> f : futures) {
       try {
         f.get(5, TimeUnit.SECONDS);
-      } catch (Exception e) {
-      }
+      } catch (Exception e) { e.printStackTrace(); }
     }
     ex.shutdown();
     sampler.shutdown();
@@ -238,7 +237,9 @@ public final class PerfMetrics {
   }
 
   /** Run one bank transaction (DEP or WDR). */
-  static void bankTxn(StoreApi store, int seed) {
+  @SuppressWarnings("RedundantThrows")
+
+  static void bankTxn(StoreApi store, int seed)  {
     java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
     String acct = String.valueOf(rng.nextInt(10));
     double amount = rng.nextInt(100) + 1;
@@ -275,7 +276,10 @@ public final class PerfMetrics {
     store.increment("BANK" + (char) 1 + "N", true, 1);
   }
 
-  static double stddev(TpsRecorder tps) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static double stddev(TpsRecorder tps)  {
     double mean = tps.mean();
     double variance =
         tps.samples.stream().mapToDouble(s -> (s[1] - mean) * (s[1] - mean)).average().orElse(0);

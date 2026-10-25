@@ -36,7 +36,10 @@ public final class CrossStackBench {
     System.out.printf("CROSS LineEngine cases_per_s=%.1f%n", cases.size() / (wallMs / 1000.0));
   }
 
-  static String norm(String s) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String norm(String s)  {
     String t = s.replace("\r\n", "\n");
     while (t.endsWith("\n")) t = t.substring(0, t.length() - 1);
     return t;

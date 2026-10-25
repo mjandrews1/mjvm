@@ -32,7 +32,7 @@ public final class BankFull {
   public static final int ACCT_BUSINESS = 1;
 
   // Immutable journal entry
-  public static final class JournalEntry {
+  public static final @SuppressWarnings("unused") class JournalEntry {
     public final String type;
     public final int serviceId;
     public final double amount;
@@ -82,7 +82,9 @@ public final class BankFull {
   // === Core operations ===
 
   /** Create account. Returns account ID. */
-  public int createAccount(int type, String owner) {
+  @SuppressWarnings("RedundantThrows")
+
+  public int createAccount(int type, String owner)  {
     int id = ++nextAccountId;
     // Init standard savings (min $100, 2% rate, $5 monthly fee)
     savings[id] = 0;
@@ -94,8 +96,10 @@ public final class BankFull {
   }
 
   /** Add service to account. Returns service ID. */
+  @SuppressWarnings("RedundantThrows")
+
   public int addService(
-      int accountId, int type, int subtype, double minBalance, double rate, double monthlyFee) {
+      int accountId, int type, int subtype, double minBalance, double rate, double monthlyFee)  {
     // Simplified: one service per account (standard savings)
     savings[accountId] = 0;
     minBal[accountId] = minBalance;
@@ -133,7 +137,9 @@ public final class BankFull {
   }
 
   /** Inter-service transfer within same account. Returns 1 if OK. */
-  public int transfer(int fromServiceId, int toServiceId, double amount) {
+  @SuppressWarnings("RedundantThrows")
+
+  public int transfer(int fromServiceId, int toServiceId, double amount)  {
     if (amount <= 0) return 0;
     if (savings[fromServiceId] < amount) return 0;
     savings[fromServiceId] -= amount;
@@ -143,7 +149,9 @@ public final class BankFull {
   }
 
   /** Inter-account transfer (savings to savings). Returns 1 if OK. */
-  public int interAccountTransfer(int fromAccountId, int toAccountId, double amount) {
+  @SuppressWarnings("RedundantThrows")
+
+  public int interAccountTransfer(int fromAccountId, int toAccountId, double amount)  {
     Integer fromSvc = findService(fromAccountId, SVC_SAVINGS);
     Integer toSvc = findService(toAccountId, SVC_SAVINGS);
     if (fromSvc == null || toSvc == null) return 0;
@@ -151,13 +159,17 @@ public final class BankFull {
   }
 
   /** Find first service of type in account. Returns service ID or null. */
-  public Integer findService(int accountId, int type) {
+  @SuppressWarnings("RedundantThrows")
+
+  public Integer findService(int accountId, int type)  {
     // Simplified: savings is always service == accountId
     return accountId > 0 ? accountId : null;
   }
 
   /** Accrue interest on all services. Returns total interest paid. */
-  public double accrueInterest() {
+  @SuppressWarnings("RedundantThrows")
+
+  public double accrueInterest()  {
     double total = 0;
     for (int i = 1; i <= MAX_ACCTS; i++) {
       if (savings[i] <= 0 || rates[i] <= 0) continue;
@@ -169,7 +181,9 @@ public final class BankFull {
   }
 
   /** Charge monthly fees. Returns total fees charged. */
-  public double chargeMonthlyFees() {
+  @SuppressWarnings("RedundantThrows")
+
+  public double chargeMonthlyFees()  {
     double total = 0;
     for (int i = 1; i <= MAX_ACCTS; i++) {
       if (monthlyFees[i] <= 0) continue;
@@ -180,7 +194,9 @@ public final class BankFull {
   }
 
   /** Verify double-entry invariant. Returns true if balanced. */
-  public boolean verify() {
+  @SuppressWarnings("RedundantThrows")
+
+  public boolean verify()  {
     // Check: total savings + bank balance = initial capital
     double totalSavings = 0;
     for (int i = 1; i <= MAX_ACCTS; i++) totalSavings += savings[i];
@@ -188,7 +204,9 @@ public final class BankFull {
   }
 
   /** Get total balance across all services in account. */
-  public double accountBalance(int accountId) {
+  @SuppressWarnings("RedundantThrows")
+
+  public double accountBalance(int accountId)  {
     return savings[accountId];
   }
 
@@ -244,7 +262,10 @@ public final class BankFull {
     return new double[] {ms, tps, ok ? 1 : 0};
   }
 
-  static void runTransactions(BankFull bank, int nAccounts, long n) {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static void runTransactions(BankFull bank, int nAccounts, long n)  {
     ThreadLocalRandom rng = ThreadLocalRandom.current();
     for (long i = 0; i < n; i++) {
       int ac = rng.nextInt(nAccounts) + 1;

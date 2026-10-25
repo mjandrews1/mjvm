@@ -29,7 +29,7 @@ public final class ExprEval {
     return Parser.fmtNumber(n, fmt, dec);
   }
 
-  static String fmtDec(double n, int dec) {
+  static String fmtDec(double n, int dec)  {
     return Parser.fmtDec(n, dec);
   }
 
@@ -80,7 +80,7 @@ public final class ExprEval {
   }
 
   /** J13: bind a formal / set via the environment. */
-  public void set(String name, MValue v) {
+  public void set(String name, MValue v)  {
     env.set(name, v);
   }
 
@@ -96,7 +96,7 @@ public final class ExprEval {
   public String ecode = "";
   public String ztrap = "";
 
-  public MValue eval(String src) {
+  public MValue eval(String src)  {
     // Fast path: simple $$fn(args) extrinsic call — skip full parser
     // Only for simple args (no byref `.var`, no nested $$, no `@` indirection)
     if (src.startsWith("$$")
@@ -228,7 +228,7 @@ public final class ExprEval {
     }
   }
 
-  static double toNumSlow(String s) {
+  static double toNumSlow(String s)  {
     int i = 0;
     boolean neg = false;
     while (i < s.length() && (s.charAt(i) == '+' || s.charAt(i) == '-')) {
@@ -260,7 +260,7 @@ public final class ExprEval {
     return neg ? -v : v;
   }
 
-  static boolean digit(char c) {
+  static boolean digit(char c)  {
     return c >= '0' && c <= '9';
   }
 
@@ -383,7 +383,7 @@ public final class ExprEval {
      * All binary operators are one level, left-associative (C30–C32): 1+2*3 = 9 2*3+1 = 7 2**3**2 =
      * 64 1_2=12 → (1_2)=12
      */
-    MValue binaryExpr() {
+    @SuppressWarnings("DB_DUPLICATE_BRANCHES") MValue binaryExpr() {
       MValue a = unary();
       // String concat builder: accumulate consecutive _ operations
       StringBuilder concatBuf = null;
@@ -617,7 +617,7 @@ public final class ExprEval {
           return env.extrinsic(fn, args, byrefs);
         }
         if (t.text.startsWith("$")) {
-          String un = t.text.toUpperCase();
+          String un = t.text.toUpperCase(java.util.Locale.ROOT);
           if (un.equals("$X")) return MValue.ofNumber(vx);
           if (un.equals("$Y")) return MValue.ofNumber(vy);
           return callIntrinsic(t.text);
@@ -748,7 +748,7 @@ public final class ExprEval {
     }
 
     MValue callIntrinsic(String name) {
-      String up = name.toUpperCase();
+      String up = name.toUpperCase(java.util.Locale.ROOT);
       if (up.equals("$TEXT")) {
         // C71 — argument is a label/ref, not a variable lookup
         if (peek().kind == ExprTokens.Kind.LP) {
@@ -868,7 +868,7 @@ public final class ExprEval {
       return ExprIntrinsics.intrinsic(ExprEval.this, name, args);
     }
 
-    static List<MValue> join(String key, List<MValue> extra) {
+    static List<MValue> join(String key, List<MValue> extra)  {
       List<MValue> args = new ArrayList<>();
       args.add(MValue.ofString(key));
       args.addAll(extra);
@@ -943,14 +943,14 @@ public final class ExprEval {
       return args;
     }
 
-    static String fmtDec(double n, int dec) {
+    static String fmtDec(double n, int dec)  {
       java.math.BigDecimal bd =
           new java.math.BigDecimal(Double.toString(n))
               .setScale(dec, java.math.RoundingMode.HALF_UP);
       return bd.toPlainString();
     }
 
-    static String fmtNumber(double n, String fmt, int dec) {
+    static String fmtNumber(double n, String fmt, int dec)  {
       if (fmt.isEmpty() && dec < 0) {
         return mstr(n);
       }
@@ -976,7 +976,7 @@ public final class ExprEval {
     }
   }
 
-  static MValue compare(String op, MValue a, MValue b) {
+  static MValue compare(String op, MValue a, MValue b)  {
     boolean res;
     if (op.equals("=")) {
       // ISO: both numeric → numeric compare; else string. (J17 / C24)
@@ -1018,7 +1018,7 @@ public final class ExprEval {
   }
 
   /** C24: only canonical numerics (no +, no 1E2, no 1.0 with extra) compare as numbers with =. */
-  static boolean canonicalNum(String s) {
+  static boolean canonicalNum(String s)  {
     if (s.isEmpty()) {
       return false;
     }
@@ -1041,12 +1041,12 @@ public final class ExprEval {
     return i == s.length() && digits > 0 && s.charAt(0) != '+';
   }
 
-  static boolean follows(String a, String b) {
+  static boolean follows(String a, String b)  {
     // M ]]: a sorts after b
     return a.compareTo(b) > 0;
   }
 
-  static boolean cmpNum(String op, double x, double y) {
+  static boolean cmpNum(String op, double x, double y)  {
     switch (op) {
       case "<":
         return x < y;
@@ -1065,7 +1065,7 @@ public final class ExprEval {
     }
   }
 
-  static boolean cmpStr(String op, String a, String b) {
+  static boolean cmpStr(String op, String a, String b)  {
     int c = a.compareTo(b);
     switch (op) {
       case "<":

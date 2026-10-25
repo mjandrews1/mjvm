@@ -66,7 +66,10 @@ public final class FileManTierANativeSmoke {
    */
   static final java.util.Set<String> KNOWN_GAPS = java.util.Set.of();
 
-  static String filemanRoot() {
+  @SuppressWarnings("RedundantThrows")
+
+
+  static String filemanRoot()  {
     String env = System.getenv("FILEMAN_CORPUS");
     return env != null && !env.isEmpty() ? env : System.getProperty("user.home") + "/_fileman";
   }

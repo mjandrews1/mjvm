@@ -247,7 +247,7 @@ public final class LineInterp {
   }
 
   static boolean isExtractSet(String lhs) {
-    String u = lhs.toUpperCase();
+    String u = lhs.toUpperCase(java.util.Locale.ROOT);
     return u.startsWith("$E(")
         || u.startsWith("$EXTRACT(")
         || u.equals("$E")

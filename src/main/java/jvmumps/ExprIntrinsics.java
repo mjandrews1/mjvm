@@ -7,7 +7,7 @@ final class ExprIntrinsics {
   private ExprIntrinsics() {}
 
   static MValue intrinsic(ExprEval ev, String name, List<MValue> args) {
-    String n = name.toUpperCase();
+    String n = name.toUpperCase(java.util.Locale.ROOT);
     switch (n) {
       case "$H":
       case "$HOROLOG":
@@ -391,7 +391,7 @@ final class ExprIntrinsics {
             return MValue.ofNumber(0);
           }
           double lev = args.get(0).asNum();
-          String what = args.size() > 1 ? args.get(1).asStr().toUpperCase() : "";
+          String what = args.size() > 1 ? args.get(1).asStr().toUpperCase(java.util.Locale.ROOT) : "";
           if (what.equals("PLACE")) {
             return MValue.ofString(lev == 0 ? "@" : "");
           }
