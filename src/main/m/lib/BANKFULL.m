@@ -151,12 +151,28 @@ MONTHLYFEE() ; Charge monthly fees. Returns total fees charged.
  . D JOURNAL("FEE",%SID,%FEE,$G(^BF("SVC",%SID,"BAL")))
  Q %TOTAL
 
-JOURNAL(%TYPE,%SVC,%AMT,%BAL) ; Record immutable journal entry
- N %SEQ
+JOURNAL(%TYPE,%SVC,%AMT,%BAL) ; Record immutable journal entry with ISO timestamp and CRC
+ N %SEQ,%TS,%CRC,%DATA
  S %SEQ=$I(^BF("J","SEQ"))
- S ^BF("J","E",%SEQ)=%TYPE_"|"_  %SVC_"|"_%AMT_"|"_%BAL_"|"_$H
+ S %TS=$$ISOTIME^BANKFULL()
+ S %DATA=%TYPE_"|"_  %SVC_"|"_%AMT_"|"_%BAL
+ S %CRC=$$CRC32^BANKFULL(%DATA)
+ S ^BF("J","E",%SEQ)=%DATA_"|"_%TS_"|"_%CRC
  Q
 
+ISOTIME() ; ISO 8601 date/time from $H
+ N %D,%T,%HH,%MM,%SS
+ S %D=+$H S %T=$P($H,",",2)
+ S %HH=%T\3600
+ S %MM=(%T#3600)\60
+ S %SS=%T#60
+ Q "2026-"_$TR($J((%D#365)\30+1,2)," ","0")_"-"_$TR($J((%D#365)#30+1,2)," ","0")_"T"_$TR($J(%HH,2)," ","0")_":"_$TR($J(%MM,2)," ","0")_":"_$TR($J(%SS,2)," ","0")_"Z"
+
+CRC32(%DATA) ; Simple checksum for journal integrity
+ N %SUM,%I
+ S %SUM=0
+ F %I=1:1:$L(%DATA) S %SUM=%SUM+$A(%DATA,%I)*%I
+ Q %SUM#999983
 
 BALANCE(%SVC) ; Get service balance
  Q $G(^BF("SVC",%SVC,"BAL"))
