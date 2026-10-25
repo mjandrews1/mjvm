@@ -23,6 +23,20 @@ GJF := lib/google-java-format-1.37.0-all-deps.jar
 EP_DEPS := lib/error_prone_core-2.51.0.jar:lib/error_prone_check_api-2.51.0.jar:lib/error_prone_annotations-2.51.0.jar:lib/error_prone_annotation-2.51.0.jar:lib/error_prone_type_annotations-2.51.0.jar:lib/dataflow-3.49.2.jar:lib/checker-qual-3.49.2.jar:lib/pcollections-4.0.2.jar:lib/auto-value-annotations-1.11.0.jar:lib/guava-33.4.0-jre.jar:lib/failureaccess-1.0.2.jar:lib/caffeine-3.2.0.jar:lib/threeten-extra-1.8.0.jar
 EP_FLAGS := -XDcompilePolicy=simple -Xplugin:"ErrorProne -XepDisableAllChecks -Xep:EqualsGetClass:WARN -Xep:SelfEquals:WARN -Xep:ReferenceEquality:WARN -Xep:IdentityBinaryExpression:WARN -Xep:BadShiftAmount:WARN -Xep:MissingOverride:WARN" --should-stop=ifError=FLOW
 EP_JAVAC_EXPORTS := -J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED -J--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED
+# --- Coverage (JaCoCo) ---
+JACOCO_AGENT := lib/jacocoagent.jar
+JACOCO_CLI := lib/jacococli.jar
+
+# --- Architecture (ArchUnit) ---
+ARCHUNIT := lib/archunit-1.3.0.jar
+
+# --- SpotBugs ---
+SPOTBUGS := lib/spotbugs-4.8.6.jar
+SPOTBUGS_ANN := lib/spotbugs-annotations-4.8.6.jar
+
+# --- JMH ---
+JMH_CP := lib/jmh-core-1.37.jar:lib/jmh-generator-annprocess-1.37.jar:lib/jopt-simple-5.0.4.jar:lib/commons-math3-3.6.1.jar
+
 CORPUS ?= ../pymumps/tests/conformance.json
 # FileMan Tier A (jvmumps#32) — env, never hardcoded in tests.
 FILEMAN_CORPUS ?= $(HOME)/_fileman
@@ -147,6 +161,47 @@ lint-build:
 	  -processorpath $(EP_DEPS) \
 	  -cp $(CP) -d $(OUT) src/main/java/mjvm/*/*.java 2>&1 || true
 	@echo "LINT DONE"
+
+# --- Coverage (JaCoCo) ---
+.PHONY: coverage coverage-report arch-test spotbugs
+
+coverage: all mjvm
+	$(JAVAC) --release 21 -cp $(CP):$(ARCHUNIT):$(SPOTBUGS_ANN) -d $(OUT) src/test/java/jvmumps/*.java
+	@echo "=== Running tests with JaCoCo agent ==="
+	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec \
+	  -cp $(CP) jvmumps.MFrontendRegression
+	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
+	  -cp $(CP):src/main/m/lib jvmumps.GauntletRun
+	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
+	  -cp $(CP):src/main/m/lib jvmumps.DafnyBoundarySmoke
+	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
+	  -cp $(CP) jvmumps.StoreConcurrencySmoke
+	@echo "=== Generating coverage report ==="
+	$(JAVA) -jar $(JACOCO_CLI) report $(OUT)/jacoco.exec \
+	  --classfiles $(OUT) \
+	  --html $(OUT)/coverage-html \
+	  --csv $(OUT)/coverage.csv \
+	  --xml $(OUT)/coverage.xml
+	@echo "Coverage report: $(OUT)/coverage-html/index.html"
+
+coverage-report: coverage
+	@echo "=== Coverage summary ==="
+	@awk -F, 'NR>1 {c+=$8; m+=$9} END {printf "  Lines: %.1f%% covered\n", 100*c/(c+m)}' $(OUT)/coverage.csv 2>/dev/null || true
+
+# --- Architecture rules (ArchUnit) ---
+arch-test: all mjvm
+	$(JAVAC) --release 21 -cp $(CP):$(ARCHUNIT) -d $(OUT) src/test/java/jvmumps/ArchitectureTest.java
+	$(JAVA) -cp $(CP):$(ARCHUNIT) jvmumps.ArchitectureTest
+
+# --- SpotBugs ---
+spotbugs: all mjvm
+	@echo "=== SpotBugs analysis ==="
+	$(JAVA) -jar $(SPOTBUGS) -textui -low \
+	  -auxclasspath $(LIBS):lib/slf4j-api.jar:lib/slf4j-nop.jar \
+	  -output $(OUT)/spotbugs-report.txt \
+	  $(OUT)/jvmumps $(OUT)/mjvm 2>&1 || true
+	@echo "Report: $(OUT)/spotbugs-report.txt"
+	@tail -5 $(OUT)/spotbugs-report.txt 2>/dev/null || true
 
 clean:
 	rm -rf $(OUT) dist

@@ -169,14 +169,14 @@ public final class PerfMatrix {
 
   static void captureFootprint(Map<String, Object> m, int iters) {
     Runtime rt = Runtime.getRuntime();
-    System.gc();
+    try { Thread.sleep(50); } catch (InterruptedException ignored) {};
     long before = rt.totalMemory() - rt.freeMemory();
     // allocate a realistic M store tree
     MStore mem = new MStore();
     for (int i = 0; i < Math.min(iters, 50_000); i++) {
       mem.set(List.of("^F", String.valueOf(i)), true, MValue.ofNumber(i));
     }
-    System.gc();
+    try { Thread.sleep(50); } catch (InterruptedException ignored) {};
     long after = rt.totalMemory() - rt.freeMemory();
     m.put("footprint.heap_before_mb", before / (1024 * 1024));
     m.put("footprint.heap_after_store_mb", after / (1024 * 1024));

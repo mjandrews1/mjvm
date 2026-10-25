@@ -169,7 +169,7 @@ public final class PerfMetrics {
       futures.add(
           ex.submit(
               () -> {
-                Random rng = new Random(threadIdx * 1000);
+                java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
                 while (running.get()) {
                   long t0 = System.nanoTime();
                   bankTxn(store, rng.nextInt(1000000));
@@ -239,7 +239,7 @@ public final class PerfMetrics {
 
   /** Run one bank transaction (DEP or WDR). */
   static void bankTxn(StoreApi store, int seed) {
-    Random rng = new Random(seed);
+    java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
     String acct = String.valueOf(rng.nextInt(10));
     double amount = rng.nextInt(100) + 1;
     boolean isDeposit = rng.nextBoolean();

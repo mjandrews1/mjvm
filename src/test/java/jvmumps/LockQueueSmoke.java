@@ -43,11 +43,6 @@ public final class LockQueueSmoke {
     nq.releaseWrite();
     chk(nq.acquireWrite("w1", 100), "nw w1 again");
     // second writer waits while first holds exclusive section
-    Thread t =
-        new Thread(
-            () -> {
-              // will run after releaseWrite below
-            });
     nq.releaseWrite();
 
     // --- FIFO: writer queued after readers must not starve forever ---

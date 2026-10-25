@@ -8,7 +8,6 @@ public final class J7PersistSmoke {
     File db = File.createTempFile("j7p", ".db");
     db.deleteOnExit();
     String path = db.getAbsolutePath();
-    MStore s1 = new MStore();
     LineInterp m = new LineInterp();
     m.run("S ^G(1)=\"a\" S ^G(2,1)=\"c\" S X=42");
     // use interpreter store via new API on MStore directly

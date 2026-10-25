@@ -90,7 +90,7 @@ public final class TieredStoreLatencySmoke {
   }
 
   static void bankTxn(StoreApi store, int seed) {
-    Random rng = new Random(seed);
+    java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
     String acct = String.valueOf(rng.nextInt(10));
     double amount = rng.nextInt(100) + 1;
     double cb = store.getNum("BANK\001C\001" + acct, true) + amount;
