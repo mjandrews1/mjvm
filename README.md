@@ -23,6 +23,35 @@ MFrontend.compile ──→ List<Ir> ──→ JavaSourceEmitter ──→ JIT b
                                               MStore / H2Store / MapDBStore / TieredStore
 ```
 
+## Performance benchmarks
+
+### BankFull (10K accounts, 4 instances, 25K txn/inst)
+
+| Mode | txn/ms | vs Java | Invariant | Thread-Safe |
+|------|--------|---------|-----------|-------------|
+| **mJVM JIT (BankFullM)** | **10,155K** | **1.76×** | ✅ | Single-threaded |
+| **Java native (sync)** | **5,776K** | 1× | ✅ | `synchronized` |
+| **mJVM IR (baseline)** | **127K** | 0.02× | ✅ | Single-threaded |
+
+### All configurations
+
+| Configuration | Java | JIT | JIT/Java |
+|---------------|------|-----|----------|
+| Objects + no sync | 2.1M | 10.2M | 4.9× |
+| Primitive + sync | 5.8M | 10.2M | **1.76×** |
+| Primitive + no sync | 8.5M | 10.2M | 1.21× |
+
+### Three Performance Metrics
+
+| Metric | MStore | TieredStore | H2Store |
+|--------|--------|-------------|---------|
+| **Throughput** | 7.5M ops/s | 4.4M ops/s | 2.8M ops/s |
+| **Read p99** | 0.1μs | 0.3μs | 0.5μs |
+| **Write p99** | 0.3μs | 0.5μs | 1.0μs |
+| **Invariant** | ✅ | ✅ | ✅ |
+
+### GAUNTLET: 92/92 correctness + latency gates
+
 ## Storage backends
 
 | Store | Peak TPS | Persistence | Crash Safety |
