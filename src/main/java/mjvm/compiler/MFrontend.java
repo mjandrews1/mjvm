@@ -571,15 +571,25 @@ public final class MFrontend {
             prog.add(Ir.ret());
         }
         // Peephole: redundant return elimination
-        // Pattern: STORE(name) ... EVAL_EXPR(name) RET_VALUE → STORE(name) ... PUSH_REG RET_VALUE
+        // Pattern: STORE(name) EVAL_EXPR(name) RET_VALUE → STORE(name) PUSH_REG RET_VALUE
+        // Only safe if EVAL_EXPR is not a jump target (STORE might be skipped).
+        {
+        java.util.Set<Integer> jumpTargets = new java.util.HashSet<>();
+        for (Ir op : prog) {
+            if ((op.op == Ir.JMP || op.op == Ir.JMP0 || op.op == Ir.CALL_PC) && op.iarg >= 0) {
+                jumpTargets.add(op.iarg);
+            }
+        }
         for (int pi = 0; pi < prog.size() - 2; pi++) {
             Ir a = prog.get(pi);
             Ir b = prog.get(pi + 1);
             Ir c = prog.get(pi + 2);
             if (a.op == Ir.STORE && b.op == Ir.EVAL_EXPR && c.op == Ir.RET_VALUE
-                    && a.name != null && a.name.equals(b.ival)) {
+                    && a.name != null && a.name.equals(b.ival)
+                    && !jumpTargets.contains(pi + 1)) {
                 prog.set(pi + 1, Ir.pushReg());
             }
+        }
         }
         // Tag table for linking: tag name -> IR offset of its line (GAP-2).
         // `labels` held line indices; runExtrinsic needs IR offsets.

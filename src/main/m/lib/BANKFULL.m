@@ -128,28 +128,32 @@ INTEREST(%X) ; Accrue interest on all services. Returns total interest paid.
  N %SID,%TOTAL,%BAL,%RATE,%INT
  S %TOTAL=0
  S %SID=""
- F  S %SID=$O(^BF("SVC",%SID)) Q:%SID=""  D
- . S %BAL=$G(^BF("SVC",%SID,"BAL"))
- . I %BAL'>0 Q
- . S %RATE=$G(^BF("SVC",%SID,"RATE"))
- . I %RATE'>0 Q
- . S %INT=%BAL*(%RATE/12)
- . S ^BF("SVC",%SID,"BAL")=%BAL+%INT
- . S %TOTAL=%TOTAL+%INT
- . D JOURNAL("INTEREST",%SID,%INT,%BAL+%INT)
- Q %TOTAL
+ILOOP S %SID=$O(^BF("SVC",%SID))
+ I %SID="" G IDONE
+ S %BAL=$G(^BF("SVC",%SID,"BAL"))
+ I %BAL'>0 G ILOOP
+ S %RATE=$G(^BF("SVC",%SID,"RATE"))
+ I %RATE'>0 G ILOOP
+ S %INT=%BAL*(%RATE/12)
+ S ^BF("SVC",%SID,"BAL")=%BAL+%INT
+ S %TOTAL=%TOTAL+%INT
+ D JOURNAL("INTEREST",%SID,%INT,%BAL+%INT)
+ G ILOOP
+IDONE Q %TOTAL
 
 MONTHLYFEE(%X) ; Charge monthly fees. Returns total fees charged.
  N %SID,%TOTAL,%FEE
  S %TOTAL=0
  S %SID=""
- F  S %SID=$O(^BF("SVC",%SID)) Q:%SID=""  D
- . S %FEE=$G(^BF("SVC",%SID,"FEE"))
- . I %FEE'>0 Q
- . S ^BF("SVC",%SID,"BAL")=$G(^BF("SVC",%SID,"BAL"))-%FEE
- . S %TOTAL=%TOTAL+%FEE
- . D JOURNAL("FEE",%SID,%FEE,$G(^BF("SVC",%SID,"BAL")))
- Q %TOTAL
+MLOOP S %SID=$O(^BF("SVC",%SID))
+ I %SID="" G MDONE
+ S %FEE=$G(^BF("SVC",%SID,"FEE"))
+ I %FEE'>0 G MLOOP
+ S ^BF("SVC",%SID,"BAL")=$G(^BF("SVC",%SID,"BAL"))-%FEE
+ S %TOTAL=%TOTAL+%FEE
+ D JOURNAL("FEE",%SID,%FEE,$G(^BF("SVC",%SID,"BAL")))
+ G MLOOP
+MDONE Q %TOTAL
 
 JOURNAL(%TYPE,%SVC,%AMT,%BAL) ; Record immutable journal entry with ISO timestamp and CRC
  N %SEQ,%TS,%CRC,%DATA
@@ -196,13 +200,15 @@ VERIFY(%X) ; Verify double-entry invariant. Returns 1 if balanced.
  N %SEQ,%TYPE,%AMT,%DEBIT,%CREDIT,%OK
  S %DEBIT=0 S %CREDIT=0 S %OK=1
  S %SEQ=""
- F  S %SEQ=$O(^BF("J","E",%SEQ)) Q:%SEQ=""  D
- . S %TYPE=$P(^BF("J","E",%SEQ),"|",1)
- . S %AMT=+$P(^BF("J","E",%SEQ),"|",3)
- . I %TYPE="DEPOSIT" S %DEBIT=%DEBIT+%AMT S %CREDIT=%CREDIT+%AMT
- . I %TYPE="WITHDRAW" S %DEBIT=%DEBIT+%AMT S %CREDIT=%CREDIT+%AMT
- . I %TYPE="TRANSFER" S %DEBIT=%DEBIT+%AMT S %CREDIT=%CREDIT+%AMT
- I %DEBIT'=%CREDIT S %OK=0
+VLOOP S %SEQ=$O(^BF("J","E",%SEQ))
+ I %SEQ="" G VDONE
+ S %TYPE=$P(^BF("J","E",%SEQ),"|",1)
+ S %AMT=+$P(^BF("J","E",%SEQ),"|",3)
+ I %TYPE="DEPOSIT" S %DEBIT=%DEBIT+%AMT S %CREDIT=%CREDIT+%AMT
+ I %TYPE="WITHDRAW" S %DEBIT=%DEBIT+%AMT S %CREDIT=%CREDIT+%AMT
+ I %TYPE="TRANSFER" S %DEBIT=%DEBIT+%AMT S %CREDIT=%CREDIT+%AMT
+ G VLOOP
+VDONE I %DEBIT'=%CREDIT S %OK=0
  Q %OK
 
 BENCHFAST(%NACCTS,%NTXN) ; Inlined hot loop — postconditionals + cached values

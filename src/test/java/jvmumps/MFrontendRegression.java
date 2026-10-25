@@ -59,6 +59,12 @@ public final class MFrontendRegression {
         r = testDoubleSpaceVariants();
         pass += r[0]; fail += r[1];
 
+        // ================================================================
+        // Bug 3: PUSH_REG peephole with conditional store (jump target)
+        // ================================================================
+        r = testPushRegPeephole();
+        pass += r[0]; fail += r[1];
+
         // Summary
         System.out.println();
         System.out.printf("  summary: pass=%d  fail=%d%n", pass, fail);
@@ -239,6 +245,32 @@ public final class MFrontendRegression {
     }
 
     // ================================================================
+    // Bug 3: Q var after conditional S var — PUSH_REG peephole must not fire
+    // ================================================================
+        static int[] testPushRegPeephole() {
+        System.out.println("--- Bug 3: PUSH_REG peephole with conditional store ---");
+        int pass = 0, fail = 0;
+
+        // Pattern: S %OK=1 then conditional S %OK=0 then W %OK
+        String code = "T N %A,%OK\nS %OK=1\nS %A=5\nI %A>3 S %OK=0\nW %OK,!";
+        String[] exp = {"0"};
+        int[] r = runOne("push-reg-cond-store", code, exp);
+        pass += r[0]; fail += r[1];
+
+        String code2 = "T N %A,%OK\nS %OK=1\nS %A=1\nI %A>3 S %OK=0\nW %OK,!";
+        String[] exp2 = {"1"};
+        r = runOne("push-reg-cond-false", code2, exp2);
+        pass += r[0]; fail += r[1];
+
+        String code3 = "T N %I,%X,%OK\nS %OK=1\nF %I=1:1:3 S %X=%I*10\nW %OK,!";
+        String[] exp3 = {"1"};
+        r = runOne("push-reg-after-loop", code3, exp3);
+        pass += r[0]; fail += r[1];
+
+        return new int[]{pass, fail};
+    }
+
+// ================================================================
     // Shared runner: compile code + test, compare output
     // ================================================================
     static int[] runOne(String name, String code, String[] expected) {
