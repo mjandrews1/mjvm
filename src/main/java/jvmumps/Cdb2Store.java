@@ -118,8 +118,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   /** Write a command without reading its response. Caller must {@link #recv}. */
-  @SuppressWarnings("RedundantThrows")
-
   private void send(String line)  {
     try {
       in.write(line);
@@ -130,8 +128,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   /** Read one response line. */
-  @SuppressWarnings("RedundantThrows")
-
   private String recv()  {
     try {
       in.flush();
@@ -149,8 +145,6 @@ public final class Cdb2Store implements StoreApi {
    * Flush pending SETs (if any) and send {@code nextCmd} in one pipe write. Returns the response to
    * {@code nextCmd} (flush response is checked for OK).
    */
-  @SuppressWarnings("RedundantThrows")
-
   private String flushAndCmd(String nextCmd)  {
     if (pending.isEmpty()) {
       return cmd(nextCmd);
@@ -184,8 +178,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public MValue get(List<String> path, boolean global)  {
     String k = key(path.get(0), path);
     String hk = hex(k);
@@ -277,9 +269,6 @@ public final class Cdb2Store implements StoreApi {
     flushLocked();
   }
 
-  @SuppressWarnings("RedundantThrows")
-
-
   private void flushLocked()  {
     if (pending.isEmpty()) return;
     int n = pending.size();
@@ -293,8 +282,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public void set(List<String> path, boolean global, MValue v)  {
     String val = v.isnum ? ExprEval.mstr(v.num) : v.str;
     String k = key(path.get(0), path);
@@ -320,8 +307,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public void kill(List<String> path, boolean global)  {
     String k = key(path.get(0), path);
     String hk = hex(k);
@@ -340,8 +325,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public int data(List<String> path, boolean global)  {
     synchronized (this) {
       String r = flushAndCmd("DATA\t" + hex(key(path.get(0), path)));
@@ -351,9 +334,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings({"RedundantThrows", "DLS_DEAD_LOCAL_STORE"})
-
-  public String order(List<String> path, boolean global, double dir)  {
+  public String order(List<String> path, boolean global, double dir)   {
     if (path.size() < 2) return "";
     synchronized (this) {
       List<String> parent = path.subList(0, path.size() - 1);
@@ -402,20 +383,14 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public String queryNext(List<String> path, boolean global, int dir)  {
     return order(path, global, dir);
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public void newScope(List<String> names)  {}
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal)  {
     MValue v = get(src, sGlobal);
     if (v != MValue.EMPTY) set(dst, dGlobal, v);
@@ -426,8 +401,6 @@ public final class Cdb2Store implements StoreApi {
    * {@link SqlStore#lockAcquire}: idempotent reacquire, full unlock on {@link #lockRelease}.
    */
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public boolean lockAcquire(String key, String pid, long timeoutMs)  {
     long t0 = System.currentTimeMillis();
     long deadline = t0 + Math.max(0, timeoutMs);
@@ -470,8 +443,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
-
   public void lockRelease(String key, String pid)  {
     synchronized (this) {
       try {
@@ -485,8 +456,6 @@ public final class Cdb2Store implements StoreApi {
   }
 
   /** Idempotent close — always reaps the cdb2pipe process. */
-  @SuppressWarnings("RedundantThrows")
-
   public void close()  {
     synchronized (this) {
       if (closed) {

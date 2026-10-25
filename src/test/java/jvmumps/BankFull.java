@@ -32,7 +32,7 @@ public final class BankFull {
   public static final int ACCT_BUSINESS = 1;
 
   // Immutable journal entry
-  public static final @SuppressWarnings("unused") class JournalEntry {
+  public static final @SuppressWarnings({"URF_UNREAD_FIELD", "unused"}) class JournalEntry {
     public final String type;
     public final int serviceId;
     public final double amount;
@@ -76,14 +76,12 @@ public final class BankFull {
   public final double[] monthlyFees = new double[MAX_ACCTS + 1];
   public final double[] advances = new double[MAX_ACCTS + 1];
   private int nextAccountId = 0;
-  @SuppressWarnings("IS_INCONSISTENT_SYNC") private double bankBalance = 1_000_000;
-  @SuppressWarnings("IS_INCONSISTENT_SYNC") private long txnCount = 0;
+  private double bankBalance = 1_000_000;
+  private long txnCount = 0;
 
   // === Core operations ===
 
   /** Create account. Returns account ID. */
-  @SuppressWarnings("RedundantThrows")
-
   public int createAccount(int type, String owner)  {
     int id = ++nextAccountId;
     // Init standard savings (min $100, 2% rate, $5 monthly fee)
@@ -96,8 +94,6 @@ public final class BankFull {
   }
 
   /** Add service to account. Returns service ID. */
-  @SuppressWarnings("RedundantThrows")
-
   public int addService(
       int accountId, int type, int subtype, double minBalance, double rate, double monthlyFee)  {
     // Simplified: one service per account (standard savings)
@@ -137,8 +133,6 @@ public final class BankFull {
   }
 
   /** Inter-service transfer within same account. Returns 1 if OK. */
-  @SuppressWarnings("RedundantThrows")
-
   public int transfer(int fromServiceId, int toServiceId, double amount)  {
     if (amount <= 0) return 0;
     if (savings[fromServiceId] < amount) return 0;
@@ -149,8 +143,6 @@ public final class BankFull {
   }
 
   /** Inter-account transfer (savings to savings). Returns 1 if OK. */
-  @SuppressWarnings("RedundantThrows")
-
   public int interAccountTransfer(int fromAccountId, int toAccountId, double amount)  {
     Integer fromSvc = findService(fromAccountId, SVC_SAVINGS);
     Integer toSvc = findService(toAccountId, SVC_SAVINGS);
@@ -159,16 +151,12 @@ public final class BankFull {
   }
 
   /** Find first service of type in account. Returns service ID or null. */
-  @SuppressWarnings("RedundantThrows")
-
   public Integer findService(int accountId, int type)  {
     // Simplified: savings is always service == accountId
     return accountId > 0 ? accountId : null;
   }
 
   /** Accrue interest on all services. Returns total interest paid. */
-  @SuppressWarnings("RedundantThrows")
-
   public double accrueInterest()  {
     double total = 0;
     for (int i = 1; i <= MAX_ACCTS; i++) {
@@ -181,8 +169,6 @@ public final class BankFull {
   }
 
   /** Charge monthly fees. Returns total fees charged. */
-  @SuppressWarnings("RedundantThrows")
-
   public double chargeMonthlyFees()  {
     double total = 0;
     for (int i = 1; i <= MAX_ACCTS; i++) {
@@ -194,8 +180,6 @@ public final class BankFull {
   }
 
   /** Verify double-entry invariant. Returns true if balanced. */
-  @SuppressWarnings("RedundantThrows")
-
   public boolean verify()  {
     // Check: total savings + bank balance = initial capital
     double totalSavings = 0;
@@ -204,8 +188,6 @@ public final class BankFull {
   }
 
   /** Get total balance across all services in account. */
-  @SuppressWarnings("RedundantThrows")
-
   public double accountBalance(int accountId)  {
     return savings[accountId];
   }
@@ -261,9 +243,6 @@ public final class BankFull {
     boolean ok = bank.verify();
     return new double[] {ms, tps, ok ? 1 : 0};
   }
-
-  @SuppressWarnings("RedundantThrows")
-
 
   static void runTransactions(BankFull bank, int nAccounts, long n)  {
     ThreadLocalRandom rng = ThreadLocalRandom.current();

@@ -201,7 +201,7 @@ public final class WriteAheadLog implements Closeable {
   }
 
   /** Scan WAL to find highest sequence number. */
-  private long scanNextSeq() throws IOException {
+  private long scanNextSeq() throws IOException  {
     if (!Files.exists(walPath)) return 0;
     long maxSeq = 0;
     try (FileChannel readCh = FileChannel.open(walPath, StandardOpenOption.READ)) {
@@ -231,7 +231,7 @@ public final class WriteAheadLog implements Closeable {
   }
 
   /** WAL entry. */
-  public static final @SuppressWarnings("unused") class Entry {
+  public static final @SuppressWarnings({"URF_UNREAD_FIELD", "unused"}) class Entry {
     public final long seq;
     public final byte op;
     public final String key;

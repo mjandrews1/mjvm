@@ -105,7 +105,9 @@ public final class PerfMetrics {
     }
   }
 
-  public static void main(String[] args) throws Exception {
+  @SuppressWarnings({"DLS_DEAD_LOCAL_STORE", "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE", "UCF_USELESS_CONTROL_FLOW", "DB_DUPLICATE_BRANCHES"})
+
+  public static void main(String[] args) throws Exception  {
     String storeType = args.length > 0 ? args[0] : "mem";
     int seconds = args.length > 1 ? Integer.parseInt(args[1]) : 10;
     int threads = args.length > 2 ? Integer.parseInt(args[2]) : 4;

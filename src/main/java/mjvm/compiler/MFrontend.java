@@ -794,7 +794,7 @@ public final class MFrontend {
     for (int[] pk : activePatches) pk[1] += offset;
   }
 
-  private int compileForSpec(String line, int varStart, List<Ir> out, String var) {
+  private int compileForSpec(String line, int varStart, List<Ir> out, String var)  {
     compileRecursionDepth.incrementAndGet();
     if (compileRecursionDepth.get() > 30) {
       compileRecursionDepth.decrementAndGet();

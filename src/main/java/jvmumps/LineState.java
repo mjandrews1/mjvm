@@ -40,7 +40,7 @@ final class LineState {
     }
   }
 
-  List<RtLine> prog;
+  List<RtLine> prog = null;
   int pc;
   String pendingRest;
   final Deque<Frame> doStack = new ArrayDeque<>();

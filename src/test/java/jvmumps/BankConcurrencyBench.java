@@ -80,7 +80,8 @@ public final class BankConcurrencyBench {
   }
 
   /** Run benchmark for one corner and N. */
-  static double runCorner(String bank, String storeType, int corner, long n) throws Exception {
+  @SuppressWarnings({"DLS_DEAD_LOCAL_STORE", "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE", "UCF_USELESS_CONTROL_FLOW", "DB_DUPLICATE_BRANCHES"})
+  static double runCorner(String bank, String storeType, int corner, long n) throws Exception  {
     String tmpDir = System.getProperty("java.io.tmpdir");
     long t0 = System.nanoTime();
     if (corner <= 2) {

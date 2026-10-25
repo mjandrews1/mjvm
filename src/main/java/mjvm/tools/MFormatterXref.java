@@ -8,7 +8,7 @@ import java.util.*;
  */
 public final class MFormatterXref {
 
-  public static class Symbol {
+  public static @SuppressWarnings("UWF_UNWRITTEN_FIELD") class Symbol {
     String name;
     String kind; // "local", "global", "param", "tag", "extrinsic"
     String scope; // tag name where defined, or "(routine)"

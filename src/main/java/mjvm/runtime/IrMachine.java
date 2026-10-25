@@ -52,9 +52,7 @@ public final class IrMachine {
     }
   }
 
-  @SuppressWarnings("DLS_DEAD_LOCAL_STORE")
-
-  public static void run(List<Ir> prog, MRuntime rt) {
+  public static void run(List<Ir> prog, MRuntime rt)  {
     run(prog, rt, 0, null);
   }
 
@@ -62,8 +60,7 @@ public final class IrMachine {
    * Run and link the tag table so later `$$tag` calls resolve (GAP-2). A later single-line run must
    * not clobber an already-linked routine.
    */
-  @SuppressWarnings("DLS_DEAD_LOCAL_STORE")
-  public static void run(List<Ir> prog, MRuntime rt, java.util.Map<String, Integer> tags) {
+  public static void run(List<Ir> prog, MRuntime rt, java.util.Map<String, Integer> tags)  {
     if (tags != null && !tags.isEmpty()) {
       rt.link(prog, tags);
     }
@@ -106,7 +103,8 @@ public final class IrMachine {
     return v != null ? v : MValue.ofNumber(dvals[i]);
   }
 
-  private static jvmumps.MValue run(List<Ir> prog, MRuntime rt, int startPc, MValue[] args) {
+  private @SuppressWarnings({"DLS_DEAD_LOCAL_STORE", "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE", "UCF_USELESS_CONTROL_FLOW", "DB_DUPLICATE_BRANCHES"})
+  static jvmumps.MValue run(List<Ir> prog, MRuntime rt, int startPc, MValue[] args) {
     MValue[] vals = VALS_POOL.get();
     double[] dvals = DVALS_POOL.get();
     int[] spA = {0}; // array wrapper for popVal

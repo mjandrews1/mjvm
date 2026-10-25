@@ -383,7 +383,7 @@ public final class ExprEval {
      * All binary operators are one level, left-associative (C30–C32): 1+2*3 = 9 2*3+1 = 7 2**3**2 =
      * 64 1_2=12 → (1_2)=12
      */
-    @SuppressWarnings("DB_DUPLICATE_BRANCHES") MValue binaryExpr() {
+    MValue binaryExpr() {
       MValue a = unary();
       // String concat builder: accumulate consecutive _ operations
       StringBuilder concatBuf = null;
