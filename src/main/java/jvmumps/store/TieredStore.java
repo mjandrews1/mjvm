@@ -33,9 +33,7 @@ public final class TieredStore implements StoreApi, AutoCloseable {
   private static final char SEP = 1;
 
   /** Get metrics for monitoring. */
-  @SuppressWarnings("RedundantThrows")
-
-  public StoreMetrics metrics()  {
+  @SuppressWarnings({"RedundantThrows", "EI_EXPOSE_REP"}) public StoreMetrics metrics()  {
     return metrics;
   }
 

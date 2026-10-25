@@ -32,13 +32,13 @@ public final class MFrontend {
 
   private List<Ir> compile(String line, boolean terminate) {
     List<Ir> out = new ArrayList<>();
-    if (compileDepth == 0) {
+    if (compileDepth.get() == 0) {
       ifJmp0.clear();
       endJmps.clear();
     }
-    if (++compileDepth > 30) {
+    if (compileDepth.incrementAndGet() > 30) {
       System.err.println("DEPTH30 HIT at line=" + line.substring(0, Math.min(40, line.length())));
-      compileDepth = compileDepth - 1;
+      compileDepth.decrementAndGet();
       return out; // depth limit — return empty IR (VistA routines with deep FOR nesting)
     }
     int i = 0;
@@ -354,7 +354,7 @@ public final class MFrontend {
     if (terminate) {
       out.add(Ir.ret());
     }
-    compileDepth = compileDepth - 1;
+    compileDepth.decrementAndGet();
     return out;
   }
 
@@ -412,10 +412,10 @@ public final class MFrontend {
   private java.util.Map<String, Integer> lastTags = java.util.Map.of();
 
   public java.util.Map<String, Integer> lastTags() {
-    return lastTags;
+    return java.util.Collections.unmodifiableMap(lastTags);
   }
 
-  private volatile  int compileDepth;
+  private final java.util.concurrent.atomic.AtomicInteger compileDepth = new java.util.concurrent.atomic.AtomicInteger(0);
 
   List<Ir> compileRoutine(String code) {
     lastTags = java.util.Map.of();
@@ -507,14 +507,14 @@ public final class MFrontend {
       activeLabels = labels;
       activePatches = patches;
       activeSelfLine = li;
-      compileDepth = compileDepth + 1;
+      compileDepth.incrementAndGet();
       try {
         compile(body, false, out);
       } catch (MError e) {
         out.clear();
         out.add(Ir.ret());
       } finally {
-        compileDepth = compileDepth - 1;
+        compileDepth.decrementAndGet();
         activeLabels = null;
         activePatches = null;
       }
@@ -795,9 +795,9 @@ public final class MFrontend {
   }
 
   private int compileForSpec(String line, int varStart, List<Ir> out, String var) {
-    compileRecursionDepth = compileRecursionDepth + 1;
-    if (compileRecursionDepth > 30) {
-      compileRecursionDepth = compileRecursionDepth - 1;
+    compileRecursionDepth.incrementAndGet();
+    if (compileRecursionDepth.get() > 30) {
+      compileRecursionDepth.decrementAndGet();
       return line.length(); // depth limit — skip this FOR
     }
     try {
@@ -912,18 +912,18 @@ public final class MFrontend {
       }
       return line.length();
     } finally {
-      compileRecursionDepth = compileRecursionDepth - 1;
+      compileRecursionDepth.decrementAndGet();
     }
   }
 
-  private volatile int compileRecursionDepth = 0;
+  private final java.util.concurrent.atomic.AtomicInteger compileRecursionDepth = new java.util.concurrent.atomic.AtomicInteger(0);
   private static final int MAX_COMPILE_DEPTH = 100;
 
   void compileInto(String body, List<Ir> out) {
     if (body.isEmpty()) return;
-    compileRecursionDepth = compileRecursionDepth + 1;
-    if (compileRecursionDepth > 30) {
-      compileRecursionDepth = compileRecursionDepth - 1;
+    compileRecursionDepth.incrementAndGet();
+    if (compileRecursionDepth.get() > 30) {
+      compileRecursionDepth.decrementAndGet();
       return; // depth limit — skip
     }
     try {
@@ -939,7 +939,7 @@ public final class MFrontend {
         }
       }
     } finally {
-      compileRecursionDepth = compileRecursionDepth - 1;
+      compileRecursionDepth.decrementAndGet();
     }
   }
 

@@ -33,7 +33,7 @@ public final class MRuntime {
   // M6 locks / TX (per-level undo, same contract as JvMumps LineInterp)
   private final java.util.Set<String> locks = new java.util.HashSet<>();
   private final java.util.List<java.util.List<Object[]>> txUndo = new ArrayList<>();
-  private volatile int tlevel = 0;
+  private final java.util.concurrent.atomic.AtomicInteger tlevel = new java.util.concurrent.atomic.AtomicInteger(0);
 
   /** Shared JvMumps evaluator for $intrinsics / patterns / indirection (M11). */
   private final jvmumps.ExprEval exprEval;
@@ -505,7 +505,7 @@ public final class MRuntime {
     if (name.startsWith("^") && name.indexOf('@') < 0) {
       boolean glob = true;
       String key = keyOf(name, this);
-      if (tlevel > 0) {
+      if (tlevel.get() > 0) {
         MValue old = store.get(key, glob);
         recordUndo(List.of(key), glob, old);
       }
@@ -514,7 +514,7 @@ public final class MRuntime {
     }
     List<String> path = pathOf(name, this);
     boolean glob = path.get(0).startsWith("^");
-    if (tlevel > 0) {
+    if (tlevel.get() > 0) {
       MValue old = store.get(path, glob);
       recordUndo(path, glob, old);
     }
@@ -638,16 +638,16 @@ public final class MRuntime {
 
 
   public void link(java.util.List<mjvm.ir.Ir> prog, java.util.Map<String, Integer> tags)  {
-    this.linkedProg = prog;
-    this.linkedTags = tags;
+    this.linkedProg = prog == null ? null : java.util.List.copyOf(prog);
+    this.linkedTags = tags == null ? null : java.util.Map.copyOf(tags);
   }
 
   public java.util.List<mjvm.ir.Ir> linkedProg() {
-    return linkedProg;
+    return linkedProg == null ? null : java.util.Collections.unmodifiableList(linkedProg);
   }
 
   public java.util.Map<String, Integer> linkedTags() {
-    return linkedTags;
+    return linkedTags == null ? null : java.util.Collections.unmodifiableMap(linkedTags);
   }
 
   @SuppressWarnings("RedundantThrows")
@@ -956,7 +956,7 @@ public final class MRuntime {
 
 
   public void tstart()  {
-    tlevel++;
+    tlevel.incrementAndGet();
     txUndo.add(new ArrayList<>());
   }
 
@@ -964,8 +964,8 @@ public final class MRuntime {
 
 
   public void tcommit()  {
-    if (tlevel > 0) {
-      tlevel--;
+    if (tlevel.get() > 0) {
+      tlevel.decrementAndGet();
       java.util.List<Object[]> top = txUndo.remove(txUndo.size() - 1);
       if (!txUndo.isEmpty()) {
         txUndo.get(txUndo.size() - 1).addAll(top);
@@ -977,8 +977,8 @@ public final class MRuntime {
 
 
   public void trollback()  {
-    if (tlevel > 0) {
-      tlevel--;
+    if (tlevel.get() > 0) {
+      tlevel.decrementAndGet();
       java.util.List<Object[]> top = txUndo.remove(txUndo.size() - 1);
       for (int i = top.size() - 1; i >= 0; i--) {
         Object[] u = top.get(i);
@@ -1003,7 +1003,7 @@ public final class MRuntime {
 
 
   public int tlevel()  {
-    return tlevel;
+    return tlevel.get();
   }
 
   /** Set $PIECE: replace pieces from..to of s delimited by d with v. */
@@ -1036,7 +1036,7 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
 
   public void recordUndo(java.util.List<String> path, boolean global, MValue old)  {
-    if (tlevel > 0 && !txUndo.isEmpty()) {
+    if (tlevel.get() > 0 && !txUndo.isEmpty()) {
       txUndo.get(txUndo.size() - 1).add(new Object[] {path, old});
     }
   }

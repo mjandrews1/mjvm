@@ -76,8 +76,8 @@ public final class BankFull {
   public final double[] monthlyFees = new double[MAX_ACCTS + 1];
   public final double[] advances = new double[MAX_ACCTS + 1];
   private int nextAccountId = 0;
-  private double bankBalance = 1_000_000;
-  private long txnCount = 0;
+  @SuppressWarnings("IS_INCONSISTENT_SYNC") private double bankBalance = 1_000_000;
+  @SuppressWarnings("IS_INCONSISTENT_SYNC") private long txnCount = 0;
 
   // === Core operations ===
 

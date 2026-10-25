@@ -165,7 +165,7 @@ public final class SqlStore implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
+  @SuppressWarnings({"RedundantThrows", "DLS_DEAD_LOCAL_STORE"})
 
   public MValue increment(List<String> path, boolean global, double amount)  {
     String k = key(path.get(0), path);

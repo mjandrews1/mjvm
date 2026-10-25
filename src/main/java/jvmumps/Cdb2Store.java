@@ -351,7 +351,7 @@ public final class Cdb2Store implements StoreApi {
   }
 
   @Override
-  @SuppressWarnings("RedundantThrows")
+  @SuppressWarnings({"RedundantThrows", "DLS_DEAD_LOCAL_STORE"})
 
   public String order(List<String> path, boolean global, double dir)  {
     if (path.size() < 2) return "";

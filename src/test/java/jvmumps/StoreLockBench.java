@@ -166,7 +166,7 @@ public final class StoreLockBench {
           timedOut.get(),
           pct(s, 50),
           pct(s, 99),
-          s.isEmpty() ? -1 : s.get(s.size() - 1));
+          s.isEmpty() ? Integer.valueOf(-1) : s.get(s.size() - 1));
     }
   }
 
