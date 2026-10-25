@@ -24,11 +24,15 @@ public final class MStore implements StoreApi {
     boolean hasValue = false;
     final Map<String, Node> kids = new ConcurrentHashMap<>();
     private volatile String[] sortedKeysCache;
-    private volatile boolean kidsDirty = true;
+    private boolean kidsDirty = true; // not volatile — rebuild is idempotent
+
+    private static final java.util.function.Function<String, Node> NEW_NODE = k -> new Node();
 
     Node kid(String s) {
+      Node n = kids.get(s);
+      if (n != null) return n;
       kidsDirty = true;
-      return kids.computeIfAbsent(s, k -> new Node());
+      return kids.computeIfAbsent(s, NEW_NODE);
     }
 
     void markDirty() {
@@ -611,9 +615,10 @@ public final class MStore implements StoreApi {
     return global ? globals : locals;
   }
 
+  private static final java.util.function.Function<String, Node> NEW_ROOT = k -> new Node();
+
   public Node node(List<String> path, boolean global) {
-    String name = path.get(0);
-    Node n = root(global).computeIfAbsent(name, k -> new Node());
+    Node n = root(global).computeIfAbsent(path.get(0), NEW_ROOT);
     for (int i = 1; i < path.size(); i++) {
       n = n.kid(path.get(i));
     }
@@ -706,6 +711,15 @@ public final class MStore implements StoreApi {
   public void set(String key, boolean global, MValue v) {
     if (global && v.isnum) {
       oaPut(key, v.num);
+    }
+    // Fast path: inline 2-segment split (avoids splitCached + ArrayList for common case)
+    int sep = key.indexOf('\u0001');
+    if (sep > 0 && key.indexOf('\u0001', sep + 1) < 0) {
+      Node r = root(global).computeIfAbsent(key.substring(0, sep), NEW_ROOT);
+      Node leaf = r.kid(key.substring(sep + 1));
+      leaf.value = v;
+      leaf.hasValue = true;
+      return;
     }
     set(toList(splitCached(key)), global, v);
   }
