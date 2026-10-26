@@ -129,10 +129,10 @@ man:
 	man ./man/mjvm.1
 
 dist: mjvm
-	mkdir -p dist/mjvm-0.1.0
-	cp -R build lib bin man docs install.sh README.md CRITICAL_PATH.md dist/mjvm-0.1.0/
-	cd dist && tar czf mjvm-0.1.0.tar.gz mjvm-0.1.0
-	@echo "dist/mjvm-0.1.0.tar.gz"
+	mkdir -p dist/mjvm-2.2.0
+	cp -R build lib bin man docs install.sh README.md CRITICAL_PATH.md dist/mjvm-2.2.0/
+	cd dist && tar czf mjvm-2.2.0.tar.gz mjvm-2.2.0
+	@echo "dist/mjvm-2.2.0.tar.gz"
 
 # --- Format (google-java-format) ---
 .PHONY: format fmt-check lint lint-build

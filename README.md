@@ -50,7 +50,7 @@ MFrontend.compile ──→ List<Ir> ──→ JavaSourceEmitter ──→ JIT b
 | **Write p99** | 0.3μs | 0.5μs | 1.0μs |
 | **Invariant** | ✅ | ✅ | ✅ |
 
-### GAUNTLET: 92/92 correctness + latency gates
+### GAUNTLET: 134/134 correctness + latency gates
 
 ## Storage backends
 
