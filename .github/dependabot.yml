@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Note: Java JARs in lib/ are managed manually (no Maven/Gradle).
+  # To update JARs, use: make deps-check (future target)

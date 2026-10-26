@@ -1,0 +1,17 @@
+@startuml ir-flow
+!theme plain
+skinparam linetype ortho
+
+rectangle "M Source" as src
+rectangle "MFrontend" as fe
+rectangle "IR (List<Ir>)" as ir
+rectangle "IrMachine" as machine
+rectangle "MRuntime" as rt
+rectangle "MStore" as store
+
+src --> fe : compileProgram()
+fe --> ir : List<Ir>
+ir --> machine : run()
+machine --> rt : evalExpr()
+rt --> store : get/set/order
+@enduml

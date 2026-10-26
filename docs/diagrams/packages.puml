@@ -1,0 +1,23 @@
+@startuml packages
+!theme plain
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+package "mjvm.cli" as cli
+package "mjvm.compiler" as compiler
+package "mjvm.runtime" as runtime
+package "mjvm.ir" as ir
+package "jvmumps" as jvmumps
+package "jvmumps.store" as store
+
+cli --> runtime
+cli --> compiler
+cli --> ir
+cli --> jvmumps
+compiler --> ir
+compiler --> jvmumps
+runtime --> ir
+runtime --> jvmumps
+store --> jvmumps
+jvmumps --> jvmumps : internal
+@enduml

@@ -214,6 +214,27 @@ jmh-quick: all mjvm
 	$(JAVAC) --release 21 -cp $(CP):$(JMH_CP) -processorpath $(JMH_PROC) -d $(OUT) src/test/java/jvmumps/JmhMStore.java
 	$(JAVA) -cp $(CP):$(JMH_CP) jvmumps.JmhMStore -f 1 -wi 2 -i 2
 
+# --- jQAssistant (code graph database) ---
+JQASSISTANT := /tmp/jqassistant-extract/jqassistant-commandline-neo4jv4-2.9.1/bin/jqassistant
+
+.PHONY: jqassistant analyze
+
+analyze: jqassistant
+
+jqassistant: all
+	@echo "=== jQAssistant: scanning code ==="
+	@$(JQASSISTANT) scan -f $(OUT) 2>&1 | tail -5
+	@echo "=== jQAssistant: analyzing architecture ==="
+	@$(JQASSISTANT) analyze 2>&1 | tail -5
+
+# --- PlantUML diagrams ---
+PLANTUML := lib/plantuml-1.2025.4.jar
+
+.PHONY: diagrams
+
+diagrams:
+	bash tools/gen-diagrams.sh
+
 # --- Pre-commit hook ---
 .PHONY: hooks install-hooks
 
