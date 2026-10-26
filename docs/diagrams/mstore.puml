@@ -1,0 +1,49 @@
+@startuml mstore
+!theme plain
+skinparam classAttributeIconSize 0
+
+class MStore {
+  - locals: ConcurrentHashMap<String, Node>
+  - globals: ConcurrentHashMap<String, Node>
+  - keyCache: ConcurrentHashMap<String, String[]>
+  + get(path, global): MValue
+  + set(path, global, v): void
+  + order(path, global, dir): String
+  + increment(path, global, amount): MValue
+  + kill(path, global): void
+  + data(path, global): int
+  + queryNext(path, global, dir): String
+}
+
+class Node {
+  - value: MValue
+  - hasValue: boolean
+  - kids: ConcurrentHashMap<String, Node>
+  - sortedKeysCache: String[]
+  - kidsDirty: boolean
+  + kid(s): Node
+  + markDirty(): void
+  + sortedKeys(): String[]
+}
+
+class "StoreApi" as API {
+  {interface} get()
+  {interface} set()
+  {interface} order()
+  {interface} increment()
+  {interface} kill()
+  {interface} data()
+  {interface} queryNext()
+}
+
+class "StoreCore" as Core {
+  {abstract} get()
+  {abstract} set()
+  {abstract} increment()
+  {abstract} kill()
+}
+
+MStore --> Node
+MStore ..|> API
+MStore ..|> Core
+@enduml

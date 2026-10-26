@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base"],
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "deps:",
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track JAR versions in lib/ directory names",
+      "managerFilePatterns": ["/^lib\\/.*\\.jar$/"],
+      "matchStrings": [
+        "lib/(?<depName>[\\w-]+)-(?<currentValue>\\d[\\d.]+)\\.jar"
+      ],
+      "datasourceTemplate": "maven"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jqassistant-rules xmlns="http://schema.jqassistant.org/rule/v2.9">
+
+  <concept id="mJVM:PackageGroups">
+    <description>Group classes into architecture layers</description>
+    <cypher><![CDATA[
+      MATCH (c:Class)
+      WITH c, CASE
+          WHEN c.fqn STARTS WITH "mjvm.cli" THEN "cli"
+          WHEN c.fqn STARTS WITH "mjvm.compiler" THEN "compiler"
+          WHEN c.fqn STARTS WITH "mjvm.runtime" THEN "runtime"
+          WHEN c.fqn STARTS WITH "mjvm.ir" THEN "ir"
+          WHEN c.fqn STARTS WITH "jvmumps.store" THEN "store"
+          WHEN c.fqn STARTS WITH "jvmumps" THEN "jvmumps"
+          ELSE "other"
+        END AS layer
+      MERGE (l:Layer {name: layer})
+      MERGE (c)-[:BELONGS_TO]->(l)
+      RETURN count(*) AS assigned
+    ]]></cypher>
+  </concept>
+
+  <constraint id="mJVM:CompilerNoRuntime" severity="major">
+    <description>mjvm.compiler must not depend on mjvm.runtime (except emitters)</description>
+    <cypher><![CDATA[
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "mjvm.compiler"
+        AND b.fqn STARTS WITH "mjvm.runtime"
+        AND NOT a.name ENDS WITH "Emitter"
+      RETURN a.fqn AS Compiler, b.fqn AS RuntimeDependency
+    ]]></cypher>
+  </constraint>
+
+  <constraint id="mJVM:IrIsLeaf" severity="major">
+    <description>mjvm.ir must not depend on mjvm.runtime or mjvm.compiler</description>
+    <cypher><![CDATA[
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "mjvm.ir"
+        AND (b.fqn STARTS WITH "mjvm.runtime" OR b.fqn STARTS WITH "mjvm.compiler")
+      RETURN a.fqn AS IrClass, b.fqn AS ForbiddenDependency
+    ]]></cypher>
+  </constraint>
+
+  <constraint id="mJVM:StoreIndependent" severity="major">
+    <description>jvmumps.store must not depend on mjvm.compiler or mjvm.runtime</description>
+    <cypher><![CDATA[
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "jvmumps.store"
+        AND (b.fqn STARTS WITH "mjvm.compiler" OR b.fqn STARTS WITH "mjvm.runtime")
+      RETURN a.fqn AS StoreClass, b.fqn AS ForbiddenDependency
+    ]]></cypher>
+  </constraint>
+
+  <constraint id="mJVM:NoNewCdb2Deps" severity="major">
+    <description>No classes outside jvmumps may depend on Cdb2Store</description>
+    <cypher><![CDATA[
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE b.fqn ENDS WITH "Cdb2Store"
+        AND NOT a.fqn STARTS WITH "jvmumps"
+      RETURN a.fqn AS Consumer, b.fqn AS Cdb2Store
+    ]]></cypher>
+  </constraint>
+
+  <group id="default">
+    <description>Default rule group — executes by default</description>
+    <includeConcept refId="mJVM:PackageGroups"/>
+    <includeConstraint refId="mJVM:CompilerNoRuntime"/>
+    <includeConstraint refId="mJVM:IrIsLeaf"/>
+    <includeConstraint refId="mJVM:StoreIndependent"/>
+    <includeConstraint refId="mJVM:NoNewCdb2Deps"/>
+  </group>
+
+</jqassistant-rules>
