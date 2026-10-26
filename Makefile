@@ -215,7 +215,7 @@ jmh-quick: all mjvm
 	$(JAVA) -cp $(CP):$(JMH_CP) jvmumps.JmhMStore -f 1 -wi 2 -i 2
 
 # --- jQAssistant (code graph database) ---
-JQASSISTANT := /tmp/jqassistant-extract/jqassistant-commandline-neo4jv4-2.9.1/bin/jqassistant
+JQASSISTANT := /tmp/jqassistant-v5/jqassistant-commandline-neo4jv5-2.9.1/bin/jqassistant
 
 .PHONY: jqassistant analyze
 
@@ -223,9 +223,9 @@ analyze: jqassistant
 
 jqassistant: all
 	@echo "=== jQAssistant: scanning code ==="
-	@$(JQASSISTANT) scan -f $(OUT) 2>&1 | tail -5
+	@JQASSISTANT_OPTS="--add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED" $(JQASSISTANT) scan -f $(OUT) 2>&1 | tail -5
 	@echo "=== jQAssistant: analyzing architecture ==="
-	@$(JQASSISTANT) analyze 2>&1 | tail -5
+	@JQASSISTANT_OPTS="--add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED" $(JQASSISTANT) analyze 2>&1 | tail -5
 
 # --- PlantUML diagrams ---
 PLANTUML := lib/plantuml-1.2025.4.jar
