@@ -72,6 +72,7 @@ public final class VistAFullRun {
     System.out.println();
 
     Map<String, Pkg> stats = new LinkedHashMap<>();
+    Map<String, Integer> swallowClasses = new TreeMap<>();
     int scanned = 0;
     for (Map.Entry<String, List<Path>> ent : byPkg.entrySet()) {
       String pkg = ent.getKey();
@@ -105,6 +106,9 @@ public final class VistAFullRun {
               // RET — previously invisible; surfaced via the ledger (2026-10-26).
               ps.ok++;
               ps.swallow++;
+              for (String sw : res.swallowed()) {
+                swallowClasses.merge(swallowClassOf(sw), 1, Integer::sum);
+              }
               ps.fails.add(
                   rel(base, p)
                       + "  SWALLOWED (LEDGER) "
@@ -174,6 +178,19 @@ public final class VistAFullRun {
     }
 
     System.out.println();
+    System.out.println("### swallowed-class histogram (ledger entries)");
+    if (swallowClasses.isEmpty()) {
+      System.out.println("  (none)");
+    } else {
+      int totSw = swallowClasses.values().stream().mapToInt(Integer::intValue).sum();
+      for (Map.Entry<String, Integer> e : swallowClasses.entrySet()) {
+        System.out.printf(
+            "  %-42s %7d  (%.1f%%)%n",
+            e.getKey(), e.getValue(), 100.0 * e.getValue() / Math.max(1, totSw));
+      }
+    }
+
+    System.out.println();
     System.out.println("### failure classification");
     if (failClasses.isEmpty()) {
       System.out.println("  (none)");
@@ -238,6 +255,25 @@ public final class VistAFullRun {
 
   /** Compile with OOM/stack guard — returns null on overflow. */
   record CompileResult(java.util.List<mjvm.ir.Ir> ir, java.util.List<String> swallowed) {}
+
+  /** Bucket a ledger entry into a syntax class for the backlog histogram. */
+  static String swallowClassOf(String ledgerEntry) {
+    int at = ledgerEntry.indexOf("expected command at ");
+    if (at >= 0) {
+      String rest = ledgerEntry.substring(at + "expected command at ".length()).trim();
+      if (rest.startsWith(".")) return "dotted-line continuation (.)";
+      if (rest.startsWith("@")) return "argument indirection (@)";
+      if (rest.startsWith(",")) return "continuation comma (,)";
+      if (rest.startsWith(":$") || rest.startsWith(":")) return "post-conditional (:)";
+      if (rest.startsWith("$$") || rest.startsWith("$")) return "function/intrinsic ($)";
+      return "other token: '" + (rest.isEmpty() ? "" : rest.charAt(0)) + "'";
+    }
+    if (ledgerEntry.contains("SET target must be a name")) return "SET target must be a name";
+    if (ledgerEntry.contains("depth limit")) return "compile depth limit";
+    if (ledgerEntry.contains("Undefined local variable")) return "undefined local";
+    if (ledgerEntry.length() > 60) return ledgerEntry.substring(0, 57) + "…";
+    return ledgerEntry;
+  }
 
   static CompileResult compileWithGuard(String code) {
     try {
