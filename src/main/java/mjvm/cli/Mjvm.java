@@ -26,7 +26,7 @@ import mjvm.runtime.MRuntime;
  * file mjvm --store cdb2|sqlite|memory pick StoreApi backend (mesh/SQL plane = cdb2)
  */
 public final class Mjvm {
-  public static final String VERSION = "V2.2.1 (mJVM)";
+  public static final String VERSION = "V2.2.2 (mJVM)";
   public static final String BANNER =
       "mJVM "
           + VERSION

@@ -167,6 +167,12 @@ final class ExprIntrinsics {
             }
             return v;
           } catch (MError e) {
+            // $GET defaults only on the undefined-variable case; genuine
+            // errors (malformed name, etc.) must propagate.
+            String msg = e.getMessage();
+            if (msg == null || !msg.startsWith("Undefined local variable")) {
+              throw e;
+            }
             return args.size() > 1 ? args.get(1) : MValue.EMPTY;
           }
         }

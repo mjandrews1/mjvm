@@ -320,8 +320,10 @@ public final class MRuntime {
       try {
         MValue v = rt.evalExpr(s);
         return v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.str;
+      } catch (jvmumps.MError e) {
+        throw e;
       } catch (Exception e) {
-        return s;
+        throw new jvmumps.MError("eval failed in WRITE sub: " + s + ": " + e);
       }
     }
     return s;
@@ -393,8 +395,10 @@ public final class MRuntime {
     if (rt != null && !s.isEmpty() && (Character.isLetter(s.charAt(0)) || s.charAt(0) == '%')) {
       try {
         return rt.evalExpr(s).asStr();
+      } catch (jvmumps.MError e) {
+        throw e;
       } catch (Exception e) {
-        return s;
+        throw new jvmumps.MError("eval failed in WRITE sub: " + s + ": " + e);
       }
     }
     return s;

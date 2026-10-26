@@ -46,6 +46,12 @@ public final class ExprEval {
         MValue v = get(name);
         return v == MValue.EMPTY ? 0 : 1;
       } catch (MError e) {
+        // $DATA reports 0 only for the undefined-variable case; genuine
+        // errors (malformed name, etc.) must propagate.
+        String msg = e.getMessage();
+        if (msg == null || !msg.startsWith("Undefined local variable")) {
+          throw e;
+        }
         return 0;
       }
     }

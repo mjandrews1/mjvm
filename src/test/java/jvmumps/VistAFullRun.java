@@ -31,7 +31,7 @@ public final class VistAFullRun {
 
   /** Per-package tallies. */
   static final class Pkg {
-    int ok, empty, fail, total;
+    int ok, empty, fail, total, swallow;
     final List<String> fails = new ArrayList<>();
     long nanos;
   }
@@ -93,13 +93,24 @@ public final class VistAFullRun {
         long t0 = System.nanoTime();
         try {
           if (nativeMode) {
-            var ir = compileWithGuard(code);
-            if (ir == null) {
+            CompileResult res = compileWithGuard(code);
+            if (res == null) {
               ps.fail++;
               ps.fails.add(rel(base, p) + "  PARSE (ENGINE GAP) StackOverflow in compiler");
-            } else if (ir.isEmpty()) {
+            } else if (res.ir().isEmpty()) {
               ps.empty++;
               ps.fails.add(rel(base, p) + "  NO OPS (DIALECT)");
+            } else if (!res.swallowed().isEmpty()) {
+              // Compiled, but the routine builder replaced error lines with
+              // RET — previously invisible; surfaced via the ledger (2026-10-26).
+              ps.ok++;
+              ps.swallow++;
+              ps.fails.add(
+                  rel(base, p)
+                      + "  SWALLOWED (LEDGER) "
+                      + res.swallowed().size()
+                      + " — "
+                      + truncateName(String.valueOf(res.swallowed().get(0))));
             } else {
               ps.ok++;
             }
@@ -130,7 +141,7 @@ public final class VistAFullRun {
     }
 
     // Summary
-    int totOk = 0, totEmpty = 0, totFail = 0, totFiles = 0;
+    int totOk = 0, totEmpty = 0, totFail = 0, totFiles = 0, totSwallow = 0;
     long totNanos = 0;
     Map<String, Integer> failClasses = new TreeMap<>();
     for (Pkg ps : stats.values()) {
@@ -138,10 +149,12 @@ public final class VistAFullRun {
       totEmpty += ps.empty;
       totFail += ps.fail;
       totFiles += ps.total;
+      totSwallow += ps.swallow;
       totNanos += ps.nanos;
       for (String f : ps.fails) {
         String cls = "OTHER";
         if (f.contains("ENGINE GAP")) cls = "ENGINE GAP";
+        else if (f.contains("SWALLOWED (LEDGER)")) cls = "SWALLOWED";
         else if (f.contains("DIALECT")) cls = "DIALECT";
         else if (f.contains("DATA")) cls = "DATA";
         failClasses.merge(cls, 1, Integer::sum);
@@ -186,7 +199,13 @@ public final class VistAFullRun {
 
     System.out.println();
     System.out.printf(
-        "  scanned=%d ok=%d no-labels=%d fail=%d%n", totFiles, totOk, totEmpty, totFail);
+        "  scanned=%d ok=%d no-labels=%d fail=%d swallowed=%d%n",
+        totFiles, totOk, totEmpty, totFail, totSwallow);
+    if (totSwallow > 0) {
+      System.out.println(
+          "  NOTE: 'swallowed' = routines that compiled but had error lines replaced with RET —"
+              + " silent under the old engine, visible via the ledger since v2.2.1.");
+    }
     System.out.printf(
         "  parse_time=%.1fs avg=%.3fms/routine%n",
         totNanos / 1e9, totFiles > 0 ? totNanos / 1e6 / totFiles : 0);
@@ -218,9 +237,12 @@ public final class VistAFullRun {
   }
 
   /** Compile with OOM/stack guard — returns null on overflow. */
-  static java.util.List<mjvm.ir.Ir> compileWithGuard(String code) {
+  record CompileResult(java.util.List<mjvm.ir.Ir> ir, java.util.List<String> swallowed) {}
+
+  static CompileResult compileWithGuard(String code) {
     try {
-      return new mjvm.compiler.MFrontend().compileProgram(code);
+      var fe = new mjvm.compiler.MFrontend();
+      return new CompileResult(fe.compileProgram(code), fe.lastSwallowedErrors());
     } catch (StackOverflowError | OutOfMemoryError e) {
       return null;
     }

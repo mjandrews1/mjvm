@@ -336,8 +336,9 @@ public final class MFrontend {
           String arg = line.substring(stx, i).trim();
           out.add(Ir.evalExpr(arg));
         } else {
-          // skip unknown command token (tags already handled)
-          i = MFrontendUtil.skipWs(line, i);
+          // Unknown command-position token. Tags were consumed at line start;
+          // reaching here is a syntax error (typo, unsupported construct).
+          throw new MError("unknown command '" + cmd + "' at " + line.substring(st));
         }
         i = MFrontendUtil.skipWs(line, i);
         if (i < n && line.charAt(i) == ' ') {

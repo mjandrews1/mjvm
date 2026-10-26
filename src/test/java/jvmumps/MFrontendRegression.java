@@ -630,7 +630,7 @@ public final class MFrontendRegression {
     // compile): previously compile/compileInto silently returned empty IR
     // past depth 30 ("DEPTH30 HIT" on stderr, silently wrong results). Now
     // they throw MError and the routine builder records it in the ledger.
-    StringBuilder deep = new StringBuilder("T DEEP\n");
+    StringBuilder deep = new StringBuilder("T\n");
     for (int lvl = 0; lvl < 35; lvl++) {
       deep.append("F V").append(lvl).append("=1:1:1 ");
     }
@@ -653,7 +653,7 @@ public final class MFrontendRegression {
     }
 
     // A clean 5-level nesting must compile with an EMPTY ledger and run
-    StringBuilder ok = new StringBuilder("T DEEP\n");
+    StringBuilder ok = new StringBuilder("T\n");
     for (int lvl = 0; lvl < 5; lvl++) {
       ok.append("F V").append(lvl).append("=1:1:1 ");
     }
