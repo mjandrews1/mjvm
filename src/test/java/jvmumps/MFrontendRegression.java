@@ -38,6 +38,10 @@ import mjvm.runtime.*;
  * <p>Bug 10: GOTO label resolution Labels with command-letter prefixes (G15ILP) were stripped
  * during lookup.
  *
+ * <p>Bug 11: compile depth limit compile() and compileInto() silently returned empty IR past depth
+ * 30; the routine builder replaced error lines with RET without recording anything. Now they throw
+ * MError, the builder logs to stderr and records in lastSwallowedErrors().
+ *
  * <p>Usage: java -cp build:lib/... jvmumps.MFrontendRegression
  */
 public final class MFrontendRegression {
@@ -137,6 +141,13 @@ public final class MFrontendRegression {
     // Bug 10: GOTO labels with command-letter prefixes must resolve
     // ================================================================
     r = testGotoLabelResolution();
+    pass += r[0];
+    fail += r[1];
+
+    // ================================================================
+    // Bug 11: compile depth limit must fail loudly, not silently truncate
+    // ================================================================
+    r = testDepthLimitLoud();
     pass += r[0];
     fail += r[1];
 
@@ -606,6 +617,64 @@ public final class MFrontendRegression {
       System.out.printf("  %s EXC %s%n", name, e.getMessage());
       return new int[] {0, 1};
     }
+  }
+
+  // ================================================================
+  // Bug 11: compile depth limit must fail loudly, not silently truncate
+  // ================================================================
+  static int[] testDepthLimitLoud() {
+    System.out.println("--- Bug 11: depth limit fails loudly ---");
+    int pass = 0, fail = 0;
+
+    // 35 nested inline FOR bodies (each level recurses via compileInto →
+    // compile): previously compile/compileInto silently returned empty IR
+    // past depth 30 ("DEPTH30 HIT" on stderr, silently wrong results). Now
+    // they throw MError and the routine builder records it in the ledger.
+    StringBuilder deep = new StringBuilder("T DEEP\n");
+    for (int lvl = 0; lvl < 35; lvl++) {
+      deep.append("F V").append(lvl).append("=1:1:1 ");
+    }
+    deep.append("W 1,!\nQ\n");
+    try {
+      MFrontend fe = new MFrontend();
+      List<Ir> prog = fe.compileProgram(deep.toString());
+      java.util.List<String> ledger = fe.lastSwallowedErrors();
+      boolean hasDepth = ledger.stream().anyMatch(s -> s.contains("depth limit"));
+      if (hasDepth) {
+        System.out.println("  depth-ledger-recorded PASS");
+        pass++;
+      } else {
+        System.out.printf("  depth-ledger-recorded FAIL prog=%d ledger=%s%n", prog.size(), ledger);
+        fail++;
+      }
+    } catch (Exception e) {
+      System.out.printf("  depth-ledger-recorded EXC %s%n", e.getMessage());
+      fail++;
+    }
+
+    // A clean 5-level nesting must compile with an EMPTY ledger and run
+    StringBuilder ok = new StringBuilder("T DEEP\n");
+    for (int lvl = 0; lvl < 5; lvl++) {
+      ok.append("F V").append(lvl).append("=1:1:1 ");
+    }
+    ok.append("W 1,!\nQ\n");
+    try {
+      MFrontend fe = new MFrontend();
+      List<Ir> prog = fe.compileProgram(ok.toString());
+      if (fe.lastSwallowedErrors().isEmpty() && !prog.isEmpty()) {
+        System.out.println("  depth-clean-empty-ledger PASS");
+        pass++;
+      } else {
+        System.out.printf(
+            "  depth-clean-empty-ledger FAIL prog=%d ledger=%s%n",
+            prog.size(), fe.lastSwallowedErrors());
+        fail++;
+      }
+    } catch (Exception e) {
+      System.out.printf("  depth-clean-empty-ledger EXC %s%n", e.getMessage());
+      fail++;
+    }
+    return new int[] {pass, fail};
   }
 
   private MFrontendRegression() {}

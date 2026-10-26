@@ -37,326 +37,331 @@ public final class MFrontend {
       endJmps.clear();
     }
     if (compileDepth.incrementAndGet() > 30) {
-      System.err.println("DEPTH30 HIT at line=" + line.substring(0, Math.min(40, line.length())));
       compileDepth.decrementAndGet();
-      return out; // depth limit — return empty IR (VistA routines with deep FOR nesting)
+      throw new MError(
+          "compile depth limit (30) exceeded at line="
+              + line.substring(0, Math.min(40, line.length())));
     }
-    int i = 0;
-    int n = line.length();
-    while (i < n) {
-      i = MFrontendUtil.skipWs(line, i);
-      if (i >= n) break;
-      if (line.charAt(i) == ';') break; // rest of line is a comment
-      int st = i;
-      while (i < n && Character.isLetter(line.charAt(i))) i++;
-      String cmd = line.substring(st, i).toUpperCase(java.util.Locale.ROOT);
-      if (cmd.isEmpty()) {
-        throw new MError("expected command at " + line.substring(st));
-      }
-      // M11: leading tag (MAIN, FOO, …) — skip, not a command
-      if (!MFrontendUtil.isKnownCmd(cmd) && i < n && line.charAt(i) != '=') {
-        // tag or unknown word: if it looks like TAG+space, skip the name
-        if (st == 0 || line.charAt(st - 1) == ' ' || line.charAt(st - 1) == '\n') {
-          // fall through only if this is not a command
-          if (!MFrontendUtil.isKnownCmd(cmd)) {
-            // skip tag token; body follows
-            continue;
+    try {
+      int i = 0;
+      int n = line.length();
+      while (i < n) {
+        i = MFrontendUtil.skipWs(line, i);
+        if (i >= n) break;
+        if (line.charAt(i) == ';') break; // rest of line is a comment
+        int st = i;
+        while (i < n && Character.isLetter(line.charAt(i))) i++;
+        String cmd = line.substring(st, i).toUpperCase(java.util.Locale.ROOT);
+        if (cmd.isEmpty()) {
+          throw new MError("expected command at " + line.substring(st));
+        }
+        // M11: leading tag (MAIN, FOO, …) — skip, not a command
+        if (!MFrontendUtil.isKnownCmd(cmd) && i < n && line.charAt(i) != '=') {
+          // tag or unknown word: if it looks like TAG+space, skip the name
+          if (st == 0 || line.charAt(st - 1) == ' ' || line.charAt(st - 1) == '\n') {
+            // fall through only if this is not a command
+            if (!MFrontendUtil.isKnownCmd(cmd)) {
+              // skip tag token; body follows
+              continue;
+            }
           }
         }
-      }
-      i = MFrontendUtil.skipWs(line, i);
-      if (cmd.equals("S") || cmd.equals("SET")) {
-        // postconditional SET: S:COND var=val — assign only if COND
-        boolean setPostcond = false;
-        int setJ0 = -1;
-        if (i < line.length() && line.charAt(i) == ':') {
-          i++;
-          int cs = i;
-          i = MFrontendUtil.scanExprEnd(line, i, " ");
-          String cond = line.substring(cs, i).trim();
-          out.add(Ir.evalExpr(cond));
-          setJ0 = out.size();
-          out.add(Ir.jmp0(-1)); // false → skip SET
-          setPostcond = true;
-        }
-        i = MFrontendCmds.compileSet(this, line, i, out);
-        if (setPostcond) {
-          if (setJ0 >= 0 && setJ0 < out.size()) out.set(setJ0, Ir.jmp0(out.size()));
-        }
-      } else if (cmd.equals("W") || cmd.equals("WRITE")) {
-        i = MFrontendCmds.compileWrite(this, line, i, out);
-      } else if (cmd.equals("Q") || cmd.equals("QUIT")) {
-        // Q:postcond [expr] — postconditional quit
-        // Q expr — quit with value
-        // Q — argumentless quit
-        boolean hasPostcond = false;
-        int postJ0 = -1;
         i = MFrontendUtil.skipWs(line, i);
-        if (i < line.length() && line.charAt(i) == ':') {
-          i++;
-          int cs = i;
-          i = MFrontendUtil.scanExprEnd(line, i, " ");
-          String cond = line.substring(cs, i).trim();
-          out.add(Ir.evalExpr(cond));
-          postJ0 = out.size();
-          out.add(Ir.jmp0(-1)); // false → skip quit
-          hasPostcond = true;
-        }
-        i = MFrontendUtil.skipWs(line, i);
-        int qs = i;
-        while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
-        String qexpr = line.substring(qs, i).trim();
-        if (!qexpr.isEmpty()) {
-          out.add(Ir.evalExpr(qexpr));
-          out.add(Ir.retVal());
-        } else {
-          out.add(Ir.ret());
-        }
-        if (hasPostcond) {
-          if (postJ0 >= 0 && postJ0 < out.size()) out.set(postJ0, Ir.jmp0(out.size()));
-          continue; // postcond false → fall through to next command
-        }
-        break;
-      } else if (cmd.equals("H") || cmd.equals("HALT") || cmd.equals("HANG")) {
-        while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
-      } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
-        i = MFrontendUtil.skipWs(line, i);
-        int stx = i;
-        i = MFrontendUtil.scanExprEnd(line, i, " ");
-        String arg = line.substring(stx, i).trim();
-        if (!arg.isEmpty()) {
-          out.add(Ir.evalExpr(arg));
-          out.add(Ir.xecute());
-        }
-      } else if (cmd.equals("J")
-          || cmd.equals("JOB")
-          || cmd.equals("D")
-          || cmd.equals("DO")
-          || cmd.equals("G")
-          || cmd.equals("GOTO")) {
-        if (activeLabels != null) {
-          boolean isG = cmd.equals("G") || cmd.equals("GOTO");
-          // postcond D:0 FOO / G:1 BAR — run only if cond
+        if (cmd.equals("S") || cmd.equals("SET")) {
+          // postconditional SET: S:COND var=val — assign only if COND
+          boolean setPostcond = false;
+          int setJ0 = -1;
           if (i < line.length() && line.charAt(i) == ':') {
             i++;
             int cs = i;
             i = MFrontendUtil.scanExprEnd(line, i, " ");
             String cond = line.substring(cs, i).trim();
             out.add(Ir.evalExpr(cond));
-            int j0 = out.size();
-            out.add(Ir.jmp0(-1)); // false → skip call
-            List<Ir> body = new ArrayList<>();
-            List<int[]> bodyPk = new ArrayList<>();
-            activeGoto = isG;
-            i = compileDoGotoRet(line, i, body, bodyPk, activeLabels, activeSelfLine, isG);
-            activeGoto = false;
-            int base = out.size();
-            out.addAll(body);
-            for (int[] pk : bodyPk) {
-              pk[1] += base;
-              activePatches.add(pk);
+            setJ0 = out.size();
+            out.add(Ir.jmp0(-1)); // false → skip SET
+            setPostcond = true;
+          }
+          i = MFrontendCmds.compileSet(this, line, i, out);
+          if (setPostcond) {
+            if (setJ0 >= 0 && setJ0 < out.size()) out.set(setJ0, Ir.jmp0(out.size()));
+          }
+        } else if (cmd.equals("W") || cmd.equals("WRITE")) {
+          i = MFrontendCmds.compileWrite(this, line, i, out);
+        } else if (cmd.equals("Q") || cmd.equals("QUIT")) {
+          // Q:postcond [expr] — postconditional quit
+          // Q expr — quit with value
+          // Q — argumentless quit
+          boolean hasPostcond = false;
+          int postJ0 = -1;
+          i = MFrontendUtil.skipWs(line, i);
+          if (i < line.length() && line.charAt(i) == ':') {
+            i++;
+            int cs = i;
+            i = MFrontendUtil.scanExprEnd(line, i, " ");
+            String cond = line.substring(cs, i).trim();
+            out.add(Ir.evalExpr(cond));
+            postJ0 = out.size();
+            out.add(Ir.jmp0(-1)); // false → skip quit
+            hasPostcond = true;
+          }
+          i = MFrontendUtil.skipWs(line, i);
+          int qs = i;
+          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+          String qexpr = line.substring(qs, i).trim();
+          if (!qexpr.isEmpty()) {
+            out.add(Ir.evalExpr(qexpr));
+            out.add(Ir.retVal());
+          } else {
+            out.add(Ir.ret());
+          }
+          if (hasPostcond) {
+            if (postJ0 >= 0 && postJ0 < out.size()) out.set(postJ0, Ir.jmp0(out.size()));
+            continue; // postcond false → fall through to next command
+          }
+          break;
+        } else if (cmd.equals("H") || cmd.equals("HALT") || cmd.equals("HANG")) {
+          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+        } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
+          i = MFrontendUtil.skipWs(line, i);
+          int stx = i;
+          i = MFrontendUtil.scanExprEnd(line, i, " ");
+          String arg = line.substring(stx, i).trim();
+          if (!arg.isEmpty()) {
+            out.add(Ir.evalExpr(arg));
+            out.add(Ir.xecute());
+          }
+        } else if (cmd.equals("J")
+            || cmd.equals("JOB")
+            || cmd.equals("D")
+            || cmd.equals("DO")
+            || cmd.equals("G")
+            || cmd.equals("GOTO")) {
+          if (activeLabels != null) {
+            boolean isG = cmd.equals("G") || cmd.equals("GOTO");
+            // postcond D:0 FOO / G:1 BAR — run only if cond
+            if (i < line.length() && line.charAt(i) == ':') {
+              i++;
+              int cs = i;
+              i = MFrontendUtil.scanExprEnd(line, i, " ");
+              String cond = line.substring(cs, i).trim();
+              out.add(Ir.evalExpr(cond));
+              int j0 = out.size();
+              out.add(Ir.jmp0(-1)); // false → skip call
+              List<Ir> body = new ArrayList<>();
+              List<int[]> bodyPk = new ArrayList<>();
+              activeGoto = isG;
+              i = compileDoGotoRet(line, i, body, bodyPk, activeLabels, activeSelfLine, isG);
+              activeGoto = false;
+              int base = out.size();
+              out.addAll(body);
+              for (int[] pk : bodyPk) {
+                pk[1] += base;
+                activePatches.add(pk);
+              }
+              if (j0 < out.size())
+                out.set(j0, Ir.jmp0(out.size())); // j0 >= 0 guaranteed by init to -1 and check
+              if (isG) i = line.length();
+              continue;
             }
-            if (j0 < out.size())
-              out.set(j0, Ir.jmp0(out.size())); // j0 >= 0 guaranteed by init to -1 and check
+            // argless DO: next token is a known command or EOL
+            int peek = MFrontendUtil.skipWs(line, i);
+            if (peek >= line.length()) {
+              // argless DO at end of line — no-op
+              continue;
+            }
+            // read the full word at peek
+            int pw = peek;
+            while (pw < line.length() && Character.isLetter(line.charAt(pw))) pw++;
+            String pword = line.substring(peek, pw);
+            if (Character.isLetter(line.charAt(peek)) && MFrontendUtil.isKnownCmd(pword)) {
+              // argless DO — next is a command, not a target
+              continue;
+            }
+            activeGoto = isG;
+            i = compileDoGotoRet(line, i, out, activePatches, activeLabels, activeSelfLine, isG);
+            activeGoto = false;
             if (isG) i = line.length();
             continue;
           }
-          // argless DO: next token is a known command or EOL
-          int peek = MFrontendUtil.skipWs(line, i);
-          if (peek >= line.length()) {
-            // argless DO at end of line — no-op
-            continue;
-          }
-          // read the full word at peek
-          int pw = peek;
-          while (pw < line.length() && Character.isLetter(line.charAt(pw))) pw++;
-          String pword = line.substring(peek, pw);
-          if (Character.isLetter(line.charAt(peek)) && MFrontendUtil.isKnownCmd(pword)) {
-            // argless DO — next is a command, not a target
-            continue;
-          }
-          activeGoto = isG;
-          i = compileDoGotoRet(line, i, out, activePatches, activeLabels, activeSelfLine, isG);
-          activeGoto = false;
-          if (isG) i = line.length();
-          continue;
-        }
-        // M3: DO/GOTO tag [^rtn] [ (args) ] — name is a call-site, not a load
-        // postconditional first: D:COND [TAG] — run only if COND
-        boolean hasPostcond = false;
-        int postJ0 = -1;
-        if (i < line.length() && line.charAt(i) == ':') {
-          i++;
-          int cs = i;
-          i = MFrontendUtil.scanExprEnd(line, i, " ");
-          String cond = line.substring(cs, i).trim();
-          out.add(Ir.evalExpr(cond));
-          postJ0 = out.size();
-          out.add(Ir.jmp0(-1)); // false → skip call
-          hasPostcond = true;
-        }
-        i = MFrontendUtil.skipWs(line, i);
-        int tst = i;
-        while (i < line.length()
-            && (Character.isLetterOrDigit(line.charAt(i))
-                || line.charAt(i) == '%'
-                || line.charAt(i) == '^')) i++;
-        String target = line.substring(tst, i);
-        // TAG^ROUTINE syntax — strip the ^routine part
-        int caret = target.indexOf('^');
-        if (caret > 0) target = target.substring(0, caret);
-        // don't treat a known command as a DO target (D:1 W 1 → argless DO + W)
-        if (!target.isEmpty()
-            && MFrontendUtil.isKnownCmd(target)
-            && target.length() <= 2
-            && (i >= line.length() || line.charAt(i) == ' ' || line.charAt(i) == ':')) {
-          i = tst; // rewind — this is a new command, not a DO target
-          target = "";
-        }
-        if (target.isEmpty()) {
-          // expression form (string / $$fn) — evaluate one arg
-          if (i < line.length() && (line.charAt(i) == '"' || line.charAt(i) == '$')) {
-            List<Ir> tmp = new ArrayList<>();
-            i = compileExpr(line, i, tmp, " ");
-            out.addAll(tmp);
-            if (cmd.equals("J") || cmd.equals("JOB")) {
-              out.add(Ir.job());
-            } else {
-              out.add(Ir.call(cmd, 1));
-            }
-          }
-          // else argless DO — no-op, body continues in main loop
-        } else {
-          out.add(Ir.call(target, 0));
-        }
-        if (hasPostcond) {
-          if (postJ0 >= 0 && postJ0 < out.size()) out.set(postJ0, Ir.jmp0(out.size()));
-        }
-      } else if (cmd.equals("TSTART")) {
-        out.add(Ir.tstart());
-      } else if (cmd.equals("TCOMMIT")) {
-        out.add(Ir.tcommit());
-      } else if (cmd.equals("TROLLBACK")) {
-        out.add(Ir.trollback());
-      } else if (cmd.equals("O")
-          || cmd.equals("OPEN")
-          || cmd.equals("C")
-          || cmd.equals("CLOSE")
-          || cmd.equals("U")
-          || cmd.equals("USE")) {
-        // OPEN n:path  /  CLOSE n  /  USE n  — two stack operands
-        List<Ir> tmp = new ArrayList<>();
-        i = compileExpr(line, i, tmp, ":, ");
-        if (i < line.length() && line.charAt(i) == ':') {
-          i++;
-          List<Ir> tmp2 = new ArrayList<>();
-          i = compileExpr(line, i, tmp2, " ");
-          out.addAll(tmp);
-          out.addAll(tmp2);
-          out.add(Ir.open());
-        } else {
-          out.addAll(tmp);
-          if (cmd.startsWith("O") || cmd.equals("OPEN")) out.add(Ir.open());
-          else if (cmd.startsWith("C") || cmd.equals("CLOSE")) out.add(Ir.close());
-          else out.add(Ir.use());
-        }
-      } else if (cmd.equals("R") || cmd.equals("READ")) {
-        i = MFrontendUtil.skipWs(line, i);
-        int st2 = i;
-        while (i < line.length() && Character.isLetter(line.charAt(i))) i++;
-        String vn = line.substring(st2, i);
-        if (vn.isEmpty()) vn = "R";
-        out.add(new Ir(Ir.READ, vn, null, 0, 0));
-      } else if (cmd.equals("I") || cmd.equals("IF")) {
-        i = compileIf(line, i, out);
-      } else if (cmd.equals("E") || cmd.equals("ELSE")) {
-        i = compileElse(line, i, out);
-      } else if (cmd.equals("F") || cmd.equals("FOR")) {
-        i = compileFor(line, i, out);
-      } else if (cmd.equals("N") || cmd.equals("NEW")) {
-        i = compileNameList(line, i, out, Ir.NEW);
-      } else if (cmd.equals("K") || cmd.equals("KILL")) {
-        i = compileNameList(line, i, out, Ir.KILL);
-      } else if (cmd.equals("M") || cmd.equals("MERGE")) {
-        i = compileMerge(line, i, out);
-      } else if (cmd.equals("L") || cmd.equals("LOCK")) {
-        while (i < line.length()) {
-          i = MFrontendUtil.skipWs(line, i);
-          if (i >= line.length() || MFrontendUtil.isCmdStart(line, i)) break;
-          int sign = 1;
-          if (i < line.length() && (line.charAt(i) == '+' || line.charAt(i) == '-')) {
-            sign = line.charAt(i) == '+' ? 1 : -1;
+          // M3: DO/GOTO tag [^rtn] [ (args) ] — name is a call-site, not a load
+          // postconditional first: D:COND [TAG] — run only if COND
+          boolean hasPostcond = false;
+          int postJ0 = -1;
+          if (i < line.length() && line.charAt(i) == ':') {
             i++;
+            int cs = i;
+            i = MFrontendUtil.scanExprEnd(line, i, " ");
+            String cond = line.substring(cs, i).trim();
+            out.add(Ir.evalExpr(cond));
+            postJ0 = out.size();
+            out.add(Ir.jmp0(-1)); // false → skip call
+            hasPostcond = true;
           }
-          int st3 = i;
+          i = MFrontendUtil.skipWs(line, i);
+          int tst = i;
           while (i < line.length()
               && (Character.isLetterOrDigit(line.charAt(i))
                   || line.charAt(i) == '%'
                   || line.charAt(i) == '^')) i++;
-          if (i < line.length() && line.charAt(i) == '(') {
-            int depth = 0;
-            while (i < line.length()) {
-              char c = line.charAt(i++);
-              if (c == '(') depth++;
-              else if (c == ')') {
-                depth--;
-                if (depth == 0) break;
+          String target = line.substring(tst, i);
+          // TAG^ROUTINE syntax — strip the ^routine part
+          int caret = target.indexOf('^');
+          if (caret > 0) target = target.substring(0, caret);
+          // don't treat a known command as a DO target (D:1 W 1 → argless DO + W)
+          if (!target.isEmpty()
+              && MFrontendUtil.isKnownCmd(target)
+              && target.length() <= 2
+              && (i >= line.length() || line.charAt(i) == ' ' || line.charAt(i) == ':')) {
+            i = tst; // rewind — this is a new command, not a DO target
+            target = "";
+          }
+          if (target.isEmpty()) {
+            // expression form (string / $$fn) — evaluate one arg
+            if (i < line.length() && (line.charAt(i) == '"' || line.charAt(i) == '$')) {
+              List<Ir> tmp = new ArrayList<>();
+              i = compileExpr(line, i, tmp, " ");
+              out.addAll(tmp);
+              if (cmd.equals("J") || cmd.equals("JOB")) {
+                out.add(Ir.job());
+              } else {
+                out.add(Ir.call(cmd, 1));
               }
             }
+            // else argless DO — no-op, body continues in main loop
+          } else {
+            out.add(Ir.call(target, 0));
           }
-          String key = line.substring(st3, i).trim();
-          int colon = key.indexOf(':');
-          if (colon > 0) key = key.substring(0, colon);
-          if (!key.isEmpty()) {
-            out.add(Ir.pushStr(key));
-            out.add(Ir.lock(sign));
+          if (hasPostcond) {
+            if (postJ0 >= 0 && postJ0 < out.size()) out.set(postJ0, Ir.jmp0(out.size()));
           }
-          i = MFrontendUtil.skipWs(line, i);
+        } else if (cmd.equals("TSTART")) {
+          out.add(Ir.tstart());
+        } else if (cmd.equals("TCOMMIT")) {
+          out.add(Ir.tcommit());
+        } else if (cmd.equals("TROLLBACK")) {
+          out.add(Ir.trollback());
+        } else if (cmd.equals("O")
+            || cmd.equals("OPEN")
+            || cmd.equals("C")
+            || cmd.equals("CLOSE")
+            || cmd.equals("U")
+            || cmd.equals("USE")) {
+          // OPEN n:path  /  CLOSE n  /  USE n  — two stack operands
+          List<Ir> tmp = new ArrayList<>();
+          i = compileExpr(line, i, tmp, ":, ");
           if (i < line.length() && line.charAt(i) == ':') {
-            while (i < line.length() && !MFrontendUtil.isCmdStart(line, i) && line.charAt(i) != ',')
-              i++;
-          }
-          i = MFrontendUtil.skipWs(line, i);
-          if (i < line.length() && line.charAt(i) == ',') {
             i++;
-            continue;
+            List<Ir> tmp2 = new ArrayList<>();
+            i = compileExpr(line, i, tmp2, " ");
+            out.addAll(tmp);
+            out.addAll(tmp2);
+            out.add(Ir.open());
+          } else {
+            out.addAll(tmp);
+            if (cmd.startsWith("O") || cmd.equals("OPEN")) out.add(Ir.open());
+            else if (cmd.startsWith("C") || cmd.equals("CLOSE")) out.add(Ir.close());
+            else out.add(Ir.use());
           }
-          break;
+        } else if (cmd.equals("R") || cmd.equals("READ")) {
+          i = MFrontendUtil.skipWs(line, i);
+          int st2 = i;
+          while (i < line.length() && Character.isLetter(line.charAt(i))) i++;
+          String vn = line.substring(st2, i);
+          if (vn.isEmpty()) vn = "R";
+          out.add(new Ir(Ir.READ, vn, null, 0, 0));
+        } else if (cmd.equals("I") || cmd.equals("IF")) {
+          i = compileIf(line, i, out);
+        } else if (cmd.equals("E") || cmd.equals("ELSE")) {
+          i = compileElse(line, i, out);
+        } else if (cmd.equals("F") || cmd.equals("FOR")) {
+          i = compileFor(line, i, out);
+        } else if (cmd.equals("N") || cmd.equals("NEW")) {
+          i = compileNameList(line, i, out, Ir.NEW);
+        } else if (cmd.equals("K") || cmd.equals("KILL")) {
+          i = compileNameList(line, i, out, Ir.KILL);
+        } else if (cmd.equals("M") || cmd.equals("MERGE")) {
+          i = compileMerge(line, i, out);
+        } else if (cmd.equals("L") || cmd.equals("LOCK")) {
+          while (i < line.length()) {
+            i = MFrontendUtil.skipWs(line, i);
+            if (i >= line.length() || MFrontendUtil.isCmdStart(line, i)) break;
+            int sign = 1;
+            if (i < line.length() && (line.charAt(i) == '+' || line.charAt(i) == '-')) {
+              sign = line.charAt(i) == '+' ? 1 : -1;
+              i++;
+            }
+            int st3 = i;
+            while (i < line.length()
+                && (Character.isLetterOrDigit(line.charAt(i))
+                    || line.charAt(i) == '%'
+                    || line.charAt(i) == '^')) i++;
+            if (i < line.length() && line.charAt(i) == '(') {
+              int depth = 0;
+              while (i < line.length()) {
+                char c = line.charAt(i++);
+                if (c == '(') depth++;
+                else if (c == ')') {
+                  depth--;
+                  if (depth == 0) break;
+                }
+              }
+            }
+            String key = line.substring(st3, i).trim();
+            int colon = key.indexOf(':');
+            if (colon > 0) key = key.substring(0, colon);
+            if (!key.isEmpty()) {
+              out.add(Ir.pushStr(key));
+              out.add(Ir.lock(sign));
+            }
+            i = MFrontendUtil.skipWs(line, i);
+            if (i < line.length() && line.charAt(i) == ':') {
+              while (i < line.length()
+                  && !MFrontendUtil.isCmdStart(line, i)
+                  && line.charAt(i) != ',') i++;
+            }
+            i = MFrontendUtil.skipWs(line, i);
+            if (i < line.length() && line.charAt(i) == ',') {
+              i++;
+              continue;
+            }
+            break;
+          }
+        } else if (cmd.equals("VIEW")) {
+          // M11: VIEW is implementation-defined (no-op) — skip args
+          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+        } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
+          i = MFrontendUtil.skipWs(line, i);
+          int stx = i;
+          i = MFrontendUtil.scanExprEnd(line, i, " ");
+          String arg = line.substring(stx, i).trim();
+          out.add(Ir.evalExpr(arg));
+        } else {
+          // skip unknown command token (tags already handled)
+          i = MFrontendUtil.skipWs(line, i);
         }
-      } else if (cmd.equals("VIEW")) {
-        // M11: VIEW is implementation-defined (no-op) — skip args
-        while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
-      } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
         i = MFrontendUtil.skipWs(line, i);
-        int stx = i;
-        i = MFrontendUtil.scanExprEnd(line, i, " ");
-        String arg = line.substring(stx, i).trim();
-        out.add(Ir.evalExpr(arg));
-      } else {
-        // skip unknown command token (tags already handled)
-        i = MFrontendUtil.skipWs(line, i);
+        if (i < n && line.charAt(i) == ' ') {
+          // next command
+        }
       }
-      i = MFrontendUtil.skipWs(line, i);
-      if (i < n && line.charAt(i) == ' ') {
-        // next command
+      {
+        int end = out.size();
+        while (!ifJmp0.isEmpty()) {
+          int ix = ifJmp0.pop();
+          if (ix >= 0 && ix < end && end <= out.size()) out.set(ix, Ir.jmp0(end));
+        }
+        for (int idx : endJmps) {
+          if (idx >= 0 && idx < end && end <= out.size()) out.set(idx, Ir.jmp(end));
+        }
+        endJmps.clear();
       }
+      if (terminate) {
+        out.add(Ir.ret());
+      }
+      return out;
+    } finally {
+      compileDepth.decrementAndGet();
     }
-    {
-      int end = out.size();
-      while (!ifJmp0.isEmpty()) {
-        int ix = ifJmp0.pop();
-        if (ix >= 0 && ix < end && end <= out.size()) out.set(ix, Ir.jmp0(end));
-      }
-      for (int idx : endJmps) {
-        if (idx >= 0 && idx < end && end <= out.size()) out.set(idx, Ir.jmp(end));
-      }
-      endJmps.clear();
-    }
-    if (terminate) {
-      out.add(Ir.ret());
-    }
-    compileDepth.decrementAndGet();
-    return out;
   }
 
   /** IR cache keyed by source hash — LRU eviction, bounded size. */
@@ -371,6 +376,7 @@ public final class MFrontend {
       };
 
   public List<Ir> compileProgram(String code) {
+    swallowedCompileErrors.clear();
     // Check cache first
     String hash = Integer.toHexString(code.hashCode());
     Object[] cached;
@@ -404,6 +410,15 @@ public final class MFrontend {
     return !lastTags.isEmpty();
   }
 
+  /**
+   * Compile errors swallowed during the last compileProgram — each entry is a source line that was
+   * replaced with RET. Empty means the program compiled clean. Cached compiles report the ledger of
+   * the original compile.
+   */
+  public java.util.List<String> lastSwallowedErrors() {
+    return java.util.List.copyOf(swallowedCompileErrors);
+  }
+
   private java.util.Map<String, Integer> activeLabels;
   private java.util.List<int[]> activePatches;
   private volatile int activeSelfLine;
@@ -418,6 +433,7 @@ public final class MFrontend {
 
   private final java.util.concurrent.atomic.AtomicInteger compileDepth =
       new java.util.concurrent.atomic.AtomicInteger(0);
+  private final java.util.List<String> swallowedCompileErrors = new java.util.ArrayList<>();
 
   List<Ir> compileRoutine(String code) {
     lastTags = java.util.Map.of();
@@ -514,6 +530,8 @@ public final class MFrontend {
       try {
         compile(body, false, out);
       } catch (MError e) {
+        System.err.println("compile error at " + tag + ": " + e.getMessage());
+        swallowedCompileErrors.add("line " + li + " (" + tag + "): " + e.getMessage());
         out.clear();
         out.add(Ir.ret());
       } finally {
@@ -801,7 +819,7 @@ public final class MFrontend {
     compileRecursionDepth.incrementAndGet();
     if (compileRecursionDepth.get() > 30) {
       compileRecursionDepth.decrementAndGet();
-      return line.length(); // depth limit — skip this FOR
+      throw new MError("compile depth limit (30) exceeded (FOR " + var + ")");
     }
     try {
       int i = varStart + var.length();
@@ -928,7 +946,7 @@ public final class MFrontend {
     compileRecursionDepth.incrementAndGet();
     if (compileRecursionDepth.get() > 30) {
       compileRecursionDepth.decrementAndGet();
-      return; // depth limit — skip
+      throw new MError("compile depth limit (30) exceeded (dotted block)");
     }
     try {
       int base = out.size();

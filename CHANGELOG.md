@@ -70,6 +70,15 @@ added to prevent recurrence. Dafny proofs deepened from 335 to 464 verified.
     *Affected: INTEREST, MONTHLYFEE, VERIFY in BANKFULL.m;
     multi-level $ORDER in GAUNTLET.m.*
 
+11. **Silent compile depth limits (3 sites)** — `compile()`, `compileInto()`,
+    and `compileForSpec()` each silently returned empty/skipped IR past depth
+    30, with no error, no log entry, and no way to detect it. A 16th nested
+    inline FOR silently dropped its entire body. All three now throw `MError`;
+    the routine builder logs each swallowed line to stderr and records it in
+    the new `MFrontend.lastSwallowedErrors()` ledger. `compile()` depth is
+    now balanced via try/finally (previously leaked on any compile error).
+    *Impact: deep inline-FOR nesting silently truncated programs.*
+
 ### Regression Tests (30 tests in `MFrontendRegression.java`)
 
 | Bug | Tests | What it catches |
