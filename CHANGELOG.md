@@ -1,5 +1,29 @@
 # mJVM Release Notes
 
+## v2.2.1 — Silent-recovery hardening (2026-10-26)
+
+### Bugs Fixed
+
+1. **Silent compile depth limits (3 sites)** — `compile()`, `compileInto()`,
+    and `compileForSpec()` each silently returned empty/skipped IR past depth
+    30, with no error, no log entry, and no way to detect it. A 16th nested
+    inline FOR silently dropped its entire body. All three now throw `MError`;
+    the routine builder logs each swallowed line to stderr and records it in
+    the new `MFrontend.lastSwallowedErrors()` ledger. `compile()` depth is
+    now balanced via try/finally (previously leaked on any compile error).
+    *Impact: deep inline-FOR nesting silently truncated programs.*
+    *Regression: 2 new tests in `MFrontendRegression` (depth ledger recorded,
+    clean compile empty ledger).*
+
+### Test Suite
+
+| Suite | Result |
+|-------|--------|
+| MFrontendRegression | 32/32 |
+| GAUNTLET | 134/134 (latency gates pass) |
+| J0Smoke (conformance corpus) | 139/139 |
+| CoreUnitTest | 135/135 |
+
 ## v2.2.0 — Correctness Hardening (2026-10-26)
 
 ### Summary
@@ -69,15 +93,6 @@ added to prevent recurrence. Dafny proofs deepened from 335 to 464 verified.
     locals. Fix: rewrite to GOTO loops.
     *Affected: INTEREST, MONTHLYFEE, VERIFY in BANKFULL.m;
     multi-level $ORDER in GAUNTLET.m.*
-
-11. **Silent compile depth limits (3 sites)** — `compile()`, `compileInto()`,
-    and `compileForSpec()` each silently returned empty/skipped IR past depth
-    30, with no error, no log entry, and no way to detect it. A 16th nested
-    inline FOR silently dropped its entire body. All three now throw `MError`;
-    the routine builder logs each swallowed line to stderr and records it in
-    the new `MFrontend.lastSwallowedErrors()` ledger. `compile()` depth is
-    now balanced via try/finally (previously leaked on any compile error).
-    *Impact: deep inline-FOR nesting silently truncated programs.*
 
 ### Regression Tests (30 tests in `MFrontendRegression.java`)
 
