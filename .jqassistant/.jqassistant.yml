@@ -1,0 +1,113 @@
+# jQAssistant architecture rules for mJVM
+# Enforces the same layering as ArchUnit (src/test/java/jvmumps/ArchitectureTest.java)
+#
+# Concepts: enrich the graph with derived facts
+# Constraints: fail the build when rules are violated
+
+concepts:
+
+  # Identify packages by their Java package name
+  - id: mJVM:PackageGroups
+    description: "Group classes into architecture layers"
+    language: cypher
+    cypher: |
+      MATCH (c:Class)
+      WITH c, split(c.fqn, ".")[0..2] AS pkg
+      WITH c,
+        CASE
+          WHEN c.fqn STARTS WITH "mjvm.cli" THEN "cli"
+          WHEN c.fqn STARTS WITH "mjvm.compiler" THEN "compiler"
+          WHEN c.fqn STARTS WITH "mjvm.runtime" THEN "runtime"
+          WHEN c.fqn STARTS WITH "mjvm.ir" THEN "ir"
+          WHEN c.fqn STARTS WITH "jvmumps.store" THEN "store"
+          WHEN c.fqn STARTS WITH "jvmumps" THEN "jvmumps"
+          ELSE "other"
+        END AS layer
+      MERGE (l:Layer {name: layer})
+      MERGE (c)-[:BELONGS_TO]->(l)
+
+  # Identify emitters (allowed to depend on runtime)
+  - id: mJVM:Emitters
+    description: "Mark code generator classes that bridge compiler->runtime"
+    language: cypher
+    cypher: |
+      MATCH (c:Class)
+      WHERE c.name ENDS WITH "Emitter"
+      SET c:Emitter
+
+  # Mark production classes (exclude test/bench/debug helpers)
+  - id: mJVM:ProductionClasses
+    description: "Mark production classes (not test/bench/debug)"
+    language: cypher
+    cypher: |
+      MATCH (c:Class)
+      WHERE c.name IN [
+        "MStore", "MValue", "MError", "StoreApi", "StoreCore",
+        "ExprEval", "ExprEngine", "ExprIntrinsics", "ExprTokens",
+        "Engine", "Cursor", "LineInterp", "LineCmds", "LineDevices",
+        "LineDispatch", "LineEngine", "LineEnv", "LineErrors",
+        "LineExec", "LineRefs", "LineRoutine", "LineState",
+        "LineTxLocks", "LockQueue", "PatternMatch", "PemdasEval",
+        "CorpusCase", "CorpusRunner", "CorpusScore", "JobChild",
+        "Repl", "Cdb2Store", "H2Store", "MapDBStore", "SqlStore"
+      ]
+      SET c:Production
+
+constraints:
+
+  # Rule 1: compiler must not depend on runtime (except emitters)
+  - id: mJVM:CompilerNoRuntime
+    description: "mjvm.compiler must not depend on mjvm.runtime (except *Emitter classes)"
+    language: cypher
+    severity: MAJOR
+    cypher: |
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "mjvm.compiler"
+        AND b.fqn STARTS WITH "mjvm.runtime"
+        AND NOT a:Emitter
+      RETURN a.fqn AS Compiler, b.fqn AS RuntimeDependency
+
+  # Rule 2: IR must not depend on runtime or compiler (leaf module)
+  - id: mJVM:IrIsLeaf
+    description: "mjvm.ir must not depend on mjvm.runtime or mjvm.compiler"
+    language: cypher
+    severity: MAJOR
+    cypher: |
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "mjvm.ir"
+        AND (b.fqn STARTS WITH "mjvm.runtime" OR b.fqn STARTS WITH "mjvm.compiler")
+      RETURN a.fqn AS IrClass, b.fqn AS ForbiddenDependency
+
+  # Rule 3: store implementations must not depend on compiler or runtime
+  - id: mJVM:StoreIndependent
+    description: "jvmumps.store must not depend on mjvm.compiler or mjvm.runtime"
+    language: cypher
+    severity: MAJOR
+    cypher: |
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "jvmumps.store"
+        AND (b.fqn STARTS WITH "mjvm.compiler" OR b.fqn STARTS WITH "mjvm.runtime")
+      RETURN a.fqn AS StoreClass, b.fqn AS ForbiddenDependency
+
+  # Rule 4: jvmumps production classes must not depend on mjvm.*
+  - id: mJVM:BaseLayerPurity
+    description: "jvmumps production classes must not depend on mjvm.* (base layer purity)"
+    language: cypher
+    severity: MAJOR
+    cypher: |
+      MATCH (a:Class:Production)-[:DEPENDS_ON]->(b:Class)
+      WHERE a.fqn STARTS WITH "jvmumps"
+        AND a.fqn STARTS WITH "jvmumps.store"
+        AND (b.fqn STARTS WITH "mjvm.compiler" OR b.fqn STARTS WITH "mjvm.runtime" OR b.fqn STARTS WITH "mjvm.ir")
+      RETURN a.fqn AS BaseClass, b.fqn AS ForbiddenDependency
+
+  # Rule 5: no new dependencies on Cdb2Store (frozen backend)
+  - id: mJVM:NoNewCdb2Deps
+    description: "No classes outside jvmumps may depend on Cdb2Store (frozen backend)"
+    language: cypher
+    severity: MAJOR
+    cypher: |
+      MATCH (a:Class)-[:DEPENDS_ON]->(b:Class)
+      WHERE b.fqn ENDS WITH "Cdb2Store"
+        AND NOT a.fqn STARTS WITH "jvmumps"
+      RETURN a.fqn AS Consumer, b.fqn AS Cdb2Store
