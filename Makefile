@@ -163,7 +163,7 @@ lint-build:
 .PHONY: coverage coverage-report arch-test spotbugs
 
 coverage: all mjvm
-	$(JAVAC) --release 21 -cp $(CP):$(ARCHUNIT):$(SPOTBUGS_ANN) -d $(OUT) src/test/java/jvmumps/*.java
+	$(JAVAC) --release 21 -cp $(CP):$(ARCHUNIT):$(JMH_CP) -d $(OUT) src/test/java/jvmumps/*.java
 	@echo "=== Running tests with JaCoCo agent ==="
 	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec \
 	  -cp $(CP) jvmumps.MFrontendRegression
@@ -173,6 +173,8 @@ coverage: all mjvm
 	  -cp $(CP):src/main/m/lib jvmumps.DafnyBoundarySmoke
 	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
 	  -cp $(CP) jvmumps.StoreConcurrencySmoke
+	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
+	  -cp $(CP) jvmumps.StoreUnitTest
 	@echo "=== Generating coverage report ==="
 	$(JAVA) -jar $(JACOCO_CLI) report $(OUT)/jacoco.exec \
 	  --classfiles $(OUT) \
