@@ -50,17 +50,17 @@ LOG(%LT,%LAC,%LA,%LB) ; Append journal entry. %LB = known balance.
  Q
 
 BAL(%AC) ; Checking balance for account
- Q $G(^BANK("C",%AC))
+ Q $G(^BANK("C",%AC),0)
 
 STAT(%X) ; Status string
- Q "TXN="_$G(^BANK("N"))_" CHECK="_$G(^BANK("C",0))_" BANK="_$G(^BANK("B",0))
+ Q "TXN="_$G(^BANK("N"),0)_" CHECK="_$G(^BANK("C",0),0)_" BANK="_$G(^BANK("B",0),0)_" FEE="_$G(^BANK("FEE",0),0)_" ADV="_$G(^BANK("ADV",0),0)
 
 STAT2(%AC) ; Status for one account
  Q "ACCT="_%AC_" CHECK="_$G(^BANK("C",%AC))_" BANK="_$G(^BANK("B",%AC))_" ADV="_$G(^BANK("ADV",%AC))_" FEE="_$G(^BANK("FEE",%AC))
 
 RECON(%AC) ; Reconcile one account. Returns 1 if OK.
  N %RR,%RT,%RA,%RC
- S %RC=$G(^BANK("C",%AC))
+ S %RC=$G(^BANK("C",%AC),0)
  S %RR=""
 RECONLP
  S %RR=$O(^BANK("J",%RR))

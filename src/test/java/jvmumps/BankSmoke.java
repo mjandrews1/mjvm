@@ -38,10 +38,10 @@ public final class BankSmoke {
     // Rule 5: basic deposits and withdrawals
     // ================================================================
     String[] basic = {
-      "D INIT^BANK W $$DEP^BANK(100),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(30),!",
-      "D INIT^BANK D DEP^BANK(100) W $$BAL^BANK(),!",
-      "D INIT^BANK D DEP^BANK(50) D DEP^BANK(25) W $$BAL^BANK(),!",
+      "D INIT^BANK W $$DEP^BANK(0,100),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,30),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$BAL^BANK(0),!",
+      "D INIT^BANK D DEP^BANK(0,50) D DEP^BANK(0,25) W $$BAL^BANK(0),!",
     };
     String[] basicExp = {"100", "70", "100", "75"};
     r = runTests("basic", bank, basic, basicExp);
@@ -52,11 +52,11 @@ public final class BankSmoke {
     // Invalid amounts: zero and negative rejected
     // ================================================================
     String[] invalid = {
-      "D INIT^BANK W $$DEP^BANK(0),!",
-      "D INIT^BANK W $$DEP^BANK(-5),!",
-      "D INIT^BANK W $$WDR^BANK(0),!",
-      "D INIT^BANK W $$WDR^BANK(-5),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(0),!",
+      "D INIT^BANK W $$DEP^BANK(0,0),!",
+      "D INIT^BANK W $$DEP^BANK(0,-5),!",
+      "D INIT^BANK W $$WDR^BANK(0,0),!",
+      "D INIT^BANK W $$WDR^BANK(0,-5),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,0),!",
     };
     String[] invalidExp = {"-1", "-1", "-1", "-1", "-1"};
     r = runTests("invalid", bank, invalid, invalidExp);
@@ -70,16 +70,16 @@ public final class BankSmoke {
     //   WDR(98) from 0:  0-98=-98, fee 3 → -101  (past floor, denied)
     // ================================================================
     String[] floor = {
-      "D INIT^BANK W $$WDR^BANK(97),!",
-      "D INIT^BANK W $$WDR^BANK(98),!",
-      "D INIT^BANK W $$WDR^BANK(99),!",
-      "D INIT^BANK W $$WDR^BANK(100),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(197),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(198),!",
-      "D INIT^BANK D DEP^BANK(50) W $$WDR^BANK(147),!",
-      "D INIT^BANK D DEP^BANK(50) W $$WDR^BANK(148),!",
-      "D INIT^BANK D DEP^BANK(200) W $$WDR^BANK(297),!",
-      "D INIT^BANK D DEP^BANK(200) W $$WDR^BANK(298),!",
+      "D INIT^BANK W $$WDR^BANK(0,97),!",
+      "D INIT^BANK W $$WDR^BANK(0,98),!",
+      "D INIT^BANK W $$WDR^BANK(0,99),!",
+      "D INIT^BANK W $$WDR^BANK(0,100),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,197),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,198),!",
+      "D INIT^BANK D DEP^BANK(0,50) W $$WDR^BANK(0,147),!",
+      "D INIT^BANK D DEP^BANK(0,50) W $$WDR^BANK(0,148),!",
+      "D INIT^BANK D DEP^BANK(0,200) W $$WDR^BANK(0,297),!",
+      "D INIT^BANK D DEP^BANK(0,200) W $$WDR^BANK(0,298),!",
     };
     String[] floorExp = {
       "-100", "-1", "-1", "-1", "-100", "-1", "-100", "-1", "-100", "-1",
@@ -93,15 +93,17 @@ public final class BankSmoke {
     // ================================================================
     String[] fee = {
       // no fee: withdrawal stays >= 0
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(100),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(99),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(1),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,100),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,99),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,1),!",
       // first overdraft: fee = 3
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(101),!",
-      "D INIT^BANK D DEP^BANK(100) W $$WDR^BANK(150),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,101),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$WDR^BANK(0,150),!",
       // check FEE and ADV via $P on STAT (cut at space)
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) W $P($P($$STAT^BANK(),\"FEE=\",2),\" \",1),!",
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) W $P($P($$STAT^BANK(),\"ADV=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) W $P($P($$STAT^BANK(0),\"FEE=\",2),\""
+          + " \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) W $P($P($$STAT^BANK(0),\"ADV=\",2),\""
+          + " \",1),!",
     };
     String[] feeExp = {
       "0", "1", "99", "-4", "-53", "3", // FEE=3 after one advance
@@ -119,11 +121,11 @@ public final class BankSmoke {
     // ================================================================
     String[] rule7 = {
       // withdrawal while negative → denied (-1)
-      "D INIT^BANK S A=$$WDR^BANK(50) W A,\" \",$$WDR^BANK(1),!",
+      "D INIT^BANK S A=$$WDR^BANK(0,50) W A,\" \",$$WDR^BANK(0,1),!",
       // deposit while negative → works
-      "D INIT^BANK S A=$$WDR^BANK(50) W A,\" \",$$DEP^BANK(60),!",
+      "D INIT^BANK S A=$$WDR^BANK(0,50) W A,\" \",$$DEP^BANK(0,60),!",
       // deposit back to positive, then withdrawal works (with fee)
-      "D INIT^BANK S A=$$WDR^BANK(50) S B=$$DEP^BANK(60) W A,\" \",B,\" \",$$WDR^BANK(10),!",
+      "D INIT^BANK S A=$$WDR^BANK(0,50) S B=$$DEP^BANK(0,60) W A,\" \",B,\" \",$$WDR^BANK(0,10),!",
     };
     String[] rule7Exp = {
       "-53 -1", "-53 7", "-53 7 -6",
@@ -137,13 +139,13 @@ public final class BankSmoke {
     // ================================================================
     String[] multi = {
       // two advances: fee = 6, ADV = 2
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(10) D WDR^BANK(20) W"
-          + " $P($P($$STAT^BANK(),\"FEE=\",2),\" \",1),!",
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(10) D WDR^BANK(20) W"
-          + " $P($P($$STAT^BANK(),\"ADV=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,10) D WDR^BANK(0,20) W"
+          + " $P($P($$STAT^BANK(0),\"FEE=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,10) D WDR^BANK(0,20) W"
+          + " $P($P($$STAT^BANK(0),\"ADV=\",2),\" \",1),!",
       // three advances: fee = 9
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(10) D WDR^BANK(20) D DEP^BANK(30) D"
-          + " WDR^BANK(50) W $P($P($$STAT^BANK(),\"FEE=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,10) D WDR^BANK(0,20) D"
+          + " DEP^BANK(0,30) D WDR^BANK(0,50) W $P($P($$STAT^BANK(0),\"FEE=\",2),\" \",1),!",
     };
     String[] multiExp = {"6", "2", "9"};
     r = runTests("multi-advance", bank, multi, multiExp);
@@ -157,12 +159,12 @@ public final class BankSmoke {
     //   WDR(101): B=2 C=-4 FEE=3    → 2-(-4)=6=2*3
     // ================================================================
     String[] dbl = {
-      "D INIT^BANK D DEP^BANK(100) S X=$P($P($$STAT^BANK(),\"BANK=\",2),\" \",1) S"
-          + " Y=$P($P($$STAT^BANK(),\"CHECK=\",2),\" \",1) S Z=$P($P($$STAT^BANK(),\"FEE=\",2),\""
+      "D INIT^BANK D DEP^BANK(0,100) S X=$P($P($$STAT^BANK(0),\"BANK=\",2),\" \",1) S"
+          + " Y=$P($P($$STAT^BANK(0),\"CHECK=\",2),\" \",1) S Z=$P($P($$STAT^BANK(0),\"FEE=\",2),\""
           + " \",1) W X-Y,\"=\",2*Z,!",
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) S X=$P($P($$STAT^BANK(),\"BANK=\",2),\" \",1) S"
-          + " Y=$P($P($$STAT^BANK(),\"CHECK=\",2),\" \",1) S Z=$P($P($$STAT^BANK(),\"FEE=\",2),\""
-          + " \",1) W X-Y,\"=\",2*Z,!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) S X=$P($P($$STAT^BANK(0),\"BANK=\",2),\""
+          + " \",1) S Y=$P($P($$STAT^BANK(0),\"CHECK=\",2),\" \",1) S"
+          + " Z=$P($P($$STAT^BANK(0),\"FEE=\",2),\" \",1) W X-Y,\"=\",2*Z,!",
     };
     String[] dblExp = {"0=0", "6=6"};
     r = runTests("double-entry", bank, dbl, dblExp);
@@ -173,12 +175,12 @@ public final class BankSmoke {
     // Rule 11: reconciliation after transactions
     // ================================================================
     String[] recon = {
-      "D INIT^BANK W $$RECON^BANK(),!",
-      "D INIT^BANK D DEP^BANK(100) W $$RECON^BANK(),!",
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(50) W $$RECON^BANK(),!",
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) W $$RECON^BANK(),!",
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(10) D WDR^BANK(20) W"
-          + " $$RECON^BANK(),!",
+      "D INIT^BANK W $$RECON^BANK(0),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $$RECON^BANK(0),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,50) W $$RECON^BANK(0),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) W $$RECON^BANK(0),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,10) D WDR^BANK(0,20) W"
+          + " $$RECON^BANK(0),!",
     };
     String[] reconExp = {"1", "1", "1", "1", "1"};
     r = runTests("recon", bank, recon, reconExp);
@@ -191,16 +193,18 @@ public final class BankSmoke {
     // ================================================================
     String[] grow = {
       // 1 deposit → TXN=1
-      "D INIT^BANK D DEP^BANK(50) W $P($P($$STAT^BANK(),\"TXN=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,50) W $P($P($$STAT^BANK(0),\"TXN=\",2),\" \",1),!",
       // 2 deposits → TXN=2
-      "D INIT^BANK D DEP^BANK(50) D DEP^BANK(30) W $P($P($$STAT^BANK(),\"TXN=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,50) D DEP^BANK(0,30) W $P($P($$STAT^BANK(0),\"TXN=\",2),\" \",1),!",
       // 1 deposit + 1 withdrawal (no fee) → TXN=2
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(50) W $P($P($$STAT^BANK(),\"TXN=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,50) W $P($P($$STAT^BANK(0),\"TXN=\",2),\""
+          + " \",1),!",
       // 1 deposit + 1 withdrawal (with fee) → TXN=3 (W + F)
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) W $P($P($$STAT^BANK(),\"TXN=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) W $P($P($$STAT^BANK(0),\"TXN=\",2),\""
+          + " \",1),!",
       // 2 deposits + 1 withdrawal (no fee) → TXN=3
-      "D INIT^BANK D DEP^BANK(50) D DEP^BANK(50) D WDR^BANK(100) W"
-          + " $P($P($$STAT^BANK(),\"TXN=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,50) D DEP^BANK(0,50) D WDR^BANK(0,100) W"
+          + " $P($P($$STAT^BANK(0),\"TXN=\",2),\" \",1),!",
     };
     String[] growExp = {"1", "2", "2", "3", "3"};
     r = runTests("journal-grow", bank, grow, growExp);
@@ -213,18 +217,18 @@ public final class BankSmoke {
     // ================================================================
     String[] preserve = {
       // deposit: FEE stays 0, ADV stays 0
-      "D INIT^BANK D DEP^BANK(100) W $P($P($$STAT^BANK(),\"FEE=\",2),\""
-          + " \",1),\"/\",$P($P($$STAT^BANK(),\"ADV=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) W $P($P($$STAT^BANK(0),\"FEE=\",2),\""
+          + " \",1),\"/\",$P($P($$STAT^BANK(0),\"ADV=\",2),\" \",1),!",
       // deposit after advance: FEE stays 3, ADV stays 1
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(10) W"
-          + " $P($P($$STAT^BANK(),\"FEE=\",2),\" \",1),\"/\",$P($P($$STAT^BANK(),\"ADV=\",2),\""
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,10) W"
+          + " $P($P($$STAT^BANK(0),\"FEE=\",2),\" \",1),\"/\",$P($P($$STAT^BANK(0),\"ADV=\",2),\""
           + " \",1),!",
       // no-overdraft WDR: FEE stays 0, ADV stays 0
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(50) W $P($P($$STAT^BANK(),\"FEE=\",2),\""
-          + " \",1),\"/\",$P($P($$STAT^BANK(),\"ADV=\",2),\" \",1),!",
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,50) W $P($P($$STAT^BANK(0),\"FEE=\",2),\""
+          + " \",1),\"/\",$P($P($$STAT^BANK(0),\"ADV=\",2),\" \",1),!",
       // no-overdraft WDR after advance: FEE stays 3, ADV stays 1
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(200) D WDR^BANK(50) W"
-          + " $P($P($$STAT^BANK(),\"FEE=\",2),\" \",1),\"/\",$P($P($$STAT^BANK(),\"ADV=\",2),\""
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,200) D WDR^BANK(0,50) W"
+          + " $P($P($$STAT^BANK(0),\"FEE=\",2),\" \",1),\"/\",$P($P($$STAT^BANK(0),\"ADV=\",2),\""
           + " \",1),!",
     };
     String[] preserveExp = {"0/0", "3/1", "0/0", "3/1"};
@@ -238,21 +242,21 @@ public final class BankSmoke {
     // ================================================================
     String[] counterpart = {
       // initial: BANK=0 CHECK=0 FEE=0 → 0 = 0 + 0
-      "D INIT^BANK S ST=$$STAT^BANK() S X=$P($P(ST,\"BANK=\",2),\" \",1) S"
+      "D INIT^BANK S ST=$$STAT^BANK(0) S X=$P($P(ST,\"BANK=\",2),\" \",1) S"
           + " Y=$P($P(ST,\"CHECK=\",2),\" \",1) S Z=$P($P(ST,\"FEE=\",2),\" \",1) W"
           + " X,\"=\",Y+(2*Z),!",
       // after deposit: BANK=100 CHECK=100 FEE=0 → 100 = 100 + 0
-      "D INIT^BANK D DEP^BANK(100) S ST=$$STAT^BANK() S X=$P($P(ST,\"BANK=\",2),\" \",1) S"
+      "D INIT^BANK D DEP^BANK(0,100) S ST=$$STAT^BANK(0) S X=$P($P(ST,\"BANK=\",2),\" \",1) S"
           + " Y=$P($P(ST,\"CHECK=\",2),\" \",1) S Z=$P($P(ST,\"FEE=\",2),\" \",1) W"
           + " X,\"=\",Y+(2*Z),!",
       // after overdraft: BANK=2 CHECK=-4 FEE=3 → 2 = -4 + 6
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) S ST=$$STAT^BANK() S X=$P($P(ST,\"BANK=\",2),\""
-          + " \",1) S Y=$P($P(ST,\"CHECK=\",2),\" \",1) S Z=$P($P(ST,\"FEE=\",2),\" \",1) W"
-          + " X,\"=\",Y+(2*Z),!",
-      // after two advances: BANK=-5 CHECK=-17 FEE=6 → -5 = -17 + 12
-      "D INIT^BANK D DEP^BANK(100) D WDR^BANK(101) D DEP^BANK(10) D WDR^BANK(20) S ST=$$STAT^BANK()"
-          + " S X=$P($P(ST,\"BANK=\",2),\" \",1) S Y=$P($P(ST,\"CHECK=\",2),\" \",1) S"
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) S ST=$$STAT^BANK(0) S"
+          + " X=$P($P(ST,\"BANK=\",2),\" \",1) S Y=$P($P(ST,\"CHECK=\",2),\" \",1) S"
           + " Z=$P($P(ST,\"FEE=\",2),\" \",1) W X,\"=\",Y+(2*Z),!",
+      // after two advances: BANK=-5 CHECK=-17 FEE=6 → -5 = -17 + 12
+      "D INIT^BANK D DEP^BANK(0,100) D WDR^BANK(0,101) D DEP^BANK(0,10) D WDR^BANK(0,20) S"
+          + " ST=$$STAT^BANK(0) S X=$P($P(ST,\"BANK=\",2),\" \",1) S Y=$P($P(ST,\"CHECK=\",2),\""
+          + " \",1) S Z=$P($P(ST,\"FEE=\",2),\" \",1) W X,\"=\",Y+(2*Z),!",
     };
     String[] counterpartExp = {"0=0", "100=100", "2=2", "-5=-5"};
     r = runTests("counterpart", bank, counterpart, counterpartExp);
@@ -264,24 +268,24 @@ public final class BankSmoke {
     // ================================================================
     String[] edge = {
       // deposit exactly 1
-      "D INIT^BANK W $$DEP^BANK(1),!",
+      "D INIT^BANK W $$DEP^BANK(0,1),!",
       // withdraw exactly 1 from 1 → 0, no fee
-      "D INIT^BANK D DEP^BANK(1) W $$WDR^BANK(1),!",
+      "D INIT^BANK D DEP^BANK(0,1) W $$WDR^BANK(0,1),!",
       // withdraw 1 from 1 → 0 (no fee since not negative)
-      "D INIT^BANK D DEP^BANK(1) W $$WDR^BANK(1),\" \",$$BAL^BANK(),!",
+      "D INIT^BANK D DEP^BANK(0,1) W $$WDR^BANK(0,1),\" \",$$BAL^BANK(0),!",
       // withdraw 2 from 1 → 1-2-3=-4 (fee)
-      "D INIT^BANK D DEP^BANK(1) W $$WDR^BANK(2),!",
+      "D INIT^BANK D DEP^BANK(0,1) W $$WDR^BANK(0,2),!",
       // deposit at exactly -100: allowed
-      "D INIT^BANK S A=$$WDR^BANK(97) W A,\" \",$$DEP^BANK(1),!",
+      "D INIT^BANK S A=$$WDR^BANK(0,97) W A,\" \",$$DEP^BANK(0,1),!",
       // -100 + 1 = -99
       // deposit at exactly 0
-      "D INIT^BANK D DEP^BANK(0) W $$DEP^BANK(5),!",
+      "D INIT^BANK D DEP^BANK(0,0) W $$DEP^BANK(0,5),!",
       // withdraw 0 is rejected
-      "D INIT^BANK D DEP^BANK(50) W $$WDR^BANK(0),!",
+      "D INIT^BANK D DEP^BANK(0,50) W $$WDR^BANK(0,0),!",
       // multiple INIT is idempotent
-      "D INIT^BANK D DEP^BANK(100) D INIT^BANK W $$BAL^BANK(),\" \",$$RECON^BANK(),!",
+      "D INIT^BANK D DEP^BANK(0,100) D INIT^BANK W $$BAL^BANK(0),\" \",$$RECON^BANK(0),!",
       // large amount
-      "D INIT^BANK W $$DEP^BANK(999999),!",
+      "D INIT^BANK W $$DEP^BANK(0,999999),!",
     };
     String[] edgeExp = {
       "1", // DEP(1) → 1
