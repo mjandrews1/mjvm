@@ -175,6 +175,8 @@ coverage: all mjvm
 	  -cp $(CP) jvmumps.StoreConcurrencySmoke
 	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
 	  -cp $(CP) jvmumps.StoreUnitTest
+	$(JAVA) -javaagent:$(JACOCO_AGENT)=destfile=$(OUT)/jacoco.exec,append=true \
+	  -cp $(CP) jvmumps.CoreUnitTest
 	@echo "=== Generating coverage report ==="
 	$(JAVA) -jar $(JACOCO_CLI) report $(OUT)/jacoco.exec \
 	  --classfiles $(OUT) \
