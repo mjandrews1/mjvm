@@ -712,15 +712,7 @@ public final class MStore implements StoreApi {
     if (global && v.isnum) {
       oaPut(key, v.num);
     }
-    // Fast path: inline 2-segment split (avoids splitCached + ArrayList for common case)
-    int sep = key.indexOf('\u0001');
-    if (sep > 0 && key.indexOf('\u0001', sep + 1) < 0) {
-      Node r = root(global).computeIfAbsent(key.substring(0, sep), NEW_ROOT);
-      Node leaf = r.kid(key.substring(sep + 1));
-      leaf.value = v;
-      leaf.hasValue = true;
-      return;
-    }
+    // splitCached returns cached String[] — fast for repeated writes to same key
     set(toList(splitCached(key)), global, v);
   }
 
