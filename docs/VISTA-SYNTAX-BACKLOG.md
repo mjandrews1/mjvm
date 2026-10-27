@@ -18,7 +18,7 @@ separately.
 | Dotted continuation entries | 143,964 | 2,480 | 2,483 | 2,485 |
 | SET target entries (+ tail) | 26,889 | 27,743 | 1,180 | 1,270 |
 | Comma entries | 15,931 | 15,931 | 17,057 | **760** |
-| Hard failures | 8 | 8 | 8 | 8 |
+| Hard failures | 8 | 8 | 8 | 8 | 8 |
 
 - **Class 1 (dotted, stage 1) — DONE** (`bc23951`, `9727848`): mid-line
   argless D merger + space-separated dot levels + syn-body RET isolation.
@@ -34,13 +34,21 @@ separately.
   form (K (A,B)). Comma entries: 17,057 → **760** (−95.5%).
   36 CommaRegression tests. Remaining 760 are postconditional+comma
   interactions (class-3 dependency) and deeply nested edge cases.
-- Remaining residue after class 4 (31,522 entries):
-  **postcond 17,096 (54.2%)** → **@ 5,649 (17.9%)** →
-  **! 2,397 (7.6%)** → **dotted residue 2,485 (7.9%)** →
-  **^ 1,569 (5.0%)** → **SET residue 1,270 (4.0%)** →
-  **$ 1,184 (3.8%)** → **( exclusive 523 (1.7%)** → comma 760 (2.4%) →
-  tail. Postcond/@/! upticks are unmasking from the comma fix.
-- Swallowed routines: 21,452 → 18,811 → 14,430 → **9,498 (28.0%)**.
+- **Class 3 (postconditional) — DONE** (`8752f28`): universal postconditional
+  handler at the command dispatch level, before the per-command if/else
+  chain. Applies to K/N/R/O/C/U/X/H/M (all commands that don't handle
+  it internally). S/W/Q/D/G/L/I unchanged. True postcond entries dropped
+  from 17,096 to ~760 (the remaining "postcond" grep hits are WRITE
+  format args `!`,`?n` and READ timeouts containing `:`, not `CMD:cond`).
+  Also unmasked 1,012 global-^ entries and 227 paren-exclusive entries
+  that now compile successfully. 24 PostcondRegression tests.
+- Remaining residue after class 3 (26,316 entries, 8,752 swallowed routines):
+  **@ indirection 5,672 (21.6%)** → **! format 2,401 (9.1%)** →
+  **dotted residue 2,486 (9.4%)** → **comma 768 (2.9%)** →
+  **$ function 1,189 (4.5%)** → **^ global 557 (2.1%)** →
+  **( exclusive 296 (1.1%)** → postcond-echo from WRITE/READ ~11,678
+  (the grep over-approximates; most are format/timeout errors).
+- Swallowed routines: 21,452 → 18,811 → 14,430 → 9,498 → **8,752 (25.8%)**.
 
 ## Histogram (entries ≥ 100) — baseline v2.2.2
 
