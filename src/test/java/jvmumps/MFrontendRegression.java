@@ -163,6 +163,13 @@ public final class MFrontendRegression {
     pass += r[0];
     fail += r[1];
 
+    // ================================================================
+    // Bug 13: SET multi-target lists and quoted-paren subscripts
+    // ================================================================
+    r = testSetMultiTarget();
+    pass += r[0];
+    fail += r[1];
+
     // Summary
     System.out.println();
     System.out.printf("  summary: pass=%d  fail=%d%n", pass, fail);
@@ -749,6 +756,75 @@ public final class MFrontendRegression {
     r = runOne("trailing-d-block", code7, exp7);
     pass += r[0];
     fail += r[1];
+
+    return new int[] {pass, fail};
+  }
+
+  // ================================================================
+  // Bug 13: SET multi-target lists and quoted-paren subscripts
+  // ================================================================
+  static int[] testSetMultiTarget() {
+    System.out.println("--- Bug 13: SET (A,B)= lists + quoted-paren subscripts ---");
+    int pass = 0, fail = 0;
+
+    // S (A,B)=7 — both targets get the value, evaluated once.
+    String code1 = "T N %A,%B\nS (%A,%B)=7\nW %A,\",\",%B,! Q\n";
+    String[] exp1 = {"7,7"};
+    int[] r = runOne("set-pair", code1, exp1);
+    pass += r[0];
+    fail += r[1];
+
+    // Subscripted targets inside the list.
+    String code2 = "T N %X,%Y\nS (%X,%Y(1))=\"k\"\nW %X,\",\",%Y(1),! Q\n";
+    String[] exp2 = {"k,k"};
+    r = runOne("set-subscripted-pair", code2, exp2);
+    pass += r[0];
+    fail += r[1];
+
+    // List + continuation in one multi-assign line: S (A,B)=5,A=A+1
+    String code3 = "T N %A,%B\nS (%A,%B)=5,%A=%A+1\nW %A,\",\",%B,! Q\n";
+    String[] exp3 = {"6,5"};
+    r = runOne("set-list-then-assign", code3, exp3);
+    pass += r[0];
+    fail += r[1];
+
+    // Quoted "(" inside a subscript no longer walks past end of line
+    // (the "SET requires = after ZTSAVE(...)" tail): S ZTSAVE("AOULP(")=""
+    String code4 = "T N ZTSAVE\nS ZTSAVE(\"AOULP(\")=\"\"\nW $D(ZTSAVE),! Q\n";
+    String[] exp4 = {"10"};
+    r = runOne("set-quoted-paren-subscript", code4, exp4);
+    pass += r[0];
+    fail += r[1];
+
+    // Value evaluated once even with a function call (order matters):
+    // S %N=0 S (%A,%B)=$$CNT() → CNT called once, both get 1.
+    String code5 =
+        "T N %A,%B,%N\nS %N=0\nS (%A,%B)=$$CNT\nW %A,\",\",%B,\",\",%N,! "
+            + "Q\nCNT S %N=%N+1 Q 1 Q\n";
+    String[] exp5 = {"1,1,1"};
+    r = runOne("set-list-value-once", code5, exp5);
+    pass += r[0];
+    fail += r[1];
+
+    // Unsupported targets inside a list must throw (recorded), not miscompile.
+    try {
+      MFrontend fe = new MFrontend();
+      fe.compileProgram("T N %A\nS (%A,$P(%A,\",\"))=\"x\"\n Q\n");
+      boolean recorded =
+          fe.lastSwallowedErrors().stream()
+              .anyMatch(s -> s.contains("unsupported SET list target"));
+      if (recorded) {
+        System.out.println("  set-list-unsupported-recorded PASS");
+        pass++;
+      } else {
+        System.out.printf(
+            "  set-list-unsupported-recorded FAIL ledger=%s%n", fe.lastSwallowedErrors());
+        fail++;
+      }
+    } catch (Exception e) {
+      System.out.printf("  set-list-unsupported-recorded EXC %s%n", e.getMessage());
+      fail++;
+    }
 
     return new int[] {pass, fail};
   }

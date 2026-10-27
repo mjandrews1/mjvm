@@ -103,6 +103,62 @@ final class MFrontendCmds {
           break;
         }
       }
+      // Multi-target list: S (A,B)=expr / S (A(1),B)=expr — evaluate once,
+      // store to each (PUSH_REG re-pushes lastStored for the extras).
+      if (i < line.length() && line.charAt(i) == '(') {
+        int k = i + 1;
+        int depth = 1;
+        boolean inStr = false;
+        while (k < line.length()) {
+          char c = line.charAt(k);
+          if (inStr) {
+            if (c == '"') {
+              if (k + 1 < line.length() && line.charAt(k + 1) == '"') k++;
+              else inStr = false;
+            }
+            k++;
+            continue;
+          }
+          if (c == '"') {
+            inStr = true;
+            k++;
+            continue;
+          }
+          if (c == '(') depth++;
+          else if (c == ')') {
+            depth--;
+            if (depth == 0) {
+              k++;
+              break;
+            }
+          }
+          k++;
+        }
+        if (depth != 0) throw new MError("SET target list unterminated at " + line.substring(i));
+        String inner = line.substring(i + 1, k - 1);
+        i = MFrontendUtil.skipWs(line, k);
+        if (i >= line.length() || line.charAt(i) != '=')
+          throw new MError("SET requires = after (" + inner + ")");
+        i++;
+        int vs = i;
+        i = MFrontendUtil.scanExprEnd(line, i, " ,");
+        String val = line.substring(vs, i).trim();
+        java.util.List<String> targets = MFrontendUtil.splitArgsCommas(inner);
+        if (targets.isEmpty()) throw new MError("SET target list empty at " + line.substring(st));
+        out.add(Ir.evalExpr(val));
+        for (int ti = 0; ti < targets.size(); ti++) {
+          String t = targets.get(ti).trim();
+          if (!isListTarget(t)) throw new MError("unsupported SET list target '" + t + "'");
+          if (ti > 0) out.add(Ir.pushReg());
+          out.add(Ir.store(t));
+        }
+        i = MFrontendUtil.skipWs(line, i);
+        if (i < line.length() && line.charAt(i) == ',') {
+          i++;
+          continue;
+        }
+        break;
+      }
       while (i < line.length()
           && (Character.isLetterOrDigit(line.charAt(i))
               || line.charAt(i) == '%'
@@ -112,8 +168,20 @@ final class MFrontendCmds {
       if (i < line.length() && line.charAt(i) == '(') {
         int depth = 0;
         int stp = i;
+        boolean inSub = false;
         while (i < line.length()) {
           char c = line.charAt(i++);
+          if (inSub) {
+            if (c == '"') {
+              if (i < line.length() && line.charAt(i) == '"') i++;
+              else inSub = false;
+            }
+            continue;
+          }
+          if (c == '"') {
+            inSub = true;
+            continue;
+          }
           if (c == '(') depth++;
           else if (c == ')') {
             depth--;
@@ -345,5 +413,40 @@ final class MFrontendCmds {
     }
     if (pending) out.add(Ir.endWrite());
     return i;
+  }
+
+  /**
+   * True when t is a plain SET target usable inside a multi-target list: a name
+   * (letters/digits/%/^) with an optional balanced subscript group. Anything else ($E/$P forms,
+   * indirection) must be a single target — lists containing them throw instead of compiling
+   * silently wrong.
+   */
+  static boolean isListTarget(String t) {
+    if (t.isEmpty()) return false;
+    char c0 = t.charAt(0);
+    if (!(Character.isLetterOrDigit(c0) || c0 == '%' || c0 == '^')) return false;
+    int i = 0;
+    while (i < t.length()
+        && (Character.isLetterOrDigit(t.charAt(i)) || t.charAt(i) == '%' || t.charAt(i) == '^')) {
+      i++;
+    }
+    if (i >= t.length()) return true;
+    if (t.charAt(i) != '(') return false;
+    int depth = 0;
+    boolean inStr = false;
+    for (; i < t.length(); i++) {
+      char c = t.charAt(i);
+      if (inStr) {
+        if (c == '"') inStr = false;
+        continue;
+      }
+      if (c == '"') {
+        inStr = true;
+        continue;
+      }
+      if (c == '(') depth++;
+      else if (c == ')') depth--;
+    }
+    return depth == 0;
   }
 }
