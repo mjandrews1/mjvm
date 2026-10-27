@@ -493,11 +493,12 @@ public final class MFrontend {
       StringBuilder blk = new StringBuilder();
       List<Integer> dots = new ArrayList<>();
       while (j < bodies.size() && bodies.get(j).trim().startsWith(".")) {
+        // strip the dot prefix: dots and the spaces between them (VistA
+        // writes deeper levels as ". . S" — dot, spaces, dot, body)
         String d = bodies.get(j).trim();
-        while (d.startsWith(".")) {
-          d = d.substring(1);
-          if (d.startsWith(" ")) d = d.substring(1);
-        }
+        int ds = 0;
+        while (ds < d.length() && (d.charAt(ds) == '.' || d.charAt(ds) == ' ')) ds++;
+        d = d.substring(ds).trim();
         if (blk.length() > 0) blk.append(' ');
         blk.append(d);
         dots.add(j);
