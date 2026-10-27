@@ -1,5 +1,52 @@
 # mJVM Release Notes
 
+## Unreleased — VistA swallowed-syntax backlog (classes 1–2)
+
+Working the 223,453-entry swallowed-line ledger one class at a time
+(`docs/VISTA-SYNTAX-BACKLOG.md`). Ledger protocol: re-run the FOIA corpus
+harness on U02 after each class; a class must drop with no other class
+shrinking except by unmasking.
+
+### Class 1 — dotted-line continuation (stage 1) — commit `bc23951`, `9727848`
+
+- The dotted-block merger only matched heads ending in an argumentless
+  `D`. The dominant VistA shapes — `I COND D  Q`, `F … D  Q` — have the
+  D mid-line with trailing commands, and were swallowed (64.4% of the
+  ledger). Any argumentless D (optional postconditional, quote-aware)
+  now splits the head into prefix + `D ZDn` + suffix; the block returns
+  to the suffix (ISO semantics verified against RSM CMDON/CHKDOTS).
+- Space-separated dot levels (`. . S`) are stripped correctly — the
+  old loop only handled adjacent dots, which was the entire surviving
+  residue after the first fix (2,784 → 2,480 entries).
+- Synthetic block bodies get their own RET — two blocks in one routine
+  no longer fall into each other.
+- **Pre-existing runtime bug found and fixed:** DO/GOTO patch indices
+  recorded while `compileInto` compiled a FOR body into a temp list were
+  never shifted by the insertion base, so the block's `CALL_PC` stayed at
+  -1 and `F I=1:1:3 D` + dotted block silently produced no output at
+  all — invisible to the ledger because it compiled clean.
+- Ledger: dotted class 143,964 → ~2,480 (−98%); routines with swallowed
+  lines 21,452 → 18,811; total entries 223,453 → ~84,500 after the
+  space-dot fix. SET/comma/postcond ticked up ~1,000 total — unmasking
+  (dotted lines now reach their inner unsupported constructs), not
+  regressions.
+
+### Class 2 — SET targets — commit `d376761`
+
+- `S (A,B)=expr` multi-target lists: parsed quote-aware, value evaluated
+  once, stored to each target. Unsupported list targets throw (ledgered).
+- Quoted `(` inside subscripts (`S ZTSAVE("AOULP(")=""`) no longer walks
+  the paren counter past end of line ("SET requires = after …" tail).
+- Ledger: SET class 27,743 → 1,180 (−96%); routines with swallowed lines
+  18,811 → 14,430 (42.5% of corpus, from 63.2% baseline); total ledger
+  entries ~84,500 → 60,225 (−73% from the 223,453 baseline). Comma and
+  postcond ticked up a few hundred more — continued unmasking.
+
+### Tests
+
+MFrontendRegression 39 → 45 (7 Bug 12 mid-line-D cases, 6 Bug 13 SET
+cases), GAUNTLET 134/134, J0Smoke 139/139, CoreUnitTest 135/135.
+
 ## v2.2.2 — Silent-recovery audit round 2 (2026-10-26)
 
 ### Bugs Fixed

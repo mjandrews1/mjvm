@@ -4,11 +4,39 @@
 (U02 `~/vista-hist.log`, 33,951 routines; corpus at
 `~/coldstore/vista-foia/VistA-M-master`).
 
-**Topline:** 21,452 routines (63.2%) had at least one line silently replaced
-with RET — 223,453 ledger entries across 5,377 classes. The 8 hard failures
-(7 DATA + 1 ENGINE GAP) are unchanged and tracked separately.
+**Topline (baseline):** 21,452 routines (63.2%) had at least one line
+silently replaced with RET — 223,453 ledger entries across 5,377 classes.
+The 8 hard failures (7 DATA + 1 ENGINE GAP) are unchanged and tracked
+separately.
 
-## Histogram (entries ≥ 100)
+## Progress (updated 2026-10-27)
+
+| Metric | Baseline | After class 1 | After class 2 |
+|---|---|---|---|
+| Routines with swallowed lines | 21,452 (63.2%) | 18,811 (55.4%) | **14,430 (42.5%)** |
+| Total ledger entries | 223,453 | ~84,500 | **60,225** |
+| Dotted continuation entries | 143,964 | 2,480 | 2,483 |
+| SET target entries (+ tail) | 26,889 | 27,743 | 1,180 |
+| Hard failures | 8 | 8 | 8 |
+
+- **Class 1 (dotted, stage 1) — DONE** (`bc23951`, `9727848`): mid-line
+  argless D merger + space-separated dot levels + syn-body RET isolation.
+  Also fixed a pre-existing runtime bug invisible to the ledger:
+  `compileInto` never shifted DO/GOTO patch indices by the insertion
+  base, so `F … D` + block emitted `CALL_PC -1` and silently produced no
+  output.
+- **Class 2 (SET targets) — DONE** (`d376761`): `S (A,B)=` multi-target
+  lists (value evaluated once) + quote-aware subscript scans.
+- Remaining residue after class 2 (60,225 entries / 7,451 classes):
+  **comma 17,057 (28.3%)** → **postcond 16,204 (26.9%)** → @ 4,168 →
+  dotted residue 2,483 (dotted lines with no argless-D head) →
+  $ 1,182 → SET residue 1,180 → tail 9,070 (5,553 of them
+  "SET requires = after" shapes incl. single-element lists
+  `S (X)=`, quoted-string targets, `.BYREF` in lists).
+- Small upticks in comma/postcond/@ after each fix are unmasking —
+  formerly-dotted lines now reach their inner unsupported constructs.
+
+## Histogram (entries ≥ 100) — baseline v2.2.2
 
 | Class | Entries | Share |
 |---|---|---|
@@ -122,17 +150,18 @@ only a leading `@name=`; DO/GOTO dispatch doesn't accept `@` targets.
 
 ## Implementation order
 
-1. **Class 1 stage 1** — general-argless-D merger (kills ~64% of entries).
-2. **Class 2** — `S (A,B)=` multi-target + quoted-paren subscript scan.
-3. **Class 3** — universal postconditional at dispatch.
-4. **Class 4** — multi-arg loops for D/G/K/W.
-5. **Class 5/6** — indirection and residuals.
+1. **Class 1 stage 1** — DONE (`bc23951`, `9727848`; 143,964 → 2,480).
+2. **Class 2** — DONE (`d376761`; 27,743 → 1,180).
+3. **Class 3** — universal postconditional at dispatch (16,204).
+4. **Class 4** — multi-arg loops for D/G/K/W (17,057).
+5. **Class 5/6** — indirection and residuals, incl. the 2,483 dotted
+   no-D heads and the 5,553 "SET requires = after" tail shapes.
 6. **Class 1 stage 2** — IR-level block frames for QUIT/$TEST fidelity.
 
-Between each step: re-run the ledger (U02 harness, `vista-runs.sh`), require
-the class count to drop to ~0 with no other class growing, full regression
-(32/32), GAUNTLET, corpus. Per AGENTS.md policy, the swallow-net stays; the
-goal is that these classes stop erroring at all.
+Between each step: re-run the ledger (U02 harness, `vista-runs2.sh`), require
+the class count to drop with no other class shrinking except by unmasking,
+full regression (45/45), GAUNTLET, corpus. Per AGENTS.md policy, the
+swallow-net stays; the goal is that these classes stop erroring at all.
 
 ## Corpus notes
 
