@@ -1,5 +1,47 @@
 # mJVM Release Notes
 
+## v2.2.2 — Silent-recovery audit round 2 (2026-10-26)
+
+### Bugs Fixed
+
+1. **Unknown command tokens silently skipped** — the compiler's dispatch
+    fall-through discarded unrecognized command-position tokens with no error.
+    (One lurking site even hid a bogus token in our own Bug-11 regression test.)
+    Now throws `MError("unknown command '…'")`. All 31 known commands verified
+    to have dispatch branches; only genuine syntax errors reach the throw.
+2. **WRITE-sub evaluation swallowed errors** — `MRuntime.evalSub`/`subOf`
+    caught `Exception` and returned the raw expression text as output. Now
+    `MError` propagates (trap-compatible); other exceptions are wrapped.
+3. **`$GET`/`$DATA` catches too broad** — both defaulted on *any* `MError`.
+    Now only the specific `Undefined local variable` case defaults; genuine
+    errors propagate.
+
+### VistAFullRun: swallowed-line instrumentation
+
+New `SWALLOWED (LEDGER)` category reports routines that compiled but had error
+lines replaced with RET — invisible before the v2.2.1 ledger.
+
+**VistA FOIA corpus (33,951 routines, 2026-10-26, native MFrontend):**
+
+| Metric | Result |
+|---|---|
+| Parse ok | 33,943 (99.98%) |
+| Hard failures | 8 (7 DATA, 1 ENGINE GAP) |
+| **Routines with swallowed lines** | **21,452 (63.2%)** |
+
+The old 99.97% pass rate hid that 63% of production VistA routines contained
+lines the compiler silently replaced with RET. Swallowed-line causes include
+dotted-line continuation (`.`), argument indirection (`@`), continuation
+commas, and expression SET targets — real M syntax the compiler does not yet
+support, previously invisible. Legacy LineRoutine parse: 99.97% (baseline
+reproduced).
+
+### Policy
+
+`AGENTS.md` adopted in all repos: errors must throw or be recorded in a
+ledger — never caught-and-continued, never defaulted; assertions and gates are
+never weakened to make a suite green.
+
 ## v2.2.1 — Silent-recovery hardening (2026-10-26)
 
 ### Bugs Fixed
