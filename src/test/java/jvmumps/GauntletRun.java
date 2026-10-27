@@ -10,14 +10,23 @@ import jvmumps.store.*;
  *
  * <p>Latency thresholds (p95): - Arithmetic loop: < 500ns per iteration - String concat: < 1000ns
  * per iteration - Global write: < 2000ns per iteration - Mixed: < 1500ns per iteration
+ *
+ * <p>Each gate can be overridden with the GAUNTLET_{ARITH,STRING,GLOBAL,MIXED}_GATE_NS environment
+ * variables (defaults above). CI on slow hardware sets a relaxed Global gate.
  */
 public final class GauntletRun {
 
-  // Latency thresholds in nanoseconds (p95)
-  static final double P95_ARITH_NS = 500;
-  static final double P95_STRING_NS = 1000;
-  static final double P95_GLOBAL_NS = 2000;
-  static final double P95_MIXED_NS = 1500;
+  // Latency thresholds in nanoseconds (p95); overridable via env for slow CI hardware
+  static final double P95_ARITH_NS = gate("GAUNTLET_ARITH_GATE_NS", 500);
+  static final double P95_STRING_NS = gate("GAUNTLET_STRING_GATE_NS", 1000);
+  static final double P95_GLOBAL_NS = gate("GAUNTLET_GLOBAL_GATE_NS", 2000);
+  static final double P95_MIXED_NS = gate("GAUNTLET_MIXED_GATE_NS", 1500);
+
+  /** Read a latency gate from the environment, falling back to the default. */
+  static double gate(String envVar, double defaultNs) {
+    String v = System.getenv(envVar);
+    return v == null || v.isBlank() ? defaultNs : Double.parseDouble(v);
+  }
 
   // Reps per performance loop
   static final int PERF_REPS = 1_000_000;

@@ -30,6 +30,9 @@ jobs:
           echo "Build OK: $(find build -name '*.class' | wc -l) classes"
 
       - name: Run GAUNTLET
+        env:
+          # u04 runner: 2014 dual-core i5 + HDD; store-backed ops run ~2x slower than dev Macs
+          GAUNTLET_GLOBAL_GATE_NS: '4000'
         run: |
           java -cp "build:lib/*" jvmumps.GauntletRun 2>&1
           echo "GAUNTLET PASSED"
