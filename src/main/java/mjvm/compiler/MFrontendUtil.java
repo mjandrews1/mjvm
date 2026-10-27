@@ -179,6 +179,29 @@ final class MFrontendUtil {
     return i;
   }
 
+  /**
+   * True if the command compiler handles its own postconditional (`CMD:COND`). IF is included
+   * because its `:cond` is indistinguishable from a subscript separator in its condition argument
+   * and the construct is vanishingly rare.
+   */
+  static boolean handlesOwnPostcond(String cmd) {
+    String u = cmd.toUpperCase(java.util.Locale.ROOT);
+    return u.equals("S")
+        || u.equals("SET")
+        || u.equals("W")
+        || u.equals("WRITE")
+        || u.equals("Q")
+        || u.equals("QUIT")
+        || u.equals("D")
+        || u.equals("DO")
+        || u.equals("G")
+        || u.equals("GOTO")
+        || u.equals("L")
+        || u.equals("LOCK")
+        || u.equals("I")
+        || u.equals("IF");
+  }
+
   static boolean isKnownCmd(String w) {
     String u = w.toUpperCase(java.util.Locale.ROOT);
     return u.equals("S")

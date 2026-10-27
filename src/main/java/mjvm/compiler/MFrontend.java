@@ -67,6 +67,25 @@ public final class MFrontend {
           }
         }
         i = MFrontendUtil.skipWs(line, i);
+
+        // ===== Class-3: universal postconditional at dispatch =====
+        // CMD:COND args — applies to ALL commands that don't handle it
+        // internally. Commands with their own handlers: S, W, Q, D/G, L.
+        boolean hasCmdPostcond = false;
+        int cmdPostJ0 = -1;
+        if (i < n && line.charAt(i) == ':' && !MFrontendUtil.handlesOwnPostcond(cmd)) {
+          i++;
+          int cs = i;
+          i = MFrontendUtil.scanExprEnd(line, i, " ");
+          String cond = line.substring(cs, i).trim();
+          if (!cond.isEmpty()) {
+            out.add(Ir.evalExpr(cond));
+            cmdPostJ0 = out.size();
+            out.add(Ir.jmp0(-1)); // false → skip entire command
+            hasCmdPostcond = true;
+          }
+        }
+
         if (cmd.equals("S") || cmd.equals("SET")) {
           // postconditional SET: S:COND var=val — assign only if COND
           boolean setPostcond = false;
@@ -391,6 +410,10 @@ public final class MFrontend {
           throw new MError("unknown command '" + cmd + "' at " + line.substring(st));
         }
         i = MFrontendUtil.skipWs(line, i);
+        // Class-3: patch the universal postconditional jump target
+        if (hasCmdPostcond && cmdPostJ0 >= 0 && cmdPostJ0 < out.size()) {
+          out.set(cmdPostJ0, Ir.jmp0(out.size()));
+        }
         if (i < n && line.charAt(i) == ' ') {
           // next command
         }
