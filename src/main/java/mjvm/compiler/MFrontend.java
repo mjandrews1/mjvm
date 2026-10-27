@@ -138,49 +138,52 @@ public final class MFrontend {
             || cmd.equals("GOTO")) {
           if (activeLabels != null) {
             boolean isG = cmd.equals("G") || cmd.equals("GOTO");
-            // postcond D:0 FOO / G:1 BAR — run only if cond
+            // Command-level postconditional guards the WHOLE argument list.
+            int cmdJ0 = -1;
             if (i < line.length() && line.charAt(i) == ':') {
               i++;
               int cs = i;
               i = MFrontendUtil.scanExprEnd(line, i, " ");
               String cond = line.substring(cs, i).trim();
               out.add(Ir.evalExpr(cond));
-              int j0 = out.size();
-              out.add(Ir.jmp0(-1)); // false → skip call
-              List<Ir> body = new ArrayList<>();
-              List<int[]> bodyPk = new ArrayList<>();
-              activeGoto = isG;
-              i = compileDoGotoRet(line, i, body, bodyPk, activeLabels, activeSelfLine, isG);
-              activeGoto = false;
-              int base = out.size();
-              out.addAll(body);
-              for (int[] pk : bodyPk) {
-                pk[1] += base;
-                activePatches.add(pk);
-              }
-              if (j0 < out.size())
-                out.set(j0, Ir.jmp0(out.size())); // j0 >= 0 guaranteed by init to -1 and check
-              if (isG) i = line.length();
-              continue;
+              cmdJ0 = out.size();
+              out.add(Ir.jmp0(-1)); // false → skip all args
             }
-            // argless DO: next token is a known command or EOL
+            // Argumentless DO/GOTO: next token is a known command or EOL —
+            // no arguments, continue with the rest of the line. isCmdStart
+            // enforces a word boundary, so a target like L2 (LOCK + 2) is
+            // not mistaken for the L command.
             int peek = MFrontendUtil.skipWs(line, i);
-            if (peek >= line.length()) {
-              // argless DO at end of line — no-op
+            if (peek >= line.length() || line.charAt(peek) == ';') {
+              if (cmdJ0 >= 0 && cmdJ0 < out.size()) out.set(cmdJ0, Ir.jmp0(out.size()));
               continue;
             }
-            // read the full word at peek
-            int pw = peek;
-            while (pw < line.length() && Character.isLetter(line.charAt(pw))) pw++;
-            String pword = line.substring(peek, pw);
-            if (Character.isLetter(line.charAt(peek)) && MFrontendUtil.isKnownCmd(pword)) {
-              // argless DO — next is a command, not a target
+            if (MFrontendUtil.isCmdStart(line, peek)) {
+              if (cmdJ0 >= 0 && cmdJ0 < out.size()) out.set(cmdJ0, Ir.jmp0(out.size()));
               continue;
             }
-            activeGoto = isG;
-            i = compileDoGotoRet(line, i, out, activePatches, activeLabels, activeSelfLine, isG);
-            activeGoto = false;
-            if (isG) i = line.length();
+            // Argument list: TARGET[(args)][,TARGET2[:postcond]…]. Each
+            // argument may carry its own postconditional. DO runs every
+            // argument in order (postcond guards each call); GOTO takes
+            // the FIRST argument whose postconditional (default true) is
+            // satisfied — a not-taken argument falls through to the next
+            // one, and if none is taken execution continues on the line.
+            while (true) {
+              i = MFrontendUtil.skipWs(line, i);
+              if (i >= line.length() || MFrontendUtil.isCmdStart(line, i)) break;
+              // per-argument postconditionals (TARGET:cond) are consumed
+              // by compileDoGotoRet after the target and argument list
+              activeGoto = isG;
+              i = compileDoGotoRet(line, i, out, activePatches, activeLabels, activeSelfLine, isG);
+              activeGoto = false;
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
+            if (cmdJ0 >= 0 && cmdJ0 < out.size()) out.set(cmdJ0, Ir.jmp0(out.size()));
             continue;
           }
           // M3: DO/GOTO tag [^rtn] [ (args) ] — name is a call-site, not a load
@@ -815,16 +818,47 @@ public final class MFrontend {
       if (i < line.length() && line.charAt(i) == ')') i++;
     }
     Integer tl = labels.get(target);
+    // Per-argument postconditional: TARGET[(args)]:cond — the call/jump is
+    // guarded (false → this argument is skipped, DO falls to the next
+    // argument, GOTO tries the following one).
+    String post = null;
+    if (i < line.length() && line.charAt(i) == ':') {
+      int cs = i + 1;
+      i = MFrontendUtil.scanExprEnd(line, cs, " ,");
+      post = line.substring(cs, i).trim();
+    }
+    if (post != null) {
+      out.add(Ir.evalExpr(post));
+      int j0 = out.size();
+      out.add(Ir.jmp0(-1)); // false → skip this argument
+      out.addAll(argOps);
+      emitDoGoto(out, patches, labels, selfLine, tl, target, isGoto || activeGoto, argOps.size());
+      if (j0 < out.size()) out.set(j0, Ir.jmp0(out.size()));
+      return i;
+    }
     out.addAll(argOps);
+    emitDoGoto(out, patches, labels, selfLine, tl, target, isGoto || activeGoto, argOps.size());
+    return i;
+  }
+
+  /** Emit the call/jump for one DO/GOTO argument (label-local or external CALL). */
+  private void emitDoGoto(
+      List<Ir> out,
+      List<int[]> patches,
+      java.util.Map<String, Integer> labels,
+      int selfLine,
+      Integer tl,
+      String target,
+      boolean isGoto,
+      int argc) {
     if (tl != null) {
-      patches.add(new int[] {selfLine, out.size(), tl, argOps.size()});
-      out.add((isGoto || activeGoto) ? Ir.jmp(-1) : Ir.callPc(-1));
+      patches.add(new int[] {selfLine, out.size(), tl, argc});
+      out.add(isGoto ? Ir.jmp(-1) : Ir.callPc(-1));
     } else {
       // target not in this routine's labels — emit CALL for
       // external tags (linked routine / ZLINK / stdlib)
-      out.add(new Ir(Ir.CALL, target, null, 0, argOps.size()));
+      out.add(new Ir(Ir.CALL, target, null, 0, argc));
     }
-    return i;
   }
 
   private int compileIf(String line, int i, List<Ir> out) {

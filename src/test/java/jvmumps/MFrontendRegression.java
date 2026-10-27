@@ -170,6 +170,13 @@ public final class MFrontendRegression {
     pass += r[0];
     fail += r[1];
 
+    // ================================================================
+    // Bug 14: DO/GOTO multi-argument lists + per-argument postconditionals
+    // ================================================================
+    r = testMultiArgDoGoto();
+    pass += r[0];
+    fail += r[1];
+
     // Summary
     System.out.println();
     System.out.printf("  summary: pass=%d  fail=%d%n", pass, fail);
@@ -823,6 +830,82 @@ public final class MFrontendRegression {
       }
     } catch (Exception e) {
       System.out.printf("  set-list-unsupported-recorded EXC %s%n", e.getMessage());
+      fail++;
+    }
+
+    return new int[] {pass, fail};
+  }
+
+  // ================================================================
+  // Bug 14: DO/GOTO multi-argument lists with per-argument postconditionals
+  // ================================================================
+  static int[] testMultiArgDoGoto() {
+    System.out.println("--- Bug 14: D A,B / G A:cond,B argument lists ---");
+    int pass = 0, fail = 0;
+
+    // D A,B — both called in order, execution continues after the calls.
+    String code1 = "T D A1,A2 W \"after \" Q\nA1 W \"1 \" Q\nA2 W \"2 \" Q\n";
+    String[] exp1 = {"1 \n2 \nafter"};
+    int[] r = runOne("do-multi-args", code1, exp1);
+    pass += r[0];
+    fail += r[1];
+
+    // Per-argument postconditional: D A:%X,B — %X false skips A, runs B.
+    String code2 = "T N %X\nS %X=0\n D A1:%X,A2 Q\nA1 W \"1 \" Q\nA2 W \"2 \" Q\n";
+    String[] exp2 = {"2"};
+    r = runOne("do-arg-postcond-skip", code2, exp2);
+    pass += r[0];
+    fail += r[1];
+
+    // GOTO list: first argument whose postconditional is true wins.
+    String code3 = "T N %X\nS %X=0\n G L2:%X,L1 Q\nL1 W \"one \" Q\nL2 W \"two \" Q\n";
+    String[] exp3 = {"one"};
+    r = runOne("goto-list-first-true", code3, exp3);
+    pass += r[0];
+    fail += r[1];
+
+    // GOTO all postconditionals false → fall through to the rest of the line
+    // (the old compiler discarded everything after the first argument).
+    String code4 = "T N %X\nS %X=0\n G L2:%X W \"fell \" Q\nL2 W \"two \" Q\n";
+    String[] exp4 = {"fell"};
+    r = runOne("goto-all-false-fallthrough", code4, exp4);
+    pass += r[0];
+    fail += r[1];
+
+    // Command-level postconditional guards the whole list.
+    String code5 = "T N %X\nS %X=1\n G:%X L2,L1 Q\nL1 W \"one \" Q\nL2 W \"two \" Q\n";
+    String[] exp5 = {"two"};
+    r = runOne("goto-cmd-postcond-list", code5, exp5);
+    pass += r[0];
+    fail += r[1];
+
+    // Targets that look like command words (L2, S1) must be parsed as
+    // targets, not as L/S commands — the argless-peek letter-run scan
+    // misread them before.
+    String code6 = "T G L2 W \"dead \" Q\nL2 W \"two \" Q\n";
+    String[] exp6 = {"two"};
+    r = runOne("goto-target-looks-like-cmd", code6, exp6);
+    pass += r[0];
+    fail += r[1];
+    String code7 = "T D L2 W \"ok \" Q\nL2 W \"sub \" Q\n";
+    String[] exp7 = {"sub \nok"};
+    r = runOne("do-target-looks-like-cmd", code7, exp7);
+    pass += r[0];
+    fail += r[1];
+
+    // External multi-target DO compiles clean (runtime needs the routines).
+    try {
+      MFrontend fe = new MFrontend();
+      fe.compileProgram("T D TAG1^RTNX,TAG2^RTNY W \"done\" Q\n");
+      if (fe.lastSwallowedErrors().isEmpty()) {
+        System.out.println("  do-multi-external-clean PASS");
+        pass++;
+      } else {
+        System.out.printf("  do-multi-external-clean FAIL ledger=%s%n", fe.lastSwallowedErrors());
+        fail++;
+      }
+    } catch (Exception e) {
+      System.out.printf("  do-multi-external-clean EXC %s%n", e.getMessage());
       fail++;
     }
 
