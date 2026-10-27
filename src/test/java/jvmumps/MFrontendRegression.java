@@ -42,6 +42,11 @@ import mjvm.runtime.*;
  * 30; the routine builder replaced error lines with RET without recording anything. Now they throw
  * MError, the builder logs to stderr and records in lastSwallowedErrors().
  *
+ * <p>Bug 12: mid-line argumentless DO + dotted block the merger only matched heads ENDING in an
+ * argumentless D; "I COND D Q" / "F … D Q" heads (the dominant VistA shape) were swallowed. Now any
+ * argumentless D splits the head into prefix + "D ZDn" + suffix; the block returns to the suffix.
+ * Syn block bodies also get their own RET (no fallthrough between multiple blocks).
+ *
  * <p>Usage: java -cp build:lib/... jvmumps.MFrontendRegression
  */
 public final class MFrontendRegression {
@@ -148,6 +153,13 @@ public final class MFrontendRegression {
     // Bug 11: compile depth limit must fail loudly, not silently truncate
     // ================================================================
     r = testDepthLimitLoud();
+    pass += r[0];
+    fail += r[1];
+
+    // ================================================================
+    // Bug 12: mid-line argless DO + dotted block
+    // ================================================================
+    r = testMidlineDottedBlock();
     pass += r[0];
     fail += r[1];
 
@@ -674,6 +686,70 @@ public final class MFrontendRegression {
       System.out.printf("  depth-clean-empty-ledger EXC %s%n", e.getMessage());
       fail++;
     }
+    return new int[] {pass, fail};
+  }
+
+  // ================================================================
+  // Bug 12: argumentless DO mid-line + dotted block ("I COND D  Q" heads)
+  // ================================================================
+  static int[] testMidlineDottedBlock() {
+    System.out.println("--- Bug 12: mid-line argless DO + dotted block ---");
+    int pass = 0, fail = 0;
+
+    // "I COND D  Q" + block — cond true: block, then QUIT (AFTER unreached).
+    // Old merger only matched heads ending in " D" — this head was swallowed.
+    String code1 = "T N %X\nS %X=1\n I %X=1 D  Q\n . W \"BLOCK\"\n W \"AFTER\"\n Q\n";
+    String[] exp1 = {"BLOCK"};
+    int[] r = runOne("if-do-q-true", code1, exp1);
+    pass += r[0];
+    fail += r[1];
+
+    // Same head — cond false: rest of line skipped, block NOT run.
+    String code2 = "T N %X\nS %X=0\n I %X=1 D  Q\n . W \"BLOCK\"\n W \"AFTER\"\n Q\n";
+    String[] exp2 = {"AFTER"};
+    r = runOne("if-do-q-false", code2, exp2);
+    pass += r[0];
+    fail += r[1];
+
+    // Suffix is not always Q — block returns to the trailing WRITE. mjvm's
+    // per-WRITE endWrite convention inserts \n after each W command, so the
+    // block's W emits "B\n" before the suffix writes TRAIL.
+    String code3 = "T N %X\nS %X=1\n I %X=1 D  W \"TRAIL\"\n . W \"B\"\n Q\n";
+    String[] exp3 = {"B\nTRAIL"};
+    r = runOne("if-do-write-suffix", code3, exp3);
+    pass += r[0];
+    fail += r[1];
+
+    // FOR + mid-line D with trailing command: block per iteration, suffix after
+    // (per-WRITE newlines: "1\n," then "2\n," — the suffix W has its own).
+    String code4 = "T N %I\n F %I=1:1:2 D  W \",\"\n . W %I\n Q\n";
+    String[] exp4 = {"1\n,\n2\n,"};
+    r = runOne("for-do-suffix", code4, exp4);
+    pass += r[0];
+    fail += r[1];
+
+    // Two dotted blocks in one routine — block 1 must not fall into block 2
+    // (per-WRITE newline after the block's W).
+    String code5 = "T N %X\nS %X=0\n I %X=1 D\n . W \"A\"\n I %X=0 D\n . W \"B\"\n W \"END\"\n Q\n";
+    String[] exp5 = {"B\nEND"};
+    r = runOne("two-blocks-no-fallthrough", code5, exp5);
+    pass += r[0];
+    fail += r[1];
+
+    // Standalone D head (old behavior) still works.
+    String code6 = "T N %C\nS %C=0\n D\n . S %C=%C+1\n W %C,! Q\n";
+    String[] exp6 = {"1"};
+    r = runOne("standalone-d-block", code6, exp6);
+    pass += r[0];
+    fail += r[1];
+
+    // Trailing-D head (old behavior) still works: "F ... D"
+    String code7 = "T N %I,%S\nS %S=0\n F %I=1:1:3 D\n . S %S=%S+%I\n W %S,! Q\n";
+    String[] exp7 = {"6"};
+    r = runOne("trailing-d-block", code7, exp7);
+    pass += r[0];
+    fail += r[1];
+
     return new int[] {pass, fail};
   }
 

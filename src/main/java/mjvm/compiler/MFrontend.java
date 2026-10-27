@@ -479,13 +479,16 @@ public final class MFrontend {
       bodies.add(body);
       if (tag != null) labels.putIfAbsent(tag.toUpperCase(java.util.Locale.ROOT), tags.size() - 1);
     }
-    // Argumentless DO + dotted block: D\n . cmd  →  D ZDn  +  tag ZDn
+    // Argumentless DO + dotted block: [prefix] D[...postcond] [suffix]
+    //   →  prefix D ZDn suffix  +  tag ZDn (dotted bodies joined).
+    // The D may sit anywhere on the head line — "I COND D Q", "F … D Q" — the
+    // suffix commands run after the block returns (block exit resumes right
+    // after the argumentless DO). Standalone and trailing-D heads are the
+    // prefix-empty / suffix-empty special cases of the same rewrite.
     for (int i = 0; i < bodies.size(); i++) {
       String b = bodies.get(i).trim();
-      // match standalone D/DO or lines ending with argless D (e.g. "F ... D")
-      boolean isArglessDo =
-          b.equals("D") || b.equals("DO") || b.endsWith(" D") || b.endsWith(" DO");
-      if (!isArglessDo) continue;
+      int dPos = arglessDoPos(b);
+      if (dPos < 0) continue;
       int j = i + 1;
       StringBuilder blk = new StringBuilder();
       List<Integer> dots = new ArrayList<>();
@@ -505,13 +508,27 @@ public final class MFrontend {
         tags.add(syn);
         bodies.add(blk.toString());
         labels.put(syn, tags.size() - 1);
-        // standalone D/DO → replace entirely; trailing D in "F ... D" → keep prefix
-        if (b.equals("D") || b.equals("DO")) {
-          bodies.set(i, "D " + syn);
+        int dEnd = dPos + arglessDoLen(b, dPos); // covers D/DO token only
+        String rest = b.substring(dEnd).trim();
+        StringBuilder head = new StringBuilder(b.substring(0, dPos).trim());
+        if (head.length() > 0) head.append(' ');
+        head.append('D');
+        if (!rest.isEmpty() && rest.charAt(0) == ':') {
+          // keep the postconditional on the synthetic call; it ends at the
+          // first space (same rule the DO compiler applies when re-parsing)
+          int sp = rest.indexOf(' ');
+          if (sp < 0) {
+            head.append(rest).append(' ').append(syn);
+            rest = "";
+          } else {
+            head.append(rest, 0, sp).append(' ').append(syn);
+            rest = rest.substring(sp + 1).trim();
+          }
         } else {
-          int dPos = b.lastIndexOf(" D");
-          bodies.set(i, b.substring(0, dPos) + " D " + syn);
+          head.append(' ').append(syn);
         }
+        if (!rest.isEmpty()) head.append(' ').append(rest);
+        bodies.set(i, head.toString());
         for (int k : dots) bodies.set(k, "");
       }
     }
@@ -541,7 +558,17 @@ public final class MFrontend {
         activePatches = null;
       }
       boolean syn = tag != null && tag.startsWith("ZD");
-      if (!syn) {
+      if (syn) {
+        // Synthetic block bodies must not fall through into the next block
+        // (multiple dotted blocks per routine are common — each ZDn body
+        // needs its own RET back to the head line's suffix).
+        if (!out.isEmpty()
+            && out.get(out.size() - 1).op != Ir.RET
+            && out.get(out.size() - 1).op != Ir.RET_TO
+            && out.get(out.size() - 1).op != Ir.JMP) {
+          out.add(Ir.ret());
+        }
+      } else {
         boolean laterOrig = false;
         for (int lj = li + 1; lj < tags.size(); lj++) {
           String tg = tags.get(lj);
@@ -654,6 +681,63 @@ public final class MFrontend {
     }
     lastTags = tagPc;
     return prog;
+  }
+
+  /**
+   * Position of an argumentless D/DO command token in a body line, or -1. Argumentless means: after
+   * the token (and any postconditional, which ends at the first space), the next non-space
+   * character is a known command, a comment start, or end of line. Quoted segments and comments are
+   * skipped so a " D " inside a string is never matched.
+   */
+  static int arglessDoPos(String b) {
+    boolean inStr = false;
+    int i = 0;
+    while (i < b.length()) {
+      char c = b.charAt(i);
+      if (inStr) {
+        if (c == '"') {
+          if (i + 1 < b.length() && b.charAt(i + 1) == '"') i++;
+          else inStr = false;
+        }
+        i++;
+        continue;
+      }
+      if (c == '"') {
+        inStr = true;
+        i++;
+        continue;
+      }
+      if (c == ';') break; // comment to end of line
+      if (c == ' ') {
+        i++;
+        continue;
+      }
+      int st = i;
+      while (i < b.length() && Character.isLetter(b.charAt(i))) i++;
+      String w = b.substring(st, i);
+      if (w.equalsIgnoreCase("D") || w.equalsIgnoreCase("DO")) {
+        int j = i;
+        if (j < b.length() && b.charAt(j) == ':') {
+          j++;
+          while (j < b.length() && b.charAt(j) != ' ' && b.charAt(j) != ';') j++;
+        }
+        int k = j;
+        while (k < b.length() && b.charAt(k) == ' ') k++;
+        if (k >= b.length() || b.charAt(k) == ';' || MFrontendUtil.isCmdStart(b, k)) {
+          return st;
+        }
+      }
+      if (i == st) i++; // non-letter token char: make progress
+      while (i < b.length() && b.charAt(i) != ' ') i++; // skip this token's tail
+    }
+    return -1;
+  }
+
+  /** Length of the D/DO token at {@code dPos} (verified to sit there by arglessDoPos). */
+  static int arglessDoLen(String b, int dPos) {
+    int i = dPos;
+    while (i < b.length() && Character.isLetter(b.charAt(i))) i++;
+    return i - dPos;
   }
 
   private void compile(String line, boolean terminate, List<Ir> sink) {
@@ -794,26 +878,17 @@ public final class MFrontend {
       out.add(Ir.jmp(-1)); // true → exit loop (patched below)
       int exitJmp = out.size() - 1;
       int bodyStart = out.size();
-      int outBefore = out.size();
       compileInto(body, out);
-      shiftPatches(outBefore);
       out.add(Ir.jmp(loopStart));
       if (exitJmp >= 0 && exitJmp < out.size()) out.set(exitJmp, Ir.jmp(out.size()));
       if (loopStart + 1 >= 0 && loopStart + 1 < out.size())
         out.set(loopStart + 1, Ir.jmp0(bodyStart));
     } else {
       int loopStart = out.size();
-      int outBefore = out.size();
       compileInto(body, out);
-      shiftPatches(outBefore);
       out.add(Ir.jmp(loopStart));
     }
     return line.length();
-  }
-
-  private void shiftPatches(int offset) {
-    if (activePatches == null || offset == 0) return;
-    for (int[] pk : activePatches) pk[1] += offset;
   }
 
   private int compileForSpec(String line, int varStart, List<Ir> out, String var) {
@@ -951,6 +1026,7 @@ public final class MFrontend {
     }
     try {
       int base = out.size();
+      int patchCountBefore = activePatches == null ? 0 : activePatches.size();
       List<Ir> tmp = compile(body, false);
       // Offset local JMP/JMP0 targets by the insertion base so they
       // resolve correctly when copied into the parent list.
@@ -959,6 +1035,14 @@ public final class MFrontend {
           out.add(new Ir(ir.op, ir.name, ir.ival, ir.dval, base + ir.iarg));
         } else {
           out.add(ir);
+        }
+      }
+      // DO/GOTO patches recorded inside this body indexed the temp list —
+      // shift only the ones created by the call above (pre-existing patches
+      // already carry final positions).
+      if (activePatches != null) {
+        for (int k = patchCountBefore; k < activePatches.size(); k++) {
+          activePatches.get(k)[1] += base;
         }
       }
     } finally {
