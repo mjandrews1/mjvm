@@ -9,32 +9,30 @@ silently replaced with RET — 223,453 ledger entries across 5,377 classes.
 The 8 hard failures (7 DATA + 1 ENGINE GAP) are unchanged and tracked
 separately.
 
-## Progress (updated 2026-10-27)
+## Progress (updated 2026-10-27, post class-4)
 
-| Metric | Baseline | After class 1 | After class 2 |
-|---|---|---|---|
-| Routines with swallowed lines | 21,452 (63.2%) | 18,811 (55.4%) | **14,430 (42.5%)** |
-| Total ledger entries | 223,453 | ~84,500 | **60,225** |
-| Dotted continuation entries | 143,964 | 2,480 | 2,483 |
-| SET target entries (+ tail) | 26,889 | 27,743 | 1,180 |
-| Hard failures | 8 | 8 | 8 |
+| Metric | Baseline | After class 1 | After class 2 | After class 4 |
+|---|---|---|---|---|
+| Routines with swallowed lines | 21,452 (63.2%) | 18,811 (55.4%) | 14,430 (42.5%) | **9,498 (28.0%)** |
+| Comma-class entries | 15,931 | ~16,500 | 17,057 | **760** |
+| Hard failures | 8 | 8 | 8 | 8 |
 
 - **Class 1 (dotted, stage 1) — DONE** (`bc23951`, `9727848`): mid-line
   argless D merger + space-separated dot levels + syn-body RET isolation.
-  Also fixed a pre-existing runtime bug invisible to the ledger:
-  `compileInto` never shifted DO/GOTO patch indices by the insertion
-  base, so `F … D` + block emitted `CALL_PC -1` and silently produced no
-  output.
 - **Class 2 (SET targets) — DONE** (`d376761`): `S (A,B)=` multi-target
   lists (value evaluated once) + quote-aware subscript scans.
-- Remaining residue after class 2 (60,225 entries / 7,451 classes):
-  **comma 17,057 (28.3%)** → **postcond 16,204 (26.9%)** → @ 4,168 →
-  dotted residue 2,483 (dotted lines with no argless-D head) →
-  $ 1,182 → SET residue 1,180 → tail 9,070 (5,553 of them
-  "SET requires = after" shapes incl. single-element lists
-  `S (X)=`, quoted-string targets, `.BYREF` in lists).
-- Small upticks in comma/postcond/@ after each fix are unmasking —
-  formerly-dotted lines now reach their inner unsupported constructs.
+- **Class 4 (comma) — DONE** (`6e2adb7`): multi-arg comma loops for
+  DO/GOTO fallback path (`D ^A,^B`), OPEN/CLOSE/USE (`O IO1,IO2`),
+  READ with `:timeout` consumption (`R X:10,Y:20`), and KILL/NEW
+  exclusive parenthesized form (`K (A,B)` / `N (A,B)`).
+  36 CommaRegression tests. Comma class: 17,057 → 760 (**−96%**).
+  Overall: 14,430 → 9,498 routines (**−4,932, −34%**).
+- Remaining residue after class 4:
+  **postcond ~9,896 (class 3, next)** → indirection ~5,649 (class 5)
+  → comma residue 760 → dotted residue ~2,483 → $ ~1,182 → SET residue
+  ~1,180 → tail.
+- Small upticks in postcond/@ after each fix are unmasking —
+  formerly-comma lines now reach their inner unsupported constructs.
 
 ## Histogram (entries ≥ 100) — baseline v2.2.2
 
@@ -152,9 +150,9 @@ only a leading `@name=`; DO/GOTO dispatch doesn't accept `@` targets.
 
 1. **Class 1 stage 1** — DONE (`bc23951`, `9727848`; 143,964 → 2,480).
 2. **Class 2** — DONE (`d376761`; 27,743 → 1,180).
-3. **Class 3** — universal postconditional at dispatch (16,204).
-4. **Class 4** — multi-arg loops for D/G/K/W (17,057).
-5. **Class 5/6** — indirection and residuals, incl. the 2,483 dotted
+3. **Class 4** — DONE (`6e2adb7`; 17,057 → 760). Comma loops for D/G/O/C/U/R + K/N exclusive.
+4. **Class 3** — universal postconditional at dispatch (~9,896 entries, now the dominant class).
+5. **Class 5/6** — indirection (~5,649) and residuals, incl. the 2,483 dotted
    no-D heads and the 5,553 "SET requires = after" tail shapes.
 6. **Class 1 stage 2** — IR-level block frames for QUIT/$TEST fidelity.
 
