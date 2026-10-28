@@ -219,42 +219,88 @@ public final class MFrontend {
             out.add(Ir.jmp0(-1)); // false → skip call
             hasPostcond = true;
           }
-          // Comma-separated target list: D ^A,^B,^C
+          // Comma-separated target list: D ^A,^B,^C — also D @TARGET,^B
           while (true) {
             i = MFrontendUtil.skipWs(line, i);
-            int tst = i;
-            while (i < line.length()
-                && (Character.isLetterOrDigit(line.charAt(i))
-                    || line.charAt(i) == '%'
-                    || line.charAt(i) == '^')) i++;
-            String target = line.substring(tst, i);
-            // TAG^ROUTINE syntax — strip the ^routine part
-            int caret = target.indexOf('^');
-            if (caret > 0) target = target.substring(0, caret);
-            // don't treat a known command as a DO target (D:1 W 1 → argless DO + W)
-            if (!target.isEmpty()
-                && MFrontendUtil.isKnownCmd(target)
-                && target.length() <= 2
-                && (i >= line.length() || line.charAt(i) == ' ' || line.charAt(i) == ':')) {
-              i = tst; // rewind — this is a new command, not a DO target
-              target = "";
-            }
-            if (target.isEmpty()) {
-              // expression form (string / $$fn) — evaluate one arg
-              if (i < line.length() && (line.charAt(i) == '"' || line.charAt(i) == '$')) {
-                List<Ir> tmp = new ArrayList<>();
-                i = compileExpr(line, i, tmp, " ,");
-                out.addAll(tmp);
-                if (cmd.equals("J") || cmd.equals("JOB")) {
-                  out.add(Ir.job());
-                } else {
-                  out.add(Ir.call(cmd, 1));
+            // Class-5: indirection target — D @NAME or D @(expr)
+            if (i < line.length() && line.charAt(i) == '@') {
+              i++;
+              // scan the indirection expression (name or parenthesized)
+              if (i < line.length() && line.charAt(i) == '(') {
+                // parenthesized indirection: @(expr) — scan to matching )
+                int depth = 0;
+                int ist = i;
+                while (i < line.length()) {
+                  char c = line.charAt(i++);
+                  if (c == '(') depth++;
+                  else if (c == ')') {
+                    depth--;
+                    if (depth == 0) break;
+                  }
                 }
+                String iexpr = line.substring(ist, i).trim();
+                out.add(Ir.evalExpr(iexpr));
+              } else {
+                // simple name indirection: @NAME
+                int ist = i;
+                while (i < line.length()
+                    && (Character.isLetterOrDigit(line.charAt(i))
+                        || line.charAt(i) == '%'
+                        || line.charAt(i) == '^'
+                        || line.charAt(i) == '(')) {
+                  if (line.charAt(i) == '(') {
+                    int depth = 0;
+                    while (i < line.length()) {
+                      char c = line.charAt(i++);
+                      if (c == '(') depth++;
+                      else if (c == ')') {
+                        depth--;
+                        if (depth == 0) break;
+                      }
+                    }
+                    break;
+                  }
+                  i++;
+                }
+                String iexpr = line.substring(ist, i).trim();
+                out.add(Ir.evalExpr(iexpr));
               }
-              // else argless DO — no-op, body continues in main loop
+              out.add(Ir.xecute()); // indirect DO/GOTO = evaluate then call
             } else {
-              out.add(Ir.call(target, 0));
-            }
+              int tst = i;
+              while (i < line.length()
+                  && (Character.isLetterOrDigit(line.charAt(i))
+                      || line.charAt(i) == '%'
+                      || line.charAt(i) == '^')) i++;
+              String target = line.substring(tst, i);
+              // TAG^ROUTINE syntax — strip the ^routine part
+              int caret = target.indexOf('^');
+              if (caret > 0) target = target.substring(0, caret);
+              // don't treat a known command as a DO target (D:1 W 1 → argless DO + W)
+              if (!target.isEmpty()
+                  && MFrontendUtil.isKnownCmd(target)
+                  && target.length() <= 2
+                  && (i >= line.length() || line.charAt(i) == ' ' || line.charAt(i) == ':')) {
+                i = tst; // rewind — this is a new command, not a DO target
+                target = "";
+              }
+              if (target.isEmpty()) {
+                // expression form (string / $$fn) — evaluate one arg
+                if (i < line.length() && (line.charAt(i) == '"' || line.charAt(i) == '$')) {
+                  List<Ir> tmp = new ArrayList<>();
+                  i = compileExpr(line, i, tmp, " ,");
+                  out.addAll(tmp);
+                  if (cmd.equals("J") || cmd.equals("JOB")) {
+                    out.add(Ir.job());
+                  } else {
+                    out.add(Ir.call(cmd, 1));
+                  }
+                }
+                // else argless DO — no-op, body continues in main loop
+              } else {
+                out.add(Ir.call(target, 0));
+              }
+            } // close non-@ else
             // check for comma-separated next target
             i = MFrontendUtil.skipWs(line, i);
             if (i < line.length() && line.charAt(i) == ',') {
@@ -303,9 +349,29 @@ public final class MFrontend {
             break;
           }
         } else if (cmd.equals("R") || cmd.equals("READ")) {
-          // R var[:timeout][,var2[:timeout2]…] — comma-separated reads with optional timeouts
+          // R var[:timeout][,var2[:timeout2]…] — also R @VAR for indirection
           while (true) {
             i = MFrontendUtil.skipWs(line, i);
+            // Class-5: READ with indirection — R @VAR
+            if (i < line.length() && line.charAt(i) == '@') {
+              i++;
+              int ist = i;
+              while (i < line.length()
+                  && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
+              String iexpr = line.substring(ist, i).trim();
+              out.add(Ir.evalExpr(iexpr));
+              out.add(Ir.xecute()); // indirect read = evaluate then xecute
+              if (i < line.length() && line.charAt(i) == ':') {
+                i++;
+                i = MFrontendUtil.scanExprEnd(line, i, " ,");
+              }
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
             int st2 = i;
             while (i < line.length()
                 && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
@@ -360,6 +426,36 @@ public final class MFrontend {
               i++;
             }
             int st3 = i;
+            // Class-5: LOCK with indirection — L +@NAME or L @("+"_X)
+            if (i < line.length() && line.charAt(i) == '@') {
+              i++;
+              int ist = i;
+              if (i < line.length() && line.charAt(i) == '(') {
+                int depth = 0;
+                while (i < line.length()) {
+                  char c = line.charAt(i++);
+                  if (c == '(') depth++;
+                  else if (c == ')') {
+                    depth--;
+                    if (depth == 0) break;
+                  }
+                }
+              } else {
+                while (i < line.length()
+                    && (Character.isLetterOrDigit(line.charAt(i))
+                        || line.charAt(i) == '%'
+                        || line.charAt(i) == '^')) i++;
+              }
+              String iexpr = line.substring(ist, i).trim();
+              out.add(Ir.evalExpr(iexpr));
+              out.add(Ir.lock(sign));
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
             while (i < line.length()
                 && (Character.isLetterOrDigit(line.charAt(i))
                     || line.charAt(i) == '%'
@@ -1249,6 +1345,28 @@ public final class MFrontend {
 
   private int compileMerge(String line, int i, List<Ir> out) {
     i = MFrontendUtil.skipWs(line, i);
+    // Class-5: MERGE with indirection — M @TO=FROM
+    if (i < line.length() && line.charAt(i) == '@') {
+      int at = i;
+      i++;
+      int ist = i;
+      while (i < line.length()
+          && (Character.isLetterOrDigit(line.charAt(i))
+              || line.charAt(i) == '%'
+              || line.charAt(i) == '^')) i++;
+      String iexpr = line.substring(ist, i).trim();
+      i = MFrontendUtil.skipWs(line, i);
+      if (i < line.length() && line.charAt(i) == '=') {
+        i++;
+        List<Ir> tmp = new ArrayList<>();
+        i = compileExpr(line, i, tmp, " ");
+        out.add(Ir.evalExpr(iexpr));
+        out.addAll(tmp);
+        // indirect MERGE = evaluate target name, evaluate source, store
+        out.add(new Ir(Ir.STORE, "@", null, 0, 0));
+      }
+      return i;
+    }
     int[] dp = new int[] {i};
     String dst = MFrontendUtil.readRefName(line, dp)[0];
     i = dp[0];
