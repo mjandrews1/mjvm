@@ -276,11 +276,11 @@ public final class MExprJava {
       sb.append(esc(name));
       for (String part : parts) {
         part = part.trim();
-        sb.append("\\u0001\"");
         if (part.matches("%[A-Za-z][A-Za-z0-9]*")) {
           // Variable subscript — generate string concat code
           return compileGlobalRefWithVars(name, parts, s, p);
         }
+        sb.append("\\u0001");
         if (part.matches("\"[^\"]*\"")) {
           sb.append(esc(part.substring(1, part.length() - 1)));
         } else if (part.matches("\\d+")) {
@@ -288,8 +288,8 @@ public final class MExprJava {
         } else {
           return null;
         }
-        sb.append("\"");
       }
+      sb.append("\"");
       return sb.toString();
     }
     return null;
