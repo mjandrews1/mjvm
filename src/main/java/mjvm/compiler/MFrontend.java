@@ -412,9 +412,95 @@ public final class MFrontend {
             break;
           }
         } else if (cmd.equals("R") || cmd.equals("READ")) {
-          // R var[:timeout][,var2[:timeout2]…] — also R @VAR for indirection
+          // R [format,]*var[:timeout][,var2[:timeout2]…] — also R @VAR for
+          // indirection. Format args before a variable: ! (newline), #
+          // (page), ?expr (column), *expr (char), "literal" (prompt) —
+          // R !!,"GO TO: ",X:DTIME. Prompt writes carry no endWrite (no
+          // trailing newline — the user's input stays on the prompt line).
           while (true) {
             i = MFrontendUtil.skipWs(line, i);
+            // format-only argument: ! and !! newlines
+            if (i < line.length() && line.charAt(i) == '!') {
+              while (i < line.length() && line.charAt(i) == '!') {
+                out.add(Ir.writeNl());
+                i++;
+              }
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
+            // format-only argument: # page eject
+            if (i < line.length() && line.charAt(i) == '#') {
+              out.add(Ir.writeNl());
+              i++;
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
+            // format-only argument: ?expr column position
+            if (i < line.length() && line.charAt(i) == '?') {
+              i++;
+              int vs = i;
+              i = MFrontendUtil.scanExprEnd(line, i, ", ");
+              List<Ir> tmp = new ArrayList<>();
+              compileExprSrc(line.substring(vs, i).trim(), tmp);
+              out.addAll(tmp);
+              out.add(Ir.writeCol());
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
+            // format-only argument: *expr character write
+            if (i < line.length() && line.charAt(i) == '*') {
+              i++;
+              int vs = i;
+              i = MFrontendUtil.scanExprEnd(line, i, ", ");
+              List<Ir> tmp = new ArrayList<>();
+              compileExprSrc(line.substring(vs, i).trim(), tmp);
+              out.addAll(tmp);
+              out.add(Ir.writeChar());
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
+            // prompt literal: "text" (with doubled quotes inside)
+            if (i < line.length() && line.charAt(i) == '"') {
+              int vs = i;
+              i++;
+              while (i < line.length()) {
+                if (line.charAt(i) == '"') {
+                  if (i + 1 < line.length() && line.charAt(i + 1) == '"') i += 2;
+                  else {
+                    i++;
+                    break;
+                  }
+                } else {
+                  i++;
+                }
+              }
+              List<Ir> tmp = new ArrayList<>();
+              compileExprSrc(line.substring(vs, i), tmp);
+              out.addAll(tmp);
+              out.add(Ir.write());
+              i = MFrontendUtil.skipWs(line, i);
+              if (i < line.length() && line.charAt(i) == ',') {
+                i++;
+                continue;
+              }
+              break;
+            }
             // Class-5: READ with indirection — R @VAR
             if (i < line.length() && line.charAt(i) == '@') {
               i++;
