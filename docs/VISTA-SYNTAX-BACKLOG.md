@@ -60,15 +60,29 @@ separately.
   GAUNTLET correctness 134/134 → **137/137** (GRP9 indirect-DO previously
   swallowed, silently skipped). 66 non-vacuous IndirectRegression checks
   across both compile paths.
-- Residue after class 5 (22,620 entries, 7,523 swallowed routines):
-  **`:` residue 5,591** (postcond/timeout on W/L own-handlers, FOR
-  `f:i:limit` colons) → **dotted residue 2,487** → **! format 2,387**
-  → **$ function 1,661** → **@ residue 1,191** →
-  **SET target must be a name 1,106** → **unexpected end 1,064** →
-  comma 769 → `"` lead 714 → SET requires = 648 → ^ global 557 →
-  `'` lead 547 → ( exclusive 497 → `[` lead 453 → % lead 214.
-- Swallowed routines: 21,452 → 18,811 → 14,430 → 9,498 → 8,752 →
-  **7,523 (22.1%)**.
+- **Class 7 (`:` residue / DO disambiguation) — DONE** (`f018ab0`, `f0fbb74`):
+  the `:` class was mostly `D N D N D N:$X>27 Q:'DN  W ?27` — FileMan
+  print-template lines calling single-letter tags that collide with
+  command words. The argumentless-DO heuristic rewound any command word
+  after D, so `D N` mis-parsed as argless DO + NEW, which consumed the
+  following Q and left `:'DN` at command position. Disambiguation
+  (corpus-verified: 12.5k one-space tag calls vs 24k two-space
+  argumentless sites): one space + a command word after D is a tag call
+  when the word is a tag of the routine, else the argumentless-block
+  reading; two spaces always argumentless; GOTO never argumentless at a
+  word. VistA's column-0 command-word tags (N, W, T, Q — `N I X="" G
+  NKEY` is tag N, not NEW) are handled by a tag-candidate name set plus
+  a parse-retry (command first, tag+body on failure), preserving mjvm's
+  direct style (`S %X=0` at column 0) and the runtime link protocol.
+  `:` entries 5,591 → **0**; total 22,620 → **11,223 (−50%)**.
+  34 DoAmbiguityRegression checks; GAUNTLET 137/137.
+- Residue after class 7 (11,223 entries, 5,694 swallowed routines,
+  16.8%): **dotted residue 2,481** → **! format 1,991** →
+  **$ function 1,073** → `" 693` → SET requires = 643 →
+  unexpected end 620 → comma 537 → **@ residue 523** →
+  ( exclusive 387 → ^ global 372.
+- Swallowed routines: 21,452 → 18,811 → 14,430 → 9,498 → 8,752 → 7,523 →
+  **5,694 (16.8%)**.
 
 ## Histogram (entries ≥ 100) — baseline v2.2.2
 
