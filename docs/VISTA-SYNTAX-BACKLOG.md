@@ -48,7 +48,27 @@ separately.
   **$ function 1,189 (4.5%)** → **^ global 557 (2.1%)** →
   **( exclusive 296 (1.1%)** → postcond-echo from WRITE/READ ~11,678
   (the grep over-approximates; most are format/timeout errors).
-- Swallowed routines: 21,452 → 18,811 → 14,430 → 9,498 → **8,752 (25.8%)**.
+- **Class 5 (@ indirection) — DONE** (`5f2e658`, `94930e6`): first pass
+  fixed only the direct-mode branch (`activeLabels == null`), which the
+  corpus never exercises — ledger moved only 26,316 → 25,997. Root cause:
+  the original IndirectRegression suite was vacuous (compileLine never
+  throws; parse errors are swallowed), so 28/28 "passed" regardless.
+  Completion (`94930e6`): @ targets in `compileDoGotoRet` (the routine
+  path), indirect D/G XECUTE `"D target"`/`"G target"` for real call/arg
+  semantics, direct-mode TARGET(args) parameter lists, LOCK `@` with
+  :timeout. @ entries 5,672 → **1,191**; total 26,316 → **22,620**.
+  GAUNTLET correctness 134/134 → **137/137** (GRP9 indirect-DO previously
+  swallowed, silently skipped). 66 non-vacuous IndirectRegression checks
+  across both compile paths.
+- Residue after class 5 (22,620 entries, 7,523 swallowed routines):
+  **`:` residue 5,591** (postcond/timeout on W/L own-handlers, FOR
+  `f:i:limit` colons) → **dotted residue 2,487** → **! format 2,387**
+  → **$ function 1,661** → **@ residue 1,191** →
+  **SET target must be a name 1,106** → **unexpected end 1,064** →
+  comma 769 → `"` lead 714 → SET requires = 648 → ^ global 557 →
+  `'` lead 547 → ( exclusive 497 → `[` lead 453 → % lead 214.
+- Swallowed routines: 21,452 → 18,811 → 14,430 → 9,498 → 8,752 →
+  **7,523 (22.1%)**.
 
 ## Histogram (entries ≥ 100) — baseline v2.2.2
 
