@@ -66,6 +66,7 @@ public final class MFrontend {
             }
           }
         }
+        int afterCmd = i; // token end BEFORE the skipWs below — separator-space anchor
         i = MFrontendUtil.skipWs(line, i);
 
         // ===== Class-3: universal postconditional at dispatch =====
@@ -168,16 +169,22 @@ public final class MFrontend {
               cmdJ0 = out.size();
               out.add(Ir.jmp0(-1)); // false → skip all args
             }
-            // Argumentless DO/GOTO: next token is a known command or EOL —
-            // no arguments, continue with the rest of the line. isCmdStart
-            // enforces a word boundary, so a target like L2 (LOCK + 2) is
-            // not mistaken for the L command.
-            int peek = MFrontendUtil.skipWs(line, i);
-            if (peek >= line.length() || line.charAt(peek) == ';') {
-              if (cmdJ0 >= 0 && cmdJ0 < out.size()) out.set(cmdJ0, Ir.jmp0(out.size()));
-              continue;
-            }
-            if (MFrontendUtil.isCmdStart(line, peek)) {
+            // Argumentless DO/GOTO (VA convention: an argumentless command is
+            // followed by TWO spaces before the next command). One space + a
+            // command word is a TAG call — VistA generated code calls
+            // single-letter tags that collide with command words (D N, D W,
+            // D P: 12.5k corpus sites vs 24k two-space argumentless sites).
+            // GOTO has no argumentless form: a word after G is always a target.
+            // With a command postconditional the separator spaces follow the
+            // condition; otherwise they follow the D/DO/G/GOTO token.
+            int sepFrom = (cmdJ0 >= 0) ? i : afterCmd;
+            int spc = sepFrom;
+            while (spc < line.length() && line.charAt(spc) == ' ') spc++;
+            int spCount = spc - sepFrom;
+            int peek = MFrontendUtil.skipWs(line, spc);
+            if (peek >= line.length()
+                || line.charAt(peek) == ';'
+                || (spCount >= 2 && !isG && MFrontendUtil.isCmdStart(line, peek))) {
               if (cmdJ0 >= 0 && cmdJ0 < out.size()) out.set(cmdJ0, Ir.jmp0(out.size()));
               continue;
             }
@@ -187,9 +194,18 @@ public final class MFrontend {
             // the FIRST argument whose postconditional (default true) is
             // satisfied — a not-taken argument falls through to the next
             // one, and if none is taken execution continues on the line.
+            // The first token was already screened by the argumentless
+            // check above — it is always a target here (D N is a tag call
+            // even though N collides with the NEW command word).
+            boolean firstArg = true;
             while (true) {
               i = MFrontendUtil.skipWs(line, i);
-              if (i >= line.length() || MFrontendUtil.isCmdStart(line, i)) break;
+              if (i >= line.length() || line.charAt(i) == ';') break;
+              if (firstArg) {
+                firstArg = false;
+              } else if (MFrontendUtil.isCmdStart(line, i)) {
+                break;
+              }
               // per-argument postconditionals (TARGET:cond) are consumed
               // by compileDoGotoRet after the target and argument list
               activeGoto = isG;
@@ -288,8 +304,14 @@ public final class MFrontend {
               // TAG^ROUTINE syntax — strip the ^routine part
               int caret = target.indexOf('^');
               if (caret > 0) target = target.substring(0, caret);
-              // don't treat a known command as a DO target (D:1 W 1 → argless DO + W)
+              // don't treat a known command as a DO target — VA convention: an
+              // argumentless command is followed by TWO spaces (D  W 1 →
+              // argless DO + W); one space means a tag call (D W → DO tag W)
+              int spb = tst;
+              while (spb > 0 && line.charAt(spb - 1) == ' ') spb--;
+              boolean wideSep = tst - spb >= 2;
               if (!target.isEmpty()
+                  && wideSep
                   && MFrontendUtil.isKnownCmd(target)
                   && target.length() <= 2
                   && (i >= line.length() || line.charAt(i) == ' ' || line.charAt(i) == ':')) {
@@ -310,20 +332,22 @@ public final class MFrontend {
                 }
                 // else argless DO — no-op, body continues in main loop
               } else {
-                // parameterful form: TARGET(expr[,expr…]) — evaluate args, call with argc
-                int argc = 0;
-                if (i < line.length() && line.charAt(i) == '(') {
-                  i++;
-                  while (i < line.length() && line.charAt(i) != ')') {
-                    int vs = i;
-                    i = MFrontendUtil.scanExprEnd(line, i, ",)");
-                    out.add(Ir.evalExpr(line.substring(vs, i).trim()));
-                    argc++;
-                    if (i < line.length() && line.charAt(i) == ',') i++;
-                  }
-                  if (i < line.length() && line.charAt(i) == ')') i++;
+                // per-target postconditional: TARGET:cond [(args)]
+                String post = null;
+                if (i < line.length() && line.charAt(i) == ':') {
+                  int cs = i + 1;
+                  i = MFrontendUtil.scanExprEnd(line, cs, " ,");
+                  post = line.substring(cs, i).trim();
                 }
-                out.add(Ir.call(target, argc));
+                if (post != null && !post.isEmpty()) {
+                  out.add(Ir.evalExpr(post));
+                  int t0 = out.size();
+                  out.add(Ir.jmp0(-1)); // false → skip this target
+                  i = emitDoGotoArgs(line, out, i, target);
+                  if (t0 < out.size()) out.set(t0, Ir.jmp0(out.size()));
+                } else {
+                  i = emitDoGotoArgs(line, out, i, target);
+                }
               }
             } // close non-@ else
             // check for comma-separated next target
@@ -925,7 +949,10 @@ public final class MFrontend {
         }
         int k = j;
         while (k < b.length() && b.charAt(k) == ' ') k++;
-        if (k >= b.length() || b.charAt(k) == ';' || MFrontendUtil.isCmdStart(b, k)) {
+        int sep = k - j;
+        // Argumentless only at EOL/';' or (VA convention) after TWO spaces
+        // before a command word; one space + command word is a tag call.
+        if (k >= b.length() || b.charAt(k) == ';' || (sep >= 2 && MFrontendUtil.isCmdStart(b, k))) {
           return st;
         }
       }
@@ -940,6 +967,24 @@ public final class MFrontend {
     int i = dPos;
     while (i < b.length() && Character.isLetter(b.charAt(i))) i++;
     return i - dPos;
+  }
+
+  /** Direct-mode DO/GOTO target: optional (args) list, then the call. Returns the new index. */
+  private int emitDoGotoArgs(String line, List<Ir> out, int i, String target) {
+    int argc = 0;
+    if (i < line.length() && line.charAt(i) == '(') {
+      i++;
+      while (i < line.length() && line.charAt(i) != ')') {
+        int vs = i;
+        i = MFrontendUtil.scanExprEnd(line, i, ",)");
+        out.add(Ir.evalExpr(line.substring(vs, i).trim()));
+        argc++;
+        if (i < line.length() && line.charAt(i) == ',') i++;
+      }
+      if (i < line.length() && line.charAt(i) == ')') i++;
+    }
+    out.add(Ir.call(target, argc));
+    return i;
   }
 
   private void compile(String line, boolean terminate, List<Ir> sink) {
