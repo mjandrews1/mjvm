@@ -239,7 +239,13 @@ public final class MFrontend {
                   }
                 }
                 String iexpr = line.substring(ist, i).trim();
-                out.add(Ir.evalExpr(iexpr));
+                out.add(
+                    Ir.evalExpr(
+                        "\""
+                            + (cmd.equals("G") || cmd.equals("GOTO") ? "G" : "D")
+                            + " \"_("
+                            + iexpr
+                            + ")"));
               } else {
                 // simple name indirection: @NAME
                 int ist = i;
@@ -263,9 +269,15 @@ public final class MFrontend {
                   i++;
                 }
                 String iexpr = line.substring(ist, i).trim();
-                out.add(Ir.evalExpr(iexpr));
+                out.add(
+                    Ir.evalExpr(
+                        "\""
+                            + (cmd.equals("G") || cmd.equals("GOTO") ? "G" : "D")
+                            + " \"_("
+                            + iexpr
+                            + ")"));
               }
-              out.add(Ir.xecute()); // indirect DO/GOTO = evaluate then call
+              out.add(Ir.xecute()); // indirect DO/GOTO: XECUTE "D target" / "G target"
             } else {
               int tst = i;
               while (i < line.length()
@@ -298,7 +310,20 @@ public final class MFrontend {
                 }
                 // else argless DO — no-op, body continues in main loop
               } else {
-                out.add(Ir.call(target, 0));
+                // parameterful form: TARGET(expr[,expr…]) — evaluate args, call with argc
+                int argc = 0;
+                if (i < line.length() && line.charAt(i) == '(') {
+                  i++;
+                  while (i < line.length() && line.charAt(i) != ')') {
+                    int vs = i;
+                    i = MFrontendUtil.scanExprEnd(line, i, ",)");
+                    out.add(Ir.evalExpr(line.substring(vs, i).trim()));
+                    argc++;
+                    if (i < line.length() && line.charAt(i) == ',') i++;
+                  }
+                  if (i < line.length() && line.charAt(i) == ')') i++;
+                }
+                out.add(Ir.call(target, argc));
               }
             } // close non-@ else
             // check for comma-separated next target
@@ -449,6 +474,13 @@ public final class MFrontend {
               String iexpr = line.substring(ist, i).trim();
               out.add(Ir.evalExpr(iexpr));
               out.add(Ir.lock(sign));
+              i = MFrontendUtil.skipWs(line, i);
+              // consume :timeout (same rule as the direct-resource path)
+              if (i < line.length() && line.charAt(i) == ':') {
+                while (i < line.length()
+                    && !MFrontendUtil.isCmdStart(line, i)
+                    && line.charAt(i) != ',') i++;
+              }
               i = MFrontendUtil.skipWs(line, i);
               if (i < line.length() && line.charAt(i) == ',') {
                 i++;
@@ -935,6 +967,55 @@ public final class MFrontend {
       boolean isGoto) {
     // Removed dead store: startI
     i = MFrontendUtil.skipWs(line, i);
+    // Class-5: indirection target — D @NAME / G @NAME / D @(expr) — the
+    // routine path (activeLabels != null) shares this handler.
+    if (i < line.length() && line.charAt(i) == '@') {
+      int j = i + 1;
+      String iexpr;
+      if (j < line.length() && line.charAt(j) == '(') {
+        int depth = 0;
+        int ist = j;
+        while (j < line.length()) {
+          char c = line.charAt(j++);
+          if (c == '(') depth++;
+          else if (c == ')') {
+            depth--;
+            if (depth == 0) break;
+          }
+        }
+        iexpr = line.substring(ist, j);
+      } else {
+        int ist = j;
+        while (j < line.length()
+            && (Character.isLetterOrDigit(line.charAt(j))
+                || line.charAt(j) == '%'
+                || line.charAt(j) == '^')) j++;
+        iexpr = line.substring(ist, j);
+      }
+      // Per-argument postconditional on the indirect target: @NAME:cond
+      String post = null;
+      if (j < line.length() && line.charAt(j) == ':') {
+        int cs = j + 1;
+        j = MFrontendUtil.scanExprEnd(line, cs, " ,");
+        post = line.substring(cs, j).trim();
+      }
+      // Indirect DO/GOTO: the evaluated string is a TARGET (TAG[^ROUTINE][(args)]),
+      // not code — XECUTE it as "D target" / "G target" so the argument parser
+      // (and per-target postconditional/args semantics) applies.
+      String indirect = "\"" + (isGoto ? "G" : "D") + " \"_(" + iexpr + ")";
+      if (post != null && !post.isEmpty()) {
+        out.add(Ir.evalExpr(post));
+        int p0 = out.size();
+        out.add(Ir.jmp0(-1)); // false → skip this indirect target
+        out.add(Ir.evalExpr(indirect));
+        out.add(Ir.xecute());
+        if (p0 < out.size()) out.set(p0, Ir.jmp0(out.size()));
+      } else {
+        out.add(Ir.evalExpr(indirect));
+        out.add(Ir.xecute());
+      }
+      return j;
+    }
     if (i + 1 < line.length() && line.charAt(i) == '$' && line.charAt(i + 1) == '$') {
       i += 2;
       int tst = i;
