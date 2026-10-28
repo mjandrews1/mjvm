@@ -170,11 +170,13 @@ public final class MFrontend {
               out.add(Ir.jmp0(-1)); // false → skip all args
             }
             // Argumentless DO/GOTO (VA convention: an argumentless command is
-            // followed by TWO spaces before the next command). One space + a
-            // command word is a TAG call — VistA generated code calls
-            // single-letter tags that collide with command words (D N, D W,
-            // D P: 12.5k corpus sites vs 24k two-space argumentless sites).
-            // GOTO has no argumentless form: a word after G is always a target.
+            // followed by TWO spaces before the next command). One space +
+            // a command word is a TAG call when that word is a label of this
+            // routine — VistA generated code calls single-letter tags that
+            // collide with command words (D N, D W, D P: 12.5k corpus sites).
+            // When it is NOT a label (D:cond K ^X, D G TRN sloppy forms),
+            // the argumentless-block reading wins. GOTO has no argumentless
+            // form: a word after G is always a target.
             // With a command postconditional the separator spaces follow the
             // condition; otherwise they follow the D/DO/G/GOTO token.
             int sepFrom = (cmdJ0 >= 0) ? i : afterCmd;
@@ -182,9 +184,18 @@ public final class MFrontend {
             while (spc < line.length() && line.charAt(spc) == ' ') spc++;
             int spCount = spc - sepFrom;
             int peek = MFrontendUtil.skipWs(line, spc);
-            if (peek >= line.length()
-                || line.charAt(peek) == ';'
-                || (spCount >= 2 && !isG && MFrontendUtil.isCmdStart(line, peek))) {
+            boolean argless;
+            if (peek >= line.length() || line.charAt(peek) == ';') {
+              argless = true;
+            } else if (!isG
+                && spCount >= 1
+                && MFrontendUtil.isCmdStart(line, peek)
+                && (spCount >= 2 || !isLabelAt(line, peek, activeTagNames))) {
+              argless = true;
+            } else {
+              argless = false;
+            }
+            if (argless) {
               if (cmdJ0 >= 0 && cmdJ0 < out.size()) out.set(cmdJ0, Ir.jmp0(out.size()));
               continue;
             }
@@ -306,12 +317,15 @@ public final class MFrontend {
               if (caret > 0) target = target.substring(0, caret);
               // don't treat a known command as a DO target — VA convention: an
               // argumentless command is followed by TWO spaces (D  W 1 →
-              // argless DO + W); one space means a tag call (D W → DO tag W)
+              // argless DO + W); a postconditional also forces the block
+              // reading (D:cond K ^X). One space without a postconditional
+              // means a tag call (D W → DO tag W) — standards-correct for
+              // XECUTE'd code, where no label table is available.
               int spb = tst;
               while (spb > 0 && line.charAt(spb - 1) == ' ') spb--;
               boolean wideSep = tst - spb >= 2;
               if (!target.isEmpty()
-                  && wideSep
+                  && (wideSep || hasPostcond)
                   && MFrontendUtil.isKnownCmd(target)
                   && target.length() <= 2
                   && (i >= line.length() || line.charAt(i) == ' ' || line.charAt(i) == ':')) {
@@ -646,6 +660,7 @@ public final class MFrontend {
   }
 
   private java.util.Map<String, Integer> activeLabels;
+  private java.util.Set<String> activeTagNames;
   private java.util.List<int[]> activePatches;
   private volatile int activeSelfLine;
   private volatile boolean activeGoto;
@@ -668,6 +683,11 @@ public final class MFrontend {
     List<String> tags = new ArrayList<>();
     java.util.Map<String, Integer> labels = new java.util.LinkedHashMap<>();
     java.util.Map<String, String> formalsOf = new java.util.LinkedHashMap<>();
+    // Lines that sit at column 0, are tag-shaped, and start with a command
+    // word — tags in VistA generated code, command lines in direct style.
+    java.util.BitSet cmdTagCandidate = new java.util.BitSet();
+    // Every tag name plus the candidates above — the D/G disambiguation set.
+    java.util.Set<String> tagNames = new java.util.HashSet<>();
     for (String raw : raws) {
       String tag = null;
       String body = raw;
@@ -679,6 +699,20 @@ public final class MFrontend {
         if (!name.isEmpty()) {
           char nxt = i < raw.length() ? raw.charAt(i) : ' ';
           boolean tagShape = (nxt == ' ' || nxt == '(' || i == raw.length());
+          // Column-0 + tag shape: a plain tag. When the name collides with a
+          // command word the line still parses as a command line (mjvm
+          // direct style: "S %X=0" at column 0) — but the name is recorded
+          // as a label candidate: VistA generated code defines tags like
+          // N, W, T at column 0 ("N I X="""" G NKEY" is tag N, not NEW).
+          // D/G disambiguation and call resolution must see it, and the
+          // body loop retries the line as tag + body when the command
+          // parse fails.
+          if (tagShape && MFrontendUtil.isKnownCmd(name)) {
+            cmdTagCandidate.set(tags.size());
+            tagNames.add(name.toUpperCase(java.util.Locale.ROOT));
+          } else {
+            cmdTagCandidate.clear(tags.size());
+          }
           if (tagShape && !MFrontendUtil.isKnownCmd(name)) {
             tag = name;
             if (i < raw.length() && raw.charAt(i) == '(') {
@@ -702,7 +736,10 @@ public final class MFrontend {
       }
       tags.add(tag);
       bodies.add(body);
-      if (tag != null) labels.putIfAbsent(tag.toUpperCase(java.util.Locale.ROOT), tags.size() - 1);
+      if (tag != null) {
+        labels.putIfAbsent(tag.toUpperCase(java.util.Locale.ROOT), tags.size() - 1);
+        tagNames.add(tag.toUpperCase(java.util.Locale.ROOT));
+      }
     }
     // Argumentless DO + dotted block: [prefix] D[...postcond] [suffix]
     //   →  prefix D ZDn suffix  +  tag ZDn (dotted bodies joined).
@@ -712,7 +749,7 @@ public final class MFrontend {
     // prefix-empty / suffix-empty special cases of the same rewrite.
     for (int i = 0; i < bodies.size(); i++) {
       String b = bodies.get(i).trim();
-      int dPos = arglessDoPos(b);
+      int dPos = arglessDoPos(b, tagNames);
       if (dPos < 0) continue;
       int j = i + 1;
       StringBuilder blk = new StringBuilder();
@@ -768,19 +805,47 @@ public final class MFrontend {
       String tag = tags.get(li);
       String body = bodies.get(li);
       activeLabels = labels;
+      activeTagNames = tagNames;
       activePatches = patches;
       activeSelfLine = li;
+      int prevSwallowCount = swallowedCompileErrors.size();
       compileDepth.incrementAndGet();
       try {
         compile(body, false, out);
       } catch (MError e) {
-        System.err.println("compile error at " + tag + ": " + e.getMessage());
-        swallowedCompileErrors.add("line " + li + " (" + tag + "): " + e.getMessage());
-        out.clear();
-        out.add(Ir.ret());
+        // Column-0 command-word line that failed to parse as commands:
+        // in VistA generated code it is a TAG line ("N I X="" G NKEY…").
+        // Retry with the leading command word as the tag.
+        boolean retried = false;
+        if (cmdTagCandidate.get(li)) {
+          String rb = body;
+          int ci = 0;
+          while (ci < rb.length() && Character.isLetter(rb.charAt(ci))) ci++;
+          if (ci > 0 && ci < rb.length() && rb.charAt(ci) == ' ') {
+            out.clear();
+            try {
+              compile(rb.substring(ci + 1).trim(), false, out);
+              retried = true;
+            } catch (MError e2) {
+              // Both readings failed: keep the original command-parse error —
+              // it carries the real diagnostic (depth limit, SET list target…).
+              System.err.println("compile error at " + tag + ": " + e.getMessage());
+              swallowedCompileErrors.add("line " + li + " (" + tag + "): " + e.getMessage());
+              out.clear();
+              out.add(Ir.ret());
+            }
+          }
+        }
+        if (!retried && swallowedCompileErrors.size() == prevSwallowCount) {
+          System.err.println("compile error at " + tag + ": " + e.getMessage());
+          swallowedCompileErrors.add("line " + li + " (" + tag + "): " + e.getMessage());
+          out.clear();
+          out.add(Ir.ret());
+        }
       } finally {
         compileDepth.decrementAndGet();
         activeLabels = null;
+        activeTagNames = null;
         activePatches = null;
       }
       boolean syn = tag != null && tag.startsWith("ZD");
@@ -915,7 +980,7 @@ public final class MFrontend {
    * character is a known command, a comment start, or end of line. Quoted segments and comments are
    * skipped so a " D " inside a string is never matched.
    */
-  static int arglessDoPos(String b) {
+  static int arglessDoPos(String b, java.util.Set<String> tagNames) {
     boolean inStr = false;
     int i = 0;
     while (i < b.length()) {
@@ -950,9 +1015,11 @@ public final class MFrontend {
         int k = j;
         while (k < b.length() && b.charAt(k) == ' ') k++;
         int sep = k - j;
-        // Argumentless only at EOL/';' or (VA convention) after TWO spaces
-        // before a command word; one space + command word is a tag call.
-        if (k >= b.length() || b.charAt(k) == ';' || (sep >= 2 && MFrontendUtil.isCmdStart(b, k))) {
+        // Argumentless at EOL/';', or before a command word that is not a
+        // label of this routine (VA two-space convention; one space + a
+        // label-colliding command word is a tag call: D N).
+        if (k >= b.length() || b.charAt(k) == ';') return st;
+        if (MFrontendUtil.isCmdStart(b, k) && (sep >= 2 || !isLabelAt(b, k, tagNames))) {
           return st;
         }
       }
@@ -967,6 +1034,15 @@ public final class MFrontend {
     int i = dPos;
     while (i < b.length() && Character.isLetter(b.charAt(i))) i++;
     return i - dPos;
+  }
+
+  /** True when the letter token at {@code peek} is a tag (or tag candidate) of the routine. */
+  static boolean isLabelAt(String line, int peek, java.util.Set<String> tagNames) {
+    if (tagNames == null) return false;
+    int t = peek;
+    while (t < line.length() && Character.isLetter(line.charAt(t))) t++;
+    return t > peek
+        && tagNames.contains(line.substring(peek, t).toUpperCase(java.util.Locale.ROOT));
   }
 
   /** Direct-mode DO/GOTO target: optional (args) list, then the call. Returns the new index. */

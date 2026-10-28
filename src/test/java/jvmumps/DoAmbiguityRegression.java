@@ -23,7 +23,8 @@ public final class DoAmbiguityRegression {
     List<String> swallowed;
     try {
       if (routinePath) {
-        ir = fe.compileProgram("RTN ; test\nLBL " + src + "\n Q");
+        // column-0 tag N (command-word collision) as in FileMan templates
+        ir = fe.compileProgram("RTN ; test\nN W \"n\"\n Q\nLBL " + src + "\n Q");
         swallowed = fe.lastSwallowedErrors();
       } else {
         ir = fe.compileLine(src);
@@ -60,6 +61,32 @@ public final class DoAmbiguityRegression {
     check(src, true);
   }
 
+  /** Full routine (tags at column 0) must compile with nothing swallowed. */
+  static void routine(String code) {
+    MFrontend fe = new MFrontend();
+    List<Ir> ir;
+    List<String> swallowed;
+    try {
+      ir = fe.compileProgram(code);
+      swallowed = fe.lastSwallowedErrors();
+    } catch (Exception | StackOverflowError e) {
+      failed++;
+      System.out.println("FAIL [routine-full] -> " + e);
+      return;
+    }
+    if (!swallowed.isEmpty()) {
+      failed++;
+      System.out.println("FAIL [routine-full] swallowed: " + swallowed.get(0));
+      return;
+    }
+    if (ir.isEmpty()) {
+      failed++;
+      System.out.println("FAIL [routine-full] produced no IR");
+      return;
+    }
+    passed++;
+  }
+
   public static void main(String[] args) {
     System.out.println("== DO disambiguation regression ==");
 
@@ -83,6 +110,18 @@ public final class DoAmbiguityRegression {
     both("G  W");
     // per-argument postconditional still parses
     both("D A:1 Q:'DN  W ?27");
+
+    // column-0 command-word tags (VistA generated code): tag N, not NEW
+    routine(
+        "RTN ; t\n"
+            + "N I X=\"\" G A:DV'[\"R\",X:'DV,X:D'>0,A\n"
+            + " Q\n"
+            + "LBL D N D N D N:$X>27 Q:'DN  W ?27\n"
+            + " Q");
+    // conditional argumentless block: D:cond K — one space, K not a label
+    both("D:X K ^UTILITY($J)");
+    both("D:DIKM1>0 K ^DIK(DIKZ1)");
+    routine("RTN ; t\nK S X=QUX K QUX Q\n Q\nLBL D:DIKZ1'=DH(1) K DA D:DIKZ1'=DH(1) SET D DA\n Q");
 
     System.out.println();
     System.out.println("  summary: pass=" + passed + "  fail=" + failed);
