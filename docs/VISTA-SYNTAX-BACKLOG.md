@@ -76,13 +76,21 @@ separately.
   direct style (`S %X=0` at column 0) and the runtime link protocol.
   `:` entries 5,591 → **0**; total 22,620 → **11,223 (−50%)**.
   34 DoAmbiguityRegression checks; GAUNTLET 137/137.
-- Residue after class 7 (11,223 entries, 5,694 swallowed routines,
-  16.8%): **dotted residue 2,481** → **! format 1,991** →
-  **$ function 1,073** → `" 693` → SET requires = 643 →
-  unexpected end 620 → comma 537 → **@ residue 523** →
-  ( exclusive 387 → ^ global 372.
+- **Class 8 (`!` format / READ prompts) — DONE** (`c01b0a4`): READ accepted
+  only variables; the 1,991 `!` entries were prompts like
+  `R !!,"GO TO: ",X:DTIME` — format args left the whole argument list at
+  command position. The READ argument loop now handles format-only args
+  before a variable: `!` (one writeNl per !), `#`, `?expr` (writeCol),
+  `*expr` (writeChar), `"literal"` prompts (write, doubled-quote aware;
+  no endWrite — the input stays on the prompt line). `!` entries
+  1,991 → **113**; total 11,223 → **9,082**. 22 ReadFormatRegression
+  checks; GAUNTLET 137/137.
+- Residue after class 8 (9,082 entries, 4,667 swallowed routines,
+  13.7%): **dotted residue 2,481** → **$ function 1,074** →
+  SET requires = 643 → unexpected end 620 → comma 536 →
+  **@ residue 524** → `" 501` → ( exclusive 385 → ^ global 372.
 - Swallowed routines: 21,452 → 18,811 → 14,430 → 9,498 → 8,752 → 7,523 →
-  **5,694 (16.8%)**.
+  5,694 → **4,667 (13.7%)**.
 
 ## Histogram (entries ≥ 100) — baseline v2.2.2
 
