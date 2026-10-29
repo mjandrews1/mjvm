@@ -6,11 +6,9 @@ FORNEST WRITE line-break per command in routine mode (RSM-lineage)
 FORIF WRITE line-break per command in routine mode (RSM-lineage)
 FORARG WRITE line-break per command in routine mode (RSM-lineage)
 QFOR WRITE line-break per command in routine mode (RSM-lineage)
-GWALK WRITE line-break per command in routine mode (RSM-lineage)
 SUBGLOB WRITE line-break per command in routine mode (RSM-lineage)
 DOTFOR WRITE line-break per command in routine mode (RSM-lineage)
 ETRAP1 $ETRAP: mJVM/RSM run the handler and continue (prints "after"); GT.M reports the error text after the trap and halts (corpus C115/C116 sanction RSM behavior)
 IFELSE ELSE binding — the known corpus upstream miss T12.ELSE-binding
-SUBGWALK WRITE line-break per command in routine mode (RSM-lineage); values correct post-#15 — serves as the #15 regression
 DIVZERO divide by zero: mJVM/RSM yield 0 (corpus C14 sanctions; pymumps crashes with ZeroDivisionError); GT.M errors with %GTM-E-DIVZERO — engine-family split, mJVM on the corpus side
 SSTACK $STACK/$ST at top level: RSM/pymumps/mJVM give $ST=0, $ST(0)="RUN"; GT.M gives 1, "-direct" — RSM-lineage
