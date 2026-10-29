@@ -1026,13 +1026,16 @@ public final class ExprEval {
     } else if (op.equals("'[")) {
       res = !a.asStr().contains(b.asStr());
     } else if (op.equals("']")) {
-      res = !a.asStr().contains(b.asStr());
+      // GT.M: '] negates ] (sorts-after), NOT [ (contains) — mjvm#28
+      res = !(a.asStr().compareTo(b.asStr()) > 0);
     } else if (op.equals("]")) {
       res = a.asStr().compareTo(b.asStr()) > 0;
     } else if (op.equals("]]")) {
-      res = follows(a.asStr(), b.asStr());
+      // GT.M ]] numeric collation: numbers compare numerically and sort
+      // BEFORE non-numeric strings; two strings compare lexically — mjvm#28
+      res = numCollAfter(a, b);
     } else if (op.equals("']]")) {
-      res = !follows(a.asStr(), b.asStr());
+      res = !numCollAfter(a, b);
     } else {
       throw new MError("bad rel op " + op);
     }
@@ -1066,6 +1069,33 @@ public final class ExprEval {
   static boolean follows(String a, String b) {
     // M ]]: a sorts after b
     return a.compareTo(b) > 0;
+  }
+
+  /**
+   * GT.M ]] numeric collation (mjvm#28), canonical MUMPS order: the null string sorts first, then
+   * numbers (numerically, "007" = 7), then non-numeric strings (lexically). Two numeric operands
+   * compare numerically; a number sorts before a non-numeric string; two strings compare lexically.
+   * Verified cell-by-cell against GT.M by tools/opmatrix.m.
+   */
+  static boolean numCollAfter(MValue a, MValue b) {
+    if (a.asStr().isEmpty()) {
+      return false;
+    }
+    if (b.asStr().isEmpty()) {
+      return true;
+    }
+    boolean an = a.isnum || numericStr(a.asStr());
+    boolean bn = b.isnum || numericStr(b.asStr());
+    if (an && bn) {
+      return a.asNum() > b.asNum();
+    }
+    if (an) {
+      return false;
+    }
+    if (bn) {
+      return true;
+    }
+    return a.asStr().compareTo(b.asStr()) > 0;
   }
 
   static boolean cmpNum(String op, double x, double y) {

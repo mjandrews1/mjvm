@@ -122,7 +122,9 @@ public final class MExprJava {
       }
     }
     // Comparison: A=B, A<B, A>B, A<=B, A>=B, A'=B, A'<B, A'>B
-    for (String op : new String[] {"'<=", "'>=", "'=", "'<", "'>", "<=", ">=", "=", "<", ">"}) {
+    // No '<= / '>=: GT.M rejects those constructs (RHMISSING); leaving them out makes the
+    // emitter fall back to the runtime evaluator, which rejects them too.
+    for (String op : new String[] {"'=", "'<", "'>", "<=", ">=", "=", "<", ">"}) {
       int idx = findTopLevel(e, op);
       if (idx > 0) {
         String left = e.substring(0, idx).trim();
@@ -135,8 +137,8 @@ public final class MExprJava {
                 case "=", "'=" -> "==";
                 case "<", "'<" -> "<";
                 case ">", "'>" -> ">";
-                case "<=", "'<=" -> "<=";
-                case ">=", "'>=" -> ">=";
+                case "<=" -> "<=";
+                case ">=" -> ">=";
                 default -> "==";
               };
           boolean negate = op.startsWith("'");
@@ -157,8 +159,8 @@ public final class MExprJava {
                   + "-2] = jvmumps.MValue.ofNumber((x "
                   + jop
                   + " y) "
-                  + (negate ? "?" : "?")
-                  + " 1 : 0); "
+                  + (negate ? "? 0 : 1" : "? 1 : 0")
+                  + "); "
                   + p
                   + "--; }\n";
           return code;
