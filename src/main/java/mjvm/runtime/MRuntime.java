@@ -580,6 +580,20 @@ public final class MRuntime {
     return store.get(key, glob);
   }
 
+  /**
+   * Peek without throwing: the pre-NEW value for IrMachine's NEW journal (mjvm#23). Returns null
+   * when the variable is undefined.
+   */
+  MValue peekVar(String name) {
+    MValue cached = locals.get(name);
+    if (cached != null) return cached;
+    try {
+      return getVar(name);
+    } catch (jvmumps.MError e) {
+      return null;
+    }
+  }
+
   /** Get numeric value directly (skips string format/parse). */
   @SuppressWarnings("RedundantThrows")
   public double getNum(String name) {

@@ -92,6 +92,17 @@ public final class IrMachine {
   /** Thread-local return-address stack — avoids ArrayDeque allocation per call. */
   private static final ThreadLocal<int[]> RETS_POOL = ThreadLocal.withInitial(() -> new int[64]);
 
+  /**
+   * NEW journal for DO-tag scoping (mjvm#23): CALL_PC records the journal depth; Ir.NEW appends
+   * (name, pre-NEW value); RET restores every entry down to the frame's depth. Threads re-entering
+   * run() nest correctly because depth is recorded per frame.
+   */
+  private static final ThreadLocal<String[]> NEWNAME_POOL =
+      ThreadLocal.withInitial(() -> new String[256]);
+
+  private static final ThreadLocal<MValue[]> NEWVAL_POOL =
+      ThreadLocal.withInitial(() -> new MValue[256]);
+
   /** Thread-local args buffer — avoids allocating MValue[] per CALL. */
   private static final ThreadLocal<MValue[]> ARGS_POOL =
       ThreadLocal.withInitial(() -> new MValue[16]);
@@ -103,6 +114,29 @@ public final class IrMachine {
     return v != null ? v : MValue.ofNumber(dvals[i]);
   }
 
+  /**
+   * Restore NEW-journal entries down to the frame's recorded depth (mjvm#23): a journaled null
+   * means the variable was undefined before NEW — remove it again; otherwise set the saved value
+   * back. Returns the new journal top.
+   */
+  private static int restoreNews(
+      MRuntime rt, String[] newNames, MValue[] newVals, int newTop, int depth) {
+    while (newTop > depth) {
+      newTop--;
+      String n = newNames[newTop];
+      MValue v = newVals[newTop];
+      if (n == null) continue;
+      if (v == null) {
+        rt.newVar(n); // remove again (was undefined before NEW)
+      } else {
+        rt.setVar(n, v);
+      }
+      newNames[newTop] = null;
+      newVals[newTop] = null;
+    }
+    return newTop;
+  }
+
   private @SuppressWarnings({
     "DLS_DEAD_LOCAL_STORE",
     "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
@@ -111,10 +145,14 @@ public final class IrMachine {
   }) static jvmumps.MValue run(List<Ir> prog, MRuntime rt, int startPc, MValue[] args) {
     MValue[] vals = VALS_POOL.get();
     double[] dvals = DVALS_POOL.get();
+    String[] newNames = NEWNAME_POOL.get();
+    MValue[] newVals = NEWVAL_POOL.get();
+    int newTop = 0;
     int[] spA = {0}; // array wrapper for popVal
     int sp = 0;
     int pc = startPc;
     int[] rets = RETS_POOL.get();
+    final int[] newFrameDepth = new int[rets.length]; // per-frame NEW-journal depth
     int rsp = 0;
     MValue lastStored = MValue.EMPTY;
 
@@ -391,7 +429,15 @@ public final class IrMachine {
         case Ir.TSTART -> rt.tstart();
         case Ir.TCOMMIT -> rt.tcommit();
         case Ir.TROLLBACK -> rt.trollback();
-        case Ir.NEW -> rt.newVar(op.name);
+        case Ir.NEW -> {
+          // mjvm#23: journal the pre-NEW value so RET from a DO tag can restore it
+          if (newTop < newNames.length) {
+            newNames[newTop] = op.name;
+            newVals[newTop] = rt.peekVar(op.name);
+            newTop++;
+          }
+          rt.newVar(op.name);
+        }
         case Ir.KILL -> {
           if ("@".equals(op.name)) {
             MValue tv = vals[--sp];
@@ -417,12 +463,15 @@ public final class IrMachine {
               op.name, parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), v.asStr());
         }
         case Ir.CALL_PC -> {
-          rets[rsp++] = pc + 1;
+          rets[rsp] = pc + 1;
+          newFrameDepth[rsp] = newTop;
+          rsp++;
           pc = op.iarg;
           continue;
         }
         case Ir.RET_TO -> {
           if (rsp == 0) return extrinsic ? rt.takeExtrinsicValue() : null;
+          newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
           pc = rets[--rsp];
           continue;
         }
@@ -433,6 +482,7 @@ public final class IrMachine {
             rt.setExtrinsicValue(ev != null ? ev : MValue.ofNumber(dvals[sp]));
           }
           if (rsp > 0) {
+            newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
             pc = rets[--rsp];
             continue;
           }
@@ -440,6 +490,7 @@ public final class IrMachine {
         }
         case Ir.RET -> {
           if (rsp > 0) {
+            newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
             pc = rets[--rsp];
             continue;
           }

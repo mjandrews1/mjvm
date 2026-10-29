@@ -14,7 +14,6 @@ IFCOMMA mjvm#17
 WCONDP mjvm#21
 DATAV mjvm#22 (comma-W literal+var lines degrade to RET: silent truncation facet)
 ORDERUP mjvm#22 (same)
-NEWDO mjvm#23 (NEW in DO tag does not restore)
 GWALK mjvm#19 (the $O-walk same-line body truncates to one iteration; after #19 the residual is the WRITE-break upstream class)
 SUBGWALK mjvm#19 (same)
 WDROP mjvm#24 (after #24 is fixed this still diverges via the WRITE-break class — move the annotation to known-divergence then)
