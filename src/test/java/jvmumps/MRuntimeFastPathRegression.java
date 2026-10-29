@@ -54,6 +54,8 @@ public final class MRuntimeFastPathRegression {
 
     // --- subscripted names: SubRef cache (#7) ---
     eval("S I=1 S A(I)=\"one\" S I=2 S A(I)=\"two\" W A(1),A(2),!", "onetwo\n");
+    // subscripted local with a CHANGED subscript must re-resolve (raw-key locals cache bug)
+    eval("S I=1 S A(I)=\"one\" S I=2 S A(I)=\"two\" W A(I),!", "two\n");
     eval("S A(3.50)=\"x\" W $O(A(\"\")),!", "3.5\n"); // numeric literal canonicalizes
     // quoted literal sub — mJVM keeps doubled quotes (matches subOf; fast path is transparent)
     eval("S A(\"k\"\"q\")=1 S K=$O(A(\"\")) W K,!", "k\"\"q\n");

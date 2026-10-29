@@ -598,7 +598,10 @@ public final class MRuntime {
     if (glob) {
       store.setNum(key, true, val);
     } else {
-      locals.put(name, MValue.ofNumber(val));
+      // Subscripted names must not enter the raw-key locals cache: the key would be the
+      // unevaluated name (e.g. "A(I)"), stale whenever the subscript changes. The store is
+      // the truth for subscripted values; getVar resolves via keyOf.
+      if (name.indexOf('(') < 0) locals.put(name, MValue.ofNumber(val));
       store.setNum(key, false, val);
     }
   }
@@ -629,7 +632,9 @@ public final class MRuntime {
     if (glob) {
       store.set(path, true, v);
     } else {
-      locals.put(name, v);
+      // No raw-key locals cache for subscripted names (stale when the subscript changes —
+      // S I=1 S A(I)="one" S I=2 W A(I) must read the store, not "A(I)")
+      if (name.indexOf('(') < 0) locals.put(name, v);
       store.set(path, false, v);
     }
   }
@@ -1181,7 +1186,7 @@ public final class MRuntime {
           locals.remove(nm);
           store.kill(path, path.get(0).startsWith("^"));
         } else {
-          if (!path.get(0).startsWith("^")) {
+          if (!path.get(0).startsWith("^") && nm.indexOf('(') < 0) {
             locals.put(nm, old);
           }
           store.set(path, path.get(0).startsWith("^"), old);
