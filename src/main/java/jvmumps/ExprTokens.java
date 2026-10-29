@@ -152,12 +152,16 @@ final class ExprTokens {
         i += 2;
         continue;
       }
+      if (s.startsWith("']]", i) || s.startsWith("'<=", i) || s.startsWith("'>=", i)) {
+        out.add(new Tok(Kind.OP, s.substring(i, i + 3)));
+        i += 3;
+        continue;
+      }
       if (s.startsWith("'<", i)
           || s.startsWith("'>", i)
           || s.startsWith("'=", i)
           || s.startsWith("'<", i)
           || s.startsWith("'[", i)
-          || s.startsWith("']]", i)
           || s.startsWith("']", i)) {
         out.add(new Tok(Kind.OP, s.substring(i, i + 2)));
         i += 2;

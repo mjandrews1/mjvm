@@ -452,15 +452,27 @@ public final class ExprEval {
             m = !m;
           }
           a = m ? MValue.ofNumber(1) : MValue.ofNumber(0);
-        } else if (isOp("=", "'=", "<", ">", "<=", ">=", "'<", "'>", "[", "']", "]", "]]")) {
+        } else if (isOp(
+            "=", "'=", "<", ">", "<=", ">=", "'<", "'>", "[", "']", "]", "]]", "'[", "']]")) {
           if (concatBuf != null) {
             a = MValue.ofString(concatBuf.toString());
             concatBuf = null;
           }
           String op = takeOp();
           MValue b = unary();
-          // Fast path: both numeric, use primitive comparison
-          if (a.isnum && b.isnum) {
+          // Fast path: both numeric, use primitive comparison. The string
+          // operators ([ ' [ ] ]] coerce operands to strings (123[2 is "123"
+          // contains "2" = 1), so they must always go through compare().
+          boolean numericOp =
+              op.equals("=")
+                  || op.equals("'=")
+                  || op.equals("<")
+                  || op.equals(">")
+                  || op.equals("<=")
+                  || op.equals(">=")
+                  || op.equals("'<")
+                  || op.equals("'>");
+          if (a.isnum && b.isnum && numericOp) {
             double x = a.num, y = b.num;
             boolean r;
             switch (op) {
@@ -1011,12 +1023,16 @@ public final class ExprEval {
       }
     } else if (op.equals("[")) {
       res = a.asStr().contains(b.asStr());
+    } else if (op.equals("'[")) {
+      res = !a.asStr().contains(b.asStr());
     } else if (op.equals("']")) {
       res = !a.asStr().contains(b.asStr());
     } else if (op.equals("]")) {
       res = a.asStr().compareTo(b.asStr()) > 0;
     } else if (op.equals("]]")) {
       res = follows(a.asStr(), b.asStr());
+    } else if (op.equals("']]")) {
+      res = !follows(a.asStr(), b.asStr());
     } else {
       throw new MError("bad rel op " + op);
     }
