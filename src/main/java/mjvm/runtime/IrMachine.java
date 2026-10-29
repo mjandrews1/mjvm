@@ -155,8 +155,10 @@ public final class IrMachine {
     if (extrinsic) {
       for (MValue a : args) vals[sp++] = a == null ? MValue.EMPTY : a;
     }
-    while (pc >= 0 && pc < prog.size() && !rt.isQuit()) {
-      Ir op = prog.get(pc);
+    final int progSize = prog.size();
+    final Ir[] ops = prog.toArray(new Ir[0]); // mjvm#14: array dispatch beats per-op List.get
+    while (pc >= 0 && pc < progSize && !rt.isQuit()) {
+      Ir op = ops[pc];
       switch (op.op) {
         case Ir.PUSH -> {
           if (op.iarg == 1) {
@@ -167,8 +169,9 @@ public final class IrMachine {
           }
         }
         case Ir.LOAD -> {
-          // Check pre-read cache first (batched global reads)
-          jvmumps.MValue cached = preRead.get(op.name);
+          // Check pre-read cache first (batched global reads); empty in the common case,
+          // so guard the map probe (mjvm#14)
+          jvmumps.MValue cached = preRead.isEmpty() ? null : preRead.get(op.name);
           if (cached != null) {
             if (cached.isnum) {
               dvals[sp] = cached.num;
@@ -196,8 +199,8 @@ public final class IrMachine {
           rt.setVar(op.name, v);
         }
         case Ir.STORE -> {
-          // Invalidate pre-read cache for this key
-          if (op.name != null) preRead.remove(op.name);
+          // Invalidate pre-read cache for this key (guarded — usually empty)
+          if (op.name != null && !preRead.isEmpty()) preRead.remove(op.name);
           MValue v = vals[--sp];
           if (v == null) v = MValue.ofNumber(dvals[sp]);
           lastStored = v;
@@ -211,7 +214,7 @@ public final class IrMachine {
           }
         }
         case Ir.STORE_ADD -> {
-          if (op.name != null) preRead.remove(op.name);
+          if (op.name != null && !preRead.isEmpty()) preRead.remove(op.name);
           // Atomic increment: pop amount, use store.increment for single-op
           MValue inc = vals[--sp];
           MValue nv = rt.incrementVar(op.name, inc.asNum());
