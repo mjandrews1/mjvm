@@ -2,6 +2,13 @@
 
 ## 2026-10-29 (late) — MRuntime hot paths (mjvm#6/#7/#8, commit 3bd0ecb)
 
+Dispatch levers (mjvm#14, commit 2a8582f): ops-array dispatch + guarded preRead probes —
+INTLOOP 0.129→0.119s (238ns/iter, 6.6x GT.M), ASET 0.032→0.029s. `--class` re-measure after
+the hot-path work: INTLOOP class=0.070s vs IR=0.119s steady-state (~1.7x, unchanged ratio;
+javac still ~0.4s one-shot) — the #9 decision (keep IR default for file runs) stands. The
+remaining gap is structural: ~6 Ir ops per M statement with MValue boxing — next lever is op
+fusion / superinstructions, not dispatch.
+
 Per-call ablation (warmed JVM, before → after):
 
 | Path | Before | After |
