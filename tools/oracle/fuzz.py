@@ -18,6 +18,8 @@ Classifiers (in order):
   NEW           unexplained                                                -> triage
 """
 import argparse
+import datetime
+import json
 import os
 import random
 import subprocess
@@ -60,7 +62,7 @@ def gen_program(idx, r):
         lines.append(f" S {var}={r.randint(1,50)}")
     nstmt = r.randint(3, 6)
     for _ in range(nstmt):
-        k = r.randint(0, 7)
+        k = r.randint(0, 10)
         if k == 0:  # scalar set
             lines.append(f" S {r.choice(VARS)}={expr(r,s,v,n,m)}")
         elif k == 1:  # subscripted local set
@@ -78,13 +80,36 @@ def gen_program(idx, r):
             lines.append(f" I {v}>{r.randint(1,99)} W \"hi\"")
         elif k == 6:  # string op
             lines.append(f" S {s}={s}_\"-z\"")
-        else:  # $ORDER walk (bounded)
+        elif k == 7:  # $ORDER walk (bounded)
             lines.append(f" S J=\"\" S C{idx}=0")
             lines.append(f" F I=1:1:{r.randint(2,4)} S ^Q{idx}(I)=I")
             lines.append(
                 f" F  S J=$O(^Q{idx}(J)) Q:J=\"\"  S C{idx}=C{idx}+1"
             )
             lines.append(f" K ^Q{idx}")
+        elif k == 8:  # DO tag with argumentless NEW (mjvm#31 family)
+            # GT.M: N stacks a new frame; L is undefined after QUIT (caller W L
+            # errors). mJVM: N is a no-op, so L leaks and W L prints 7.
+            tag = f"T{idx}{r.randint(1,99)}"
+            leaked = f"L{idx}"
+            lines.append(f" D {tag}")
+            lines.append(f" W {leaked}")
+            lines.append(tag)
+            lines.append(" N")
+            lines.append(f" S {leaked}=7")
+            lines.append(" Q")
+        elif k == 9:  # HALT mid-program (mjvm#29 family)
+            lines.append(' W "pre"')
+            lines.append(" HALT")
+            lines.append(' W "post"')
+        else:  # exclusive KILL (mjvm#30 family) — keep-var must survive
+            keep = r.choice(VARS)
+            lines.append(f" K ({keep})")
+            lines.append(f" W {keep}")
+            # re-initialize the killed vars so the terminal WRITE stays valid
+            for var in VARS:
+                if var != keep:
+                    lines.append(f" S {var}={r.randint(1,50)}")
     # single terminal WRITE (compute-then-print style avoids newline-class noise)
     wargs = []
     for _ in range(r.randint(1, 3)):
@@ -107,7 +132,22 @@ KNOWN_SIGNATURES = [
     ("mjvm#19 (multi-cmd same-line FOR)", lambda p: _has_multicmd_for(p)),
     ("mjvm#23 (NEW in DO tag)", lambda p: _has_new_do(p)),
     ("mjvm#24 (multi-arg W drops final non-literal)", lambda p: _has_w24(p)),
+    ("mjvm#29 (HALT continues)", lambda p: _has_halt(p)),
+    ("mjvm#30 (K (V) kills V)", lambda p: _has_kexcl(p)),
+    ("mjvm#31 (argumentless NEW no-op)", lambda p: _has_argless_new(p)),
 ]
+
+
+def _has_halt(p):
+    return any(l.strip() == "HALT" or l.strip().startswith("HALT ") for l in p.splitlines())
+
+
+def _has_kexcl(p):
+    return any(l.strip().startswith("K (") for l in p.splitlines())
+
+
+def _has_argless_new(p):
+    return any(l.strip() == "N" for l in p.splitlines())
 
 
 def _has_w24(p):
@@ -282,6 +322,18 @@ def main():
 
     for kind in sorted(counts, key=lambda k: -counts[k]):
         print(f"{counts[kind]:5d}  {kind}")
+    # JSONL ledger: one line per run for the nightly trend (workstream C exit
+    # criterion: divergence rate over time). Committed by the nightly job.
+    ledger = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fuzz-ledger.jsonl")
+    entry = {
+        "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "seed": args.seed,
+        "n": args.n,
+        "counts": counts,
+        "new": len(new_findings),
+    }
+    with open(ledger, "a") as f:
+        f.write(json.dumps(entry) + "\n")
     if new_findings:
         print(f"\n{len(new_findings)} NEW findings:")
         for name, prog, want, got in new_findings[:10]:
