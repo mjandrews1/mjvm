@@ -18,7 +18,7 @@ Most programs don't. The campaign's core move is therefore **differential testin
 every program an oracle — GT.M (V7.2-001 on U01, the FIS parent engine), Python/integers for
 math, or the IR machine vs `--class` for parity — and diff.
 
-## Current defect inventory (as of 2026-10-29, post first ORACLE ledger)
+## Current defect inventory (as of 2026-10-29 late)
 
 | # | Defect | Class | Status |
 |---|---|---|---|
@@ -32,12 +32,22 @@ math, or the IR machine vs `--class` for parity — and diff.
 | #20 | ~~DO TAG fails to compile~~ MISDIAGNOSED — real trigger is #22 | — | **closed** (D TAG innocent; all repros contained `W "lit",VAR`) |
 | #21 | **Postconditional WRITE argument list consumes next line** | silent wrong answer | open — ORACLE: WCONDP |
 | #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend; #21 same family) |
+| #22 | 2-arg WRITE (lit, var) fails to compile; mid-file degrades to silent RET-truncation | silent wrong answer | open — ORACLE: WCOMMA, DOQUIT, DATAV et al. |
+| #24 | Multi-arg WRITE drops its final non-literal argument | silent wrong answer | open — ORACLE: WDROP, WRITEEXCL, DOARG2 |
+| #25 | Extrinsic `$$FN(1,2,3)` (3+ args) fails to compile | error (loud) | open — ORACLE: EXTR2 |
+| #26 | String relational family: `'[` crashes (trailing input), `']]` mis-tokenizes, numeric fast path bypasses string coercion | crash + silent wrong answer | **FIXED** (2026-10-29, 65bdff2; found by pemdasm; opmatrix locks the cells) |
+| #27 | `--class` emitter: dead negate flag — `'= '< '>` compile to their POSITIVES | silent wrong answer (class path) | **FIXED** (2026-10-29, 14af09c; found by the operator-polarity static audit) |
+| #28 | `']` implemented as not-contains (should be NOT-sorts-after); `]]` lacked GT.M numeric collation | silent wrong answer | **FIXED** (2026-10-29, 14af09c; opmatrix + MRelOps.dfy lock the cells) |
+| #29 | HALT does not stop execution | silent wrong answer | open — ORACLE: HALTBASIC (MFrontend/IR: no `Ir.HALT` op exists) |
+| #30 | `K (V)` exclusive KILL kills V too, then reading V errors | crash (loud) | open — ORACLE: KILLEXCL (MFrontend: no exclusive-kill op) |
+| #31 | Argumentless NEW is a no-op — neither hides nor restores | silent wrong answer | open — ORACLE: NEWALL (MFrontend: no argumentless-NEW op) |
 
-**ORACLE ledger (2026-10-29, 59 cases):** 32 pass, 0 unexplained diverge, 13 upstream (WRITE line-break x9, , ELSE, div-by-zero, ), 13 known-bug cases (8 bugs: #4-family, #13, #16, #17, #18, #19, #21, #22+facets, #23). Gate live in GAUNTLET CI on u04 (four-bucket tripwire).
-#16 ×2, #17, #18 ×3, #20 ×2, #21/#4-family), 10 upstream-divergent in two NEW classes
-(see below). The harness: `tools/oracle/` — `cases/` (M programs), `expected/`
-(GT.M V7.2-001 on U01 via `refresh-expected.sh`), `known-divergence.txt` (annotated
-upstream classes), `run.sh` (three-bucket ledger; CI-ready exit code).
+**ORACLE ledger (2026-10-29 late, 121 cases):** 79 pass, 0 unexplained diverge, 17 upstream
+(WRITE line-break family, $ETRAP, ELSE, div-by-zero, $STACK lineage, OPMATRIX C24/C16 cells,
+LOCKGLB/STDEPTH), 25 known-bug cases. Gate live in GAUNTLET CI on u04 (four-bucket tripwire).
+Harness: `tools/oracle/` — `cases/` (M programs), `expected/` (GT.M V7.2-001 on U01 via
+`refresh-expected.sh`), `known-divergence.txt` (annotated upstream classes), `known-bugs.txt`
+(case→issue), `run.sh` (four-bucket ledger; CI-ready exit code).
 
 **Upstream-divergence classes discovered (mJVM is RSM-parity; GT.M differs):**
 1. **WRITE line-break in routine mode** — RSM/pymumps/mJVM append a line break when a
@@ -97,6 +107,11 @@ tests) before the issue closes. No fix without a failing-then-passing test.
   the algebra suite (symdiff, polyarith, roots, sieve, cfe) to 121 cases,
   pass=79 / upstream=17 / known-bugs=25, diverge=0.**
 - Fuzzer: running nightly, triaged weekly; divergence rate trending down.
+  **Nightly cadence MET 2026-10-29:** launchd `com.mjvm.fuzz` runs 200 seeded programs at
+  02:30 (GT.M on U01 as oracle), appends one JSONL line per run to
+  `tools/oracle/fuzz-ledger.jsonl` (the trend line), and a daily triage loop reports
+  counts, files NEW findings as issues, and commits the ledger. First scheduled run:
+  2026-10-30.
 - π to 1,000,000 digits: completed and verified against a Python reference.
 - The π program runs **unmodified** — no workarounds — and matches GT.M's output on the
   ORACLE cases.
