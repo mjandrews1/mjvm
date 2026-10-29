@@ -18,18 +18,38 @@ Most programs don't. The campaign's core move is therefore **differential testin
 every program an oracle — GT.M (V7.2-001 on U01, the FIS parent engine), Python/integers for
 math, or the IR machine vs `--class` for parity — and diff.
 
-## Current defect inventory (as of 2026-10-29)
+## Current defect inventory (as of 2026-10-29, post first ORACLE ledger)
 
 | # | Defect | Class | Status |
 |---|---|---|---|
 | e9223f3 | Subscripted locals raw-key cache (stale reads) | silent wrong answer | **FIXED** |
 | #13 | QUIT in argumentless FOR exits the routine | silent wrong answer | open (MFrontend) |
 | #15 | preRead batch poisons subscripted global LOADs | silent wrong answer | open |
-| #16 | Negative-increment FOR never loops | silent wrong answer | open (MFrontend) |
-| #17 | Comma-IF breaks parser | error (loud) | open |
-| #18 | IF in dotted block corrupts block; IF+dotted double-exec | silent wrong answer | open |
-| #19 | Multi-command same-line FOR body breaks | silent wrong answer | open |
-| #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend) |
+| #16 | Negative-increment FOR never loops | silent wrong answer | open (MFrontend) — ORACLE: FORNEG, NEGSUB |
+| #17 | Comma-IF breaks parser | error (loud) | open — ORACLE: IFCOMMA |
+| #18 | IF in dotted block corrupts block; IF+dotted double-exec | silent wrong answer | open — ORACLE: DOTIF2, DOTIFMID, DOTIFTRUE |
+| #19 | Multi-command same-line FOR body breaks | silent wrong answer | open — ORACLE: MULTILINE now passes (retest after P1b tree updates) |
+| #20 | **DO TAG fails to compile** ("compile error at null") | error (loud) | open — ORACLE: DOQUIT, QDOARG |
+| #21 | **Postconditional WRITE argument list consumes next line** | silent wrong answer | open — ORACLE: WCONDP |
+| #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend; #21 same family) |
+
+**First ORACLE ledger (2026-10-29, 26 cases):** 7 pass, 9 diverge (6 distinct bugs:
+#16 ×2, #17, #18 ×3, #20 ×2, #21/#4-family), 10 upstream-divergent in two NEW classes
+(see below). The harness: `tools/oracle/` — `cases/` (M programs), `expected/`
+(GT.M V7.2-001 on U01 via `refresh-expected.sh`), `known-divergence.txt` (annotated
+upstream classes), `run.sh` (three-bucket ledger; CI-ready exit code).
+
+**Upstream-divergence classes discovered (mJVM is RSM-parity; GT.M differs):**
+1. **WRITE line-break in routine mode** — RSM/pymumps/mJVM append a line break when a
+   line ends with WRITE (END_WRITE per command); GT.M routine mode does not. Verified
+   byte-for-byte against pymumps. 8 cases. Changing this would flip the 131/8/0 corpus
+   peer target — it is a parity DECISION, not a bug fix; parked for owner review.
+2. **$ETRAP continue-vs-report** — mJVM/RSM run the handler and continue ("after"
+   prints); GT.M reports the error text and halts. Corpus C115/C116 sanction RSM behavior.
+
+Case-authoring lessons recorded in the harness: postconditional argumentless commands
+need the two-space convention (GT.M QUITARGUSE taught it); heredocs, not shell-expanded
+strings, or `$`-functions get eaten.
 
 ## Workstreams
 

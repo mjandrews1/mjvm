@@ -1,0 +1,13 @@
+# ORACLE known divergences — NOT mJVM bugs; mJVM is RSM-parity here, GT.M differs.
+# Format: <CASE> <reason> (one per line)
+# Verified 2026-10-29: pymumps (RSM-parity) reproduces mJVM byte-for-byte on these shapes.
+FORPOS WRITE line-break per command in routine mode (RSM appends END_WRITE when a line ends with WRITE; GT.M routine mode does not)
+FORNEST WRITE line-break per command in routine mode (RSM-lineage)
+FORIF WRITE line-break per command in routine mode (RSM-lineage)
+FORARG WRITE line-break per command in routine mode (RSM-lineage)
+QFOR WRITE line-break per command in routine mode (RSM-lineage)
+GWALK WRITE line-break per command in routine mode (RSM-lineage)
+SUBGLOB WRITE line-break per command in routine mode (RSM-lineage)
+DOTFOR WRITE line-break per command in routine mode (RSM-lineage)
+ETRAP1 $ETRAP: mJVM/RSM run the handler and continue (prints "after"); GT.M reports the error text after the trap and halts (corpus C115/C116 sanction RSM behavior)
+IFELSE ELSE binding — the known corpus upstream miss T12.ELSE-binding
