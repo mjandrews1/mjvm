@@ -11,3 +11,4 @@ SUBGLOB WRITE line-break per command in routine mode (RSM-lineage)
 DOTFOR WRITE line-break per command in routine mode (RSM-lineage)
 ETRAP1 $ETRAP: mJVM/RSM run the handler and continue (prints "after"); GT.M reports the error text after the trap and halts (corpus C115/C116 sanction RSM behavior)
 IFELSE ELSE binding — the known corpus upstream miss T12.ELSE-binding
+SUBGWALK WRITE line-break per command in routine mode (RSM-lineage); values correct post-#15 — serves as the #15 regression

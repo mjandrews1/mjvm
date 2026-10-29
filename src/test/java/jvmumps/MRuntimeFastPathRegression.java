@@ -61,6 +61,12 @@ public final class MRuntimeFastPathRegression {
     eval("S A(\"k\"\"q\")=1 S K=$O(A(\"\")) W K,!", "k\"\"q\n");
     eval("S ^G(5)=\"g\" W ^G(5),!", "g\n");
     eval("S I=4 S ^G(I*2)=\"h\" W ^G(8),!", "h\n"); // complex sub falls to full parse
+    // mjvm#15: repeated subscripted global reads with a CHANGING subscript in ONE
+    // program must resolve live (preRead used to cache the raw name's run-start
+    // value for the whole run). Line mode can't express this (crammed loops are a
+    // separate defect family) — run it as a routine.
+    evalProgram(
+        "RTN15\n K ^P\n F I=1:1:3 S ^P(I)=I*11\n S R=0\n F I=1:1:3 S R=R+^P(I)\n W R\n Q", "66\n");
     eval("S A(1,2)=\"m\" W A(1,2),!", "m\n"); // multi-sub
 
     // --- $ETRAP transparency of the fast paths (C115 family) ---
@@ -120,5 +126,32 @@ public final class MRuntimeFastPathRegression {
   static void run(MRuntime rt, String code) throws Exception {
     var prog = new mjvm.compiler.MFrontend().compileLine(code);
     mjvm.runtime.IrMachine.run(prog, rt);
+  }
+
+  /** Routine-mode case: multi-line program, ONE IrMachine.run (preRead applies per run). */
+  static void evalProgram(String code, String want) throws Exception {
+    MRuntime rt = new MRuntime(new MStore());
+    try {
+      var prog = new mjvm.compiler.MFrontend().compileProgram(code);
+      mjvm.runtime.IrMachine.run(prog, rt);
+      String got = rt.output();
+      if (want != null && got.equals(want)) {
+        pass++;
+        System.out.println("  ok   [program] " + code.split("\n", 2)[0]);
+      } else if (want == null) {
+        pass++;
+      } else {
+        fail++;
+        System.out.println(
+            "  FAIL [program] got=["
+                + got.replace("\n", "\\n")
+                + "] want=["
+                + want.replace("\n", "\\n")
+                + "]");
+      }
+    } catch (jvmumps.MError e) {
+      fail++;
+      System.out.println("  FAIL [program] threw: " + e.getMessage());
+    }
   }
 }

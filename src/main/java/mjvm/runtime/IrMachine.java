@@ -126,10 +126,16 @@ public final class IrMachine {
         jvmumps.StoreCore
             sc) { // NOPMD — always true // NOPMD — StoreApi extends StoreCore, always true but
       // type-safe // NOPMD — always true but type-safe
-      // Collect all global variable names from LOAD ops
+      // Collect all global variable names from LOAD ops. Subscripted names are
+      // excluded: the batch is keyed by the raw op.name, so a cached "^P(I)" would
+      // return the run-start value for every I (mjvm#15). Only unsubscripted globals
+      // are pre-read; subscripted LOADs resolve live via getVar.
       java.util.LinkedHashSet<String> globalNames = new java.util.LinkedHashSet<>();
       for (Ir iop : prog) {
-        if (iop.op == Ir.LOAD && iop.name != null && iop.name.startsWith("^")) {
+        if (iop.op == Ir.LOAD
+            && iop.name != null
+            && iop.name.startsWith("^")
+            && iop.name.indexOf('(') < 0) {
           globalNames.add(iop.name);
         }
       }

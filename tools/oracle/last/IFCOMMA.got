@@ -1,9 +1,0 @@
-Exception in thread "main" jvmumps.MError: syntax: trailing input at COMMA:,
-	at jvmumps.ExprEval.eval(ExprEval.java:145)
-	at mjvm.runtime.MRuntime.evalExpr(MRuntime.java:154)
-	at mjvm.runtime.IrMachine.run(IrMachine.java:399)
-	at mjvm.runtime.IrMachine.run(IrMachine.java:67)
-	at mjvm.cli.Mjvm.runCode(Mjvm.java:366)
-	at mjvm.cli.Mjvm.doRun(Mjvm.java:292)
-	at mjvm.cli.Mjvm.run(Mjvm.java:137)
-	at mjvm.cli.Mjvm.main(Mjvm.java:37)

@@ -1,0 +1,6 @@
+	 F J=1:1:6 I J=4 Q W J," "
+	                   ^-----
+		At column 20, line 2, source module /home/mark/gtm-ecosystem/routines/FORIFQ.m
+%GTM-E-QUITARGUSE, Quit cannot take an argument in this context
+%GTM-E-QUITARGUSE, Quit cannot take an argument in this context
+		At M source location FORIFQ+1^FORIFQ

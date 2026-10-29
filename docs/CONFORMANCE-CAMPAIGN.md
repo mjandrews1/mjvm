@@ -24,16 +24,16 @@ math, or the IR machine vs `--class` for parity — and diff.
 |---|---|---|---|
 | e9223f3 | Subscripted locals raw-key cache (stale reads) | silent wrong answer | **FIXED** |
 | #13 | QUIT in argumentless FOR exits the routine | silent wrong answer | open (MFrontend) |
-| #15 | preRead batch poisons subscripted global LOADs | silent wrong answer | open |
+| #15 | preRead batch poisons subscripted global LOADs | silent wrong answer | **FIXED** (2026-10-29; SUBGWALK + RTN15 regression) |
 | #16 | Negative-increment FOR never loops | silent wrong answer | open (MFrontend) — ORACLE: FORNEG, NEGSUB |
 | #17 | Comma-IF breaks parser | error (loud) | open — ORACLE: IFCOMMA |
 | #18 | IF in dotted block corrupts block; IF+dotted double-exec | silent wrong answer | open — ORACLE: DOTIF2, DOTIFMID, DOTIFTRUE |
 | #19 | Multi-command same-line FOR body breaks | silent wrong answer | open — ORACLE: MULTILINE now passes (retest after P1b tree updates) |
-| #20 | **DO TAG fails to compile** ("compile error at null") | error (loud) | open — ORACLE: DOQUIT, QDOARG |
+| #20 | ~~DO TAG fails to compile~~ MISDIAGNOSED — real trigger is #22 | — | **closed** (D TAG innocent; all repros contained `W "lit",VAR`) |
 | #21 | **Postconditional WRITE argument list consumes next line** | silent wrong answer | open — ORACLE: WCONDP |
 | #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend; #21 same family) |
 
-**First ORACLE ledger (2026-10-29, 26 cases):** 7 pass, 9 diverge (6 distinct bugs:
+**Second ORACLE ledger (2026-10-29, 29 cases):** 7 pass, 10 diverge (7 distinct bugs: #22 added, #15 fixed)
 #16 ×2, #17, #18 ×3, #20 ×2, #21/#4-family), 10 upstream-divergent in two NEW classes
 (see below). The harness: `tools/oracle/` — `cases/` (M programs), `expected/`
 (GT.M V7.2-001 on U01 via `refresh-expected.sh`), `known-divergence.txt` (annotated

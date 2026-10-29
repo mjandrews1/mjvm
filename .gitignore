@@ -7,3 +7,4 @@ lib/
 *.jar
 *.class
 *.tasty
+tools/oracle/last/
