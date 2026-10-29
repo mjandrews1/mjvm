@@ -103,6 +103,33 @@ tests) before the issue closes. No fix without a failing-then-passing test.
 - VistA swallowed-routine ledger (P1b) at or below its current trajectory; no regression
   in parse rate (99.97%).
 
+## Working policy: one writer per repo at a time
+
+**Incident (2026-10-29, late):** two concurrent sessions were tasked with the same
+work — the Dafny `MRelOps.dfy` module plus the M algebra suite. Each, unaware of the
+other, worked the same checkouts (`~/m-semantics`, `~/mjvm`). The result: two complete,
+CI-green implementations of the same module (m-semantics PRs #87 and #88), one duplicate
+closed and folded in afterward as PR #89; interleaved worktree states (mid-flight file
+deletions, a stale dirty critical path that blocked a checkout); and one wasted build
+of ~30 verified lemmas.
+
+**Policy:**
+
+1. **One session writes per repo at a time.** Before starting a workstream item, check
+   the repo for signs of another active session: unexplained worktree changes, `gh pr
+   list` showing an open PR covering the same item, recent commits you did not make. If
+   any exist, pick a different item.
+2. **Claim before building.** A session about to start a named deliverable (a module, a
+   suite, a fix family) should open its branch or a draft PR — or note the claim in
+   this doc — *before* doing the work, so a second session discovers it.
+3. **Parallelism by repo, not within a repo.** To run two sessions, point them at
+   different repos or different critical-path rows (e.g. one on mjvm engine fixes,
+   one on m-semantics specs) — never two sessions in one checkout.
+4. **Never share a worktree silently.** If a session must share (no separate clone),
+   commit or stash before switching branches, and treat worktree files it did not
+   create as belonging to the other session (do not "clean up" another session's
+   dirty state without checking whether it is still running: `ps aux | grep vibe`).
+
 ## Relation to the critical path
 
 This is **P1d** on the master critical path. P1b (syntax classes) and P1d share the
