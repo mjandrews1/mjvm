@@ -88,6 +88,7 @@ public final class MRuntime {
     final String src;
     final String[] tokens; // pre-tokenized
     final int[] kinds; // token kinds
+    final double[] nums; // pre-parsed numeric value per token (kind 0); 0 elsewhere
 
     CompiledExpr(String src) {
       this.src = src;
@@ -129,16 +130,25 @@ public final class MRuntime {
       }
       this.tokens = tok.toArray(new String[0]);
       this.kinds = new int[knd.size()];
-      for (int j = 0; j < knd.size(); j++) this.kinds[j] = knd.get(j);
+      this.nums = new double[knd.size()];
+      for (int j = 0; j < knd.size(); j++) {
+        this.kinds[j] = knd.get(j);
+        if (knd.get(j) == 0) this.nums[j] = Double.parseDouble(tok.get(j));
+      }
     }
   }
 
   /** M11: run a raw M expression through JvMumps ExprEval. */
   public jvmumps.MValue evalExpr(String src) {
-    // Fast path: try cached compiled expression for simple patterns
-    if (src != null && src.length() > 1 && src.length() < 30) {
-      jvmumps.MValue fast = fastEvalCached(src);
-      if (fast != null) return fast;
+    // Fast path: try cached compiled expression for simple patterns. Any error falls through
+    // to the trap-aware evaluator — the fast path must be semantically transparent (C115).
+    if (src != null && !src.isEmpty() && src.length() < 32) {
+      try {
+        jvmumps.MValue fast = fastEvalCached(src);
+        if (fast != null) return fast;
+      } catch (jvmumps.MError fallThroughToTrapPath) {
+        // undefined variable, etc. — re-evaluate below so $ETRAP fires exactly as before
+      }
     }
     try {
       return exprEval.eval(src == null ? "" : src);
@@ -274,6 +284,23 @@ public final class MRuntime {
   static String keyOf(String name, MRuntime rt) {
     int p = name.indexOf('(');
     if (p < 0) return name;
+    SubRef sr = subRefOf(name);
+    if (sr != null) {
+      StringBuilder sb = new StringBuilder(name.length() + 4);
+      sb.append(sr.base);
+      for (int i = 0; i < sr.subs.length; i++) {
+        sb.append((char) 1);
+        if (sr.kinds[i] == SubRef.NAME && rt != null) {
+          // evalSub semantics: numeric values canonicalize via mstr, strings pass through;
+          // a null rt (static parse) leaves the raw text, matching evalSub.
+          MValue v = rt.evalExpr(sr.subs[i]);
+          sb.append(v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.str);
+        } else {
+          sb.append(sr.subs[i]);
+        }
+      }
+      return sb.toString();
+    }
     StringBuilder sb = new StringBuilder(name.substring(0, p));
     String inner = name.substring(p + 1, name.lastIndexOf(')'));
     int depth = 0;
@@ -331,6 +358,20 @@ public final class MRuntime {
 
   @SuppressWarnings("RedundantThrows")
   static List<String> pathOf(String name, MRuntime rt) {
+    SubRef sr = subRefOf(name);
+    if (sr != null) {
+      List<String> path = new ArrayList<>(sr.subs.length + 1);
+      path.add(sr.base);
+      for (int i = 0; i < sr.subs.length; i++) {
+        if (sr.kinds[i] == SubRef.NAME && rt != null) {
+          // subOf semantics: variable reference → evalExpr().asStr(); null rt keeps raw text
+          path.add(rt.evalExpr(sr.subs[i]).asStr());
+        } else {
+          path.add(sr.subs[i]);
+        }
+      }
+      return path;
+    }
     List<String> path = new ArrayList<>();
     int p = name.indexOf('(');
     if (p < 0) {
@@ -404,6 +445,96 @@ public final class MRuntime {
     return s;
   }
 
+  /**
+   * Parsed-name cache (mjvm#7): subscripted references like a(i) re-parse their name string on
+   * every setVar/getVar otherwise. The structure (base + sub kinds) is static per raw name, so it
+   * is parsed once and cached; NAME subscripts are still evaluated per call. Unrecognized shapes
+   * cache a COMPLEX marker and always take the full parse.
+   */
+  private static final java.util.concurrent.ConcurrentHashMap<String, SubRef> subRefCache =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  static final class SubRef {
+    static final byte NUM = 0;
+    static final byte NAME = 1;
+    static final byte STR = 2;
+    static final SubRef COMPLEX = new SubRef("", new String[0], new byte[0]);
+
+    final String base;
+    final String[] subs;
+    final byte[] kinds;
+
+    SubRef(String base, String[] subs, byte[] kinds) {
+      this.base = base;
+      this.subs = subs;
+      this.kinds = kinds;
+    }
+  }
+
+  /** Cached parse of a subscripted name; null-when-complex is signaled by SubRef.COMPLEX. */
+  static SubRef subRefOf(String name) {
+    if (name.indexOf('(') < 0) return null;
+    SubRef sr = subRefCache.get(name);
+    if (sr == null) {
+      if (subRefCache.size() > 4096) return null; // unbounded loops with generated names: uncached
+      sr = parseSubRef(name);
+      subRefCache.put(name, sr);
+    }
+    return sr == SubRef.COMPLEX ? null : sr;
+  }
+
+  /**
+   * Recognize only the hot shape: base NAME (optional ^) with top-level comma-separated subs, each
+   * a quoted literal, numeric literal, or simple variable name — no quotes/parens/@ inside, no
+   * empty subscripts (their arity rules differ in the full parser).
+   */
+  static SubRef parseSubRef(String name) {
+    int p = name.indexOf('(');
+    int last = name.length() - 1;
+    if (p < 0 || name.charAt(last) != ')') return SubRef.COMPLEX;
+    String base = name.substring(0, p);
+    int bi = base.isEmpty() ? -1 : 0;
+    if (bi == 0 && base.charAt(0) == '^') bi = 1;
+    if (bi < 0 || bi >= base.length()) return SubRef.COMPLEX;
+    char b0 = base.charAt(bi);
+    if (!(Character.isLetter(b0) || b0 == '%')) return SubRef.COMPLEX;
+    for (int i = bi + 1; i < base.length(); i++) {
+      char c = base.charAt(i);
+      if (!(Character.isLetterOrDigit(c) || c == '%')) return SubRef.COMPLEX;
+    }
+    String inner = name.substring(p + 1, last);
+    if (inner.indexOf('"') >= 0
+        || inner.indexOf('(') >= 0
+        || inner.indexOf(')') >= 0
+        || inner.indexOf('@') >= 0) {
+      return SubRef.COMPLEX;
+    }
+    String[] parts = inner.split(",", -1);
+    String[] subs = new String[parts.length];
+    byte[] kinds = new byte[parts.length];
+    for (int i = 0; i < parts.length; i++) {
+      String s = parts[i].trim();
+      if (s.isEmpty()) return SubRef.COMPLEX;
+      if (s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"') {
+        subs[i] = s.substring(1, s.length() - 1);
+        kinds[i] = SubRef.STR;
+      } else if (isNumericLiteral(s)) {
+        subs[i] = jvmumps.ExprEval.mstr(Double.parseDouble(s));
+        kinds[i] = SubRef.NUM;
+      } else if (Character.isLetter(s.charAt(0)) || s.charAt(0) == '%') {
+        for (int j = 1; j < s.length(); j++) {
+          char c = s.charAt(j);
+          if (!(Character.isLetterOrDigit(c) || c == '%')) return SubRef.COMPLEX;
+        }
+        subs[i] = s;
+        kinds[i] = SubRef.NAME;
+      } else {
+        return SubRef.COMPLEX;
+      }
+    }
+    return new SubRef(base, subs, kinds);
+  }
+
   /** Plain numeric literal: optional sign, digits, optional fraction/exponent. */
   private static boolean isNumericLiteral(String s) {
     if (s.isEmpty()) return false;
@@ -437,7 +568,10 @@ public final class MRuntime {
 
   @SuppressWarnings("RedundantThrows")
   public MValue getVar(String name) {
-    if (locals.containsKey(name)) return locals.get(name);
+    // locals never holds null values (STORE converts dvals-nulls; NEW/KILL remove), so one
+    // lookup replaces the containsKey+get pair on the hottest read path.
+    MValue cached = locals.get(name);
+    if (cached != null) return cached;
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
     if (!glob && store.data(splitKey(key), false) % 2 == 0) {
@@ -449,7 +583,8 @@ public final class MRuntime {
   /** Get numeric value directly (skips string format/parse). */
   @SuppressWarnings("RedundantThrows")
   public double getNum(String name) {
-    if (locals.containsKey(name)) return locals.get(name).asNum();
+    MValue cached = locals.get(name);
+    if (cached != null) return cached.asNum();
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
     return store.getNum(key, glob);
@@ -501,23 +636,31 @@ public final class MRuntime {
 
   /** Fast evaluation using cached tokenization. Returns null if pattern not recognized. */
   private jvmumps.MValue fastEvalCached(String src) {
-    // Only handle simple 3-token expressions: VAR OP NUM/VAR
-    if (src.length() > 15 || src.length() < 3) return null;
+    if (src.length() < 1 || src.length() > 31) return null;
+    char c0 = src.charAt(0);
+    if (c0 == '$') {
+      // $P(X,"d",N) / $PIECE(X,"d",N) — the dominant hot idiom
+      int p1 = src.indexOf('(');
+      if (p1 == 2 || p1 == 5) {
+        String fn = src.substring(0, p1);
+        if (fn.equals("$P") || fn.equals("$PIECE")) return fastPiece(src);
+      }
+      return null;
+    }
+    if (src.indexOf('(') >= 0 || src.indexOf('@') >= 0 || src.indexOf('"') >= 0) return null;
     CompiledExpr ce = exprCache.get(src);
     if (ce == null) {
       if (exprCache.size() > 500) return null;
-      // Quick check: must have exactly 2 operator positions (3 tokens)
-      // Count: NAME OP NAME/NUM pattern
-      int ops = 0;
-      for (int i = 0; i < src.length(); i++) {
-        char c = src.charAt(i);
-        if (c == '=' || c == '<' || c == '>' || c == '+' || c == '-' || c == '*' || c == '/'
-            || c == '\'') ops++;
-      }
-      if (ops != 1) return null;
       ce = new CompiledExpr(src);
       exprCache.put(src, ce);
     }
+    int n = ce.tokens.length;
+    if (n == 1) {
+      if (ce.kinds[0] == 1) return getVar(ce.tokens[0]);
+      if (ce.kinds[0] == 0) return jvmumps.MValue.ofNumber(ce.nums[0]);
+      return null;
+    }
+    if ((n & 1) == 0) return null; // operands and operators must alternate
     // Simple patterns: VAR OP NUM, VAR OP VAR
     if (ce.tokens.length == 3 && ce.kinds[0] == 1) {
       String left = ce.tokens[0];
@@ -526,7 +669,7 @@ public final class MRuntime {
         jvmumps.MValue lv = getVar(left);
         jvmumps.MValue rv;
         if (ce.kinds[2] == 0) {
-          rv = jvmumps.MValue.ofNumber(Double.parseDouble(ce.tokens[2]));
+          rv = jvmumps.MValue.ofNumber(ce.nums[2]);
         } else if (ce.kinds[2] == 1) {
           rv = getVar(ce.tokens[2]);
         } else {
@@ -558,8 +701,132 @@ public final class MRuntime {
           }
         }
       }
+      return null;
     }
-    return null;
+    return evalArithChain(ce);
+  }
+
+  /**
+   * Pure arithmetic chain over cached tokens: NUM/NAME operands with single-char + - * / \ #,
+   * evaluated strictly left-to-right (M has no operator precedence — C30: 1+2*3 = 9).
+   * Numeric-operand names only; anything else declines to the full evaluator. Operator semantics
+   * match ExprEval: / and \ yield 0 on zero divisor, # is M modulo (x - y*floor(x/y), C22).
+   */
+  private jvmumps.MValue evalArithChain(CompiledExpr ce) {
+    int n = ce.tokens.length;
+    if (n < 3 || (n & 1) == 0) return null;
+    int cnt = (n + 1) / 2;
+    double[] vs = new double[cnt];
+    char[] ops = new char[cnt - 1];
+    int vi = 0, oi = 0, i = 0;
+    while (i < n) {
+      int kind = ce.kinds[i];
+      if (kind == 1) {
+        jvmumps.MValue v = getVar(ce.tokens[i]);
+        if (!v.isnum) return null;
+        vs[vi++] = v.num;
+      } else if (kind == 0) {
+        vs[vi++] = ce.nums[i];
+      } else {
+        return null;
+      }
+      i++;
+      if (i < n) {
+        String t = ce.tokens[i];
+        if (ce.kinds[i] != 3 || t.length() != 1) return null;
+        char opc = t.charAt(0);
+        if (opc != '+' && opc != '-' && opc != '*' && opc != '/' && opc != '\\' && opc != '#') {
+          return null;
+        }
+        ops[oi++] = opc;
+        i++;
+      }
+    }
+    // M arithmetic is strictly left-to-right (C30: 1+2*3 = 9) — no operator precedence.
+    double r = vs[0];
+    for (int k = 0; k < ops.length; k++) r = chainApply(ops[k], r, vs[k + 1]);
+    return jvmumps.MValue.ofNumber(r);
+  }
+
+  private static double chainApply(char opc, double x, double y) {
+    switch (opc) {
+      case '+':
+        return x + y;
+      case '-':
+        return x - y;
+      case '*':
+        return x * y;
+      case '/':
+        return y == 0 ? 0 : x / y;
+      case '\\':
+        return y == 0 ? 0 : Math.floor(x / y);
+      default: // '#'
+        return y == 0 ? 0 : x - y * Math.floor(x / y);
+    }
+  }
+
+  /** $P(NAME,"d",CHAIN) fast shape — parse once, cache; evaluate via ExprEval.pieceOf. */
+  private jvmumps.MValue fastPiece(String src) {
+    PiecePat pp = pieceCache.get(src);
+    if (pp == null) {
+      if (pieceCache.size() > 200) return null;
+      pp = parsePiece(src);
+      if (pp == null) return null;
+      pieceCache.put(src, pp);
+    }
+    jvmumps.MValue s = getVar(pp.varName);
+    jvmumps.MValue num = fastEvalCached(pp.pieceArg);
+    if (num == null || !num.isnum) return null;
+    return jvmumps.MValue.ofString(
+        jvmumps.ExprEval.pieceOf(s.asStr(), pp.delim, (int) num.num, -1));
+  }
+
+  private static final java.util.concurrent.ConcurrentHashMap<String, PiecePat> pieceCache =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  private static final class PiecePat {
+    final String varName;
+    final String delim;
+    final String pieceArg;
+
+    PiecePat(String varName, String delim, String pieceArg) {
+      this.varName = varName;
+      this.delim = delim;
+      this.pieceArg = pieceArg;
+    }
+  }
+
+  /**
+   * Recognize only $P(NAME,"STR",CHAIN) / $PIECE(NAME,"STR",CHAIN): simple NAME first arg, a quoted
+   * delimiter, and a comma-free arithmetic chain (no parens, quotes, @, $). The chain is evaluated
+   * through fastEvalCached, so unknown shapes decline there.
+   */
+  private static PiecePat parsePiece(String src) {
+    int p1 = src.indexOf('(');
+    int last = src.length() - 1;
+    if (p1 < 0 || src.charAt(last) != ')') return null;
+    String fn = src.substring(0, p1);
+    if (!fn.equals("$P") && !fn.equals("$PIECE")) return null;
+    int c1 = src.indexOf(',', p1);
+    if (c1 < 0) return null;
+    String varName = src.substring(p1 + 1, c1).trim();
+    if (varName.isEmpty()) return null;
+    for (int i = 0; i < varName.length(); i++) {
+      char c = varName.charAt(i);
+      boolean ok = Character.isLetterOrDigit(c) || c == '%' || (i == 0 && c == '^');
+      if (!ok) return null;
+    }
+    if (src.charAt(c1 + 1) != '"') return null;
+    int q2 = src.indexOf('"', c1 + 2);
+    if (q2 < 0 || src.charAt(q2 + 1) != ',') return null;
+    String delim = src.substring(c1 + 2, q2);
+    String arg = src.substring(q2 + 2, last).trim();
+    if (arg.isEmpty()) return null;
+    for (int i = 0; i < arg.length(); i++) {
+      char c = arg.charAt(i);
+      if (c == '(' || c == '"' || c == '@' || c == '$' || c == ',' || c == '_') return null;
+    }
+    return new PiecePat(varName, delim, arg);
   }
 
   /** Atomic increment: delegates to store.increment for single-op path. */
