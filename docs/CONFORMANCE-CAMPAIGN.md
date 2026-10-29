@@ -33,7 +33,7 @@ math, or the IR machine vs `--class` for parity — and diff.
 | #21 | **Postconditional WRITE argument list consumes next line** | silent wrong answer | open — ORACLE: WCONDP |
 | #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend; #21 same family) |
 
-**Second ORACLE ledger (2026-10-29, 29 cases):** 7 pass, 10 diverge (7 distinct bugs: #22 added, #15 fixed)
+**ORACLE ledger (2026-10-29, 59 cases):** 32 pass, 0 unexplained diverge, 13 upstream (WRITE line-break x9, , ELSE, div-by-zero, ), 13 known-bug cases (8 bugs: #4-family, #13, #16, #17, #18, #19, #21, #22+facets, #23). Gate live in GAUNTLET CI on u04 (four-bucket tripwire).
 #16 ×2, #17, #18 ×3, #20 ×2, #21/#4-family), 10 upstream-divergent in two NEW classes
 (see below). The harness: `tools/oracle/` — `cases/` (M programs), `expected/`
 (GT.M V7.2-001 on U01 via `refresh-expected.sh`), `known-divergence.txt` (annotated

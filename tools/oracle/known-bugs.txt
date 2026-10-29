@@ -12,3 +12,6 @@ FORNEG mjvm#16
 NEGSUB mjvm#16
 IFCOMMA mjvm#17
 WCONDP mjvm#21
+DATAV mjvm#22 (comma-W literal+var lines degrade to RET: silent truncation facet)
+ORDERUP mjvm#22 (same)
+NEWDO mjvm#23 (NEW in DO tag does not restore)

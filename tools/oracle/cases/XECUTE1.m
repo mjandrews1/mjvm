@@ -1,0 +1,5 @@
+XECUTE1 ; ORACLE: XECUTE a string
+ S CMD="S Z=41+1"
+ X CMD
+ W Z
+ Q
