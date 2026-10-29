@@ -93,7 +93,9 @@ tests) before the issue closes. No fix without a failing-then-passing test.
 - Defect inventory A: **zero open silent-wrong-answer issues** in the construct matrix.
 - ORACLE harness: ≥100 cases, wired to CI, green on mJVM; upstream-divergence set
   documented per case (like the 8 known corpus misses). **Met 2026-10-29: 116 cases,
-  pass=74 / upstream=17 / known-bugs=25, diverge=0, err=0.**
+  pass=74 / upstream=17 / known-bugs=25, diverge=0, err=0 — extended the same day by
+  the algebra suite (symdiff, polyarith, roots, sieve, cfe) to 121 cases,
+  pass=79 / upstream=17 / known-bugs=25, diverge=0.**
 - Fuzzer: running nightly, triaged weekly; divergence rate trending down.
 - π to 1,000,000 digits: completed and verified against a Python reference.
 - The π program runs **unmodified** — no workarounds — and matches GT.M's output on the
