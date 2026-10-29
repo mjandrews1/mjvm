@@ -74,7 +74,12 @@ ledger for triage. Budget: one page of generator, run forever. The P1b ledger co
 routines that fail to *parse*; the fuzzer measures programs that parse but *misbehave*.
 
 **D — Known-answer math suite.** π (finished, digit-exact to 1000; the 1M run is a soak
-test for the dispatch overheads as much as a computation), primes/sieve, string
+test for the dispatch overheads as much as a computation), e (tools/e.m — same
+fixed-point bignum; digit-exact at 30/1k/10k/100k, 1M soak running), PEMDAS-in-M
+(tools/pemdasm.m — recursive-descent parser over M's flat precedence; found mjvm#26),
+the 8 fundamental data structures (tools/dstruct.m — array, linked list, stack, queue,
+hash, BST, min-heap, graph BFS; identical verdicts vs GT.M), and the operator x
+operand-type matrix (tools/opmatrix.m; found mjvm#27, #28), primes/sieve, string
 algorithms, $PIECE-heavy text processing — each with a Python or closed-form oracle.
 These soak the runtime, the fast paths, and the store in combinations the corpus
 never reaches.
@@ -87,7 +92,8 @@ tests) before the issue closes. No fix without a failing-then-passing test.
 
 - Defect inventory A: **zero open silent-wrong-answer issues** in the construct matrix.
 - ORACLE harness: ≥100 cases, wired to CI, green on mJVM; upstream-divergence set
-  documented per case (like the 8 known corpus misses).
+  documented per case (like the 8 known corpus misses). **Met 2026-10-29: 116 cases,
+  pass=74 / upstream=17 / known-bugs=25, diverge=0, err=0.**
 - Fuzzer: running nightly, triaged weekly; divergence rate trending down.
 - π to 1,000,000 digits: completed and verified against a Python reference.
 - The π program runs **unmodified** — no workarounds — and matches GT.M's output on the

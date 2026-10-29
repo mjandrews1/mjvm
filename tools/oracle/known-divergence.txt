@@ -15,3 +15,6 @@ SSTACK $STACK/$ST at top level: RSM/pymumps/mJVM give $ST=0, $ST(0)="RUN"; GT.M 
 GOTOOFF WRITE line-break per command (RSM-lineage)
 ZTRAPSET WRITE line-break per command (RSM-lineage)
 STRCMP "05"=5 canonicalization — the known corpus upstream miss C24.eq-noncanonical family
+LOCKGLB WRITE line-break per command (RSM-lineage) — LOCK itself matches
+OPMATRIX WRITE line-break per command (RSM-lineage) + = non-canonical coercion cells (C24, STRCMP class) + string-operand ordering ops (C16/rsm#11)
+STDEPTH $STACK depth values RSM-lineage (SSTACK class): RSM $ST=0 lineage vs GT.M 1

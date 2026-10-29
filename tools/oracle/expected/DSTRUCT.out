@@ -1,0 +1,8 @@
+DS1 ok array
+DS2 ok linked-list
+DS3 ok stack-lifo
+DS4 ok queue-fifo
+DS5 ok hash-lookup+miss
+DS6 ok bst
+DS7 ok min-heap
+DS8 ok graph-bfs

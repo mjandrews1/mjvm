@@ -1,0 +1,13 @@
+T01 ok 2+3*4=14
+T02 ok (2+3)*4=20
+T03 ok 2**3**2=512 (right-assoc)
+T04 ok -2**2=-4
+T05 ok 8/4/2=1 (left-assoc)
+T06 ok 1/0=0 (M rule)
+T07 ok spaces/parens=20
+T08 ok 10-4-3=3
+T09 ok 2**0=1
+T10 ok -3--2=-1
+T11 ok ((1+2)*(3+4))**2=441
+T12 ok 3*(2+3**2)-5=28
+T13 ok default M left-to-right 2+3*4=20
