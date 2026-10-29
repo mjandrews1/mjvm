@@ -1,5 +1,41 @@
 # micro RESULTS
 
+## 2026-10-29 (late) — MRuntime hot paths (mjvm#6/#7/#8, commit 3bd0ecb)
+
+Per-call ablation (warmed JVM, before → after):
+
+| Path | Before | After |
+|---|---|---|
+| evalExpr("i") — bare var | 37ns | 17ns |
+| evalExpr("r+i") — 3-token | 60ns | 38ns |
+| evalExpr("i#100+1") — chain | 250ns | 55ns |
+| evalExpr('$P(str," ",i#100+1)') | 438ns | 142ns |
+| setVar("a(i)") — SubRef cache | 197ns | 47ns |
+
+Phase re-measure (IR machine, best of 5, parity=true all):
+
+| Phase | Before | After | vs GT.M before → after |
+|---|---|---|---|
+| INTLOOP | 0.159s | 0.129s | 8.8x → 7.2x |
+| STRCAT | 0.277s | 0.276s | concat-bound |
+| ASET | 0.045s | 0.032s | 3.0x → 2.1x |
+| AWALK | 0.256s | 0.229s | 1.12x |
+| PIECE | 0.231s | 0.128s | **29x → 16x** |
+| GSET | 0.039s | 0.031s | 1.26x |
+| GREAD | 0.474s | 0.440s | 1.08x |
+| GWALK | 0.153s | 0.128s | 1.2x |
+
+Audit findings (mjvm#6): the hot costs were (1) full parse for every bare-variable
+expression (the fast-path gate excluded single tokens), (2) name-string re-parse on every
+subscripted setVar/getVar, (3) full parse of arithmetic chains and $P shapes, (4) double map
+lookups in getVar. Fixed all four; the remaining gap to GT.M is IrMachine dispatch overhead
+(~30-40ns/op × ~6 ops/iteration — INTLOOP's residual ~260ns/iter) plus the piece scan itself;
+the next lever is op dispatch, then MExprJava compiling loop bodies for the --class path.
+
+Semantic notes: chains evaluate strictly left-to-right (M has no operator precedence —
+C30: 1+2*3=9); fast-path errors fall through to the trap-aware evaluator ($ETRAP transparency
+— widening the gate had exposed that the fast path sat outside the trap try).
+
 ## 2026-10-28/29 — harness baseline (mjvm#5)
 
 Hosts: U01 x86_64 (GT.M V7.2-001 compiled, YDB r2.06 compiled, in-process $ZUT),
