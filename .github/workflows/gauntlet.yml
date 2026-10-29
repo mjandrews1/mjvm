@@ -42,6 +42,14 @@ jobs:
           java -cp "build:lib/*" jvmumps.MFrontendRegression 2>&1
           echo "REGRESSION PASSED"
 
+      - name: ORACLE differential gate (P1d)
+        # Expecteds are committed (generated from GT.M V7.2-001 on U01) — the runner
+        # needs no GT.M. Red only on NEW divergences: known bugs are annotated in
+        # tools/oracle/known-bugs.txt, upstream divergences in known-divergence.txt.
+        run: |
+          bash tools/oracle/run.sh
+          echo "ORACLE PASSED"
+
       - name: REPL smoke (scripted, both shells)
         run: |
           printf 'W "ok",!\nS X=5 W X,!\n/quit\n' | java -cp "build:lib/*" jvmumps.Repl | grep -q 'ok'

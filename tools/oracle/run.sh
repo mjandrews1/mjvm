@@ -11,8 +11,9 @@ mkdir -p "$OUT"
 
 if [ $# -gt 0 ]; then CASES="$*"; else CASES=$(ls "$D"/cases/*.m); fi
 
-pass=0; fail=0; err=0; upstream=0
+pass=0; fail=0; err=0; upstream=0; knownbug=0
 KD="$D/known-divergence.txt"
+KB="$D/known-bugs.txt"
 for f in $CASES; do
   name=$(basename "$f" .m)
   want_f="$D/expected/$name.out"
@@ -35,10 +36,17 @@ for f in $CASES; do
   want=$(cat "$want_f")
   printf '%s\n' "$got" > "$OUT/$name.got"
   printf '%s\n' "$want" > "$OUT/$name.want"
+  kbissue=$(grep "^$name " "$KB" 2>/dev/null | awk '{print $2}')
   if [ $rc -ne 0 ] && [ -z "$got" ]; then
     echo "ERR    $name (crash, rc=$rc)"; err=$((err+1))
   elif [ "$got" = "$want" ]; then
     echo "ok     $name"; pass=$((pass+1))
+    if [ -n "$kbissue" ]; then
+      echo "FIXED? $name was annotated $kbissue and now PASSES — remove the annotation"
+    fi
+  elif [ -n "$kbissue" ]; then
+    echo "knownbug $name ($kbissue)"
+    knownbug=$((knownbug+1))
   else
     echo "DIVERGE $name"
     echo "    got:  $(echo "$got" | head -1)"
@@ -47,5 +55,6 @@ for f in $CASES; do
   fi
 done
 echo
-echo "ORACLE: pass=$pass diverge=$fail err=$err upstream-divergent=$upstream"
+echo "ORACLE: pass=$pass diverge=$fail err=$err upstream-divergent=$upstream known-bugs=$knownbug"
+echo "CI red only on: diverge>0, err>0. Known bugs tracked in known-bugs.txt; upstream in known-divergence.txt."
 [ $((fail+err)) -eq 0 ]

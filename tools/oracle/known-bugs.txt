@@ -1,0 +1,14 @@
+# ORACLE known bugs — cases that diverge today, mapped to their issues.
+# CI stays green on these; any NEW divergence fails. When a bug is fixed,
+# remove its lines here — the case must then pass or CI goes red.
+# Format: <CASE> <issue>
+WCOMMA mjvm#22
+DOQUIT mjvm#22
+QDOARG mjvm#22
+DOTIF2 mjvm#18
+DOTIFMID mjvm#18
+DOTIFTRUE mjvm#18
+FORNEG mjvm#16
+NEGSUB mjvm#16
+IFCOMMA mjvm#17
+WCONDP mjvm#21
