@@ -23,6 +23,21 @@ loops, $PIECE ~33x; GREAD dominated by store backend). RSM numbers: see
 SURVEY.md (V1.83.1; /tmp copy was ephemeral, archive remains at
 `U02:coldstore/mac-rsm-2026-10-26/`).
 
+## Store-backend matrix (mjvm#10, 2026-10-29) — global phases via `--store`
+
+CLI single-process wall-clock minus `ph_base` baseline, best of 3 (Mac, IR machine):
+memory is the CLI default (its numbers match the RESULTS table above).
+
+| Store | GSET 50k global sets | GREAD 500k gets | GWALK 50k $ORDER |
+|---|---|---|---|
+| memory (default) | 0.140s | 0.658s | 0.304s |
+| sqlite | 32.1–34.0s (≈240x; every set is its own SQL transaction) | impractical scale — same per-op SQL pattern | impractical scale |
+| cdb2 | n/a locally — needs `tools/cdb2pipe` + a Comdb2 server (mesh/SQL plane) | n/a | n/a |
+
+Conclusion: memory is the only viable bench backend; sqlite/cdb2 are functional
+StoreApi backends, not benchmark targets. GSET at ~640µs/write on sqlite reflects
+per-op SQL transactions, not a data-point for engine comparison.
+
 ## mJVM `--class` (compiled/JIT path) — measured after the mjvm#11 fix (2026-10-29)
 
 `--class` was unfixably broken until mjvm#11 (undefined label on every FOR loop); fixed in
