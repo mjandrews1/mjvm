@@ -1,0 +1,5 @@
+	 S X=1 D  W "after"
+	          ^-----
+		At column 11, line 2, source module /home/mark/gtm-ecosystem/routines/DOEXPR.m
+%GTM-W-DONOBLOCK, Argumentless DO not followed by a block
+after

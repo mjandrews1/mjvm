@@ -1,0 +1,6 @@
+	 F I=1:1:50:X=1 S X=I
+	           ^-----
+		At column 12, line 3, source module /home/mark/gtm-ecosystem/routines/FORPOST.m
+%GTM-E-SPOREOL, Either a space or an end-of-line was expected but not found
+%GTM-E-SPOREOL, Either a space or an end-of-line was expected but not found
+		At M source location FORPOST+2^FORPOST
