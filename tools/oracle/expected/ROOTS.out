@@ -1,0 +1,10 @@
+G1 ok gcd(1071,462)=21
+G2 ok gcd(270,192)=6
+G3 ok gcd(17,13)=1
+S1 ok isqrt(1000000)=1000
+S2 ok isqrt(999999)=999
+S3 ok isqrt(2)=1
+S4 ok isqrt(1000014000049)=1000007
+C1 ok icbrt(2^30)=1024
+C2 ok icbrt(10^9)=1000
+C3 ok icbrt(8)=2

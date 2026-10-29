@@ -1,0 +1,8 @@
+T1 ok d(3*x^2+5*x+7)=6*x+5
+T2 ok d(x^4-x^3+x)=4*x^3-3*x^2+1
+T3 ok d(7)=0
+T4 ok d(x^3-6*x^2+8*x-1)=3*x^2-12*x+8
+T5 ok round-trip d2=6*x-12
+T6 ok d(-x^2+3*x)=-2*x+3
+T7 ok d(x^2+x^2)=4*x (term merge)
+T8 ok d(5*x^3-2*x^2+x-9)=15*x^2-4*x+1
