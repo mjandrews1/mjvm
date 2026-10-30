@@ -223,6 +223,11 @@ final class MFrontendCmds {
               String expr = rest.substring(1).trim();
               out.add(Ir.evalExpr(expr));
               out.add(Ir.storeAdd(name));
+              // STORE_ADD pops the increment and pushes the new value (the
+              // $INCR emitter consumes it with a trailing STORE); without this
+              // balancing STORE every "S ^G=$G(^G)+expr" leaks one stack slot
+              // (mjvm#38 — value-stack overflow after 256 such SETs).
+              out.add(Ir.store(name));
               i = MFrontendUtil.skipWs(line, i);
               if (i < line.length() && line.charAt(i) == ',') {
                 i++;
@@ -233,6 +238,7 @@ final class MFrontendCmds {
               String expr = rest.substring(1).trim();
               out.add(Ir.evalExpr("0-" + expr));
               out.add(Ir.storeAdd(name));
+              out.add(Ir.store(name));
               i = MFrontendUtil.skipWs(line, i);
               if (i < line.length() && line.charAt(i) == ',') {
                 i++;
