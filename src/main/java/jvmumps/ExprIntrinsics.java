@@ -53,6 +53,24 @@ final class ExprIntrinsics {
             return MValue.ofString(String.format("%04d-%02d-%02d", year, month, day));
           return MValue.ofString(String.format("%02d %s %04d", day, months[month - 1], year));
         }
+      case "$ZC":
+      case "$ZCONVERT":
+        {
+          // $ZCONVERT(str,direction): "U" uppercase, "L" lowercase.
+          // Other GT.M directions (I/O/E charset conversions) unsupported.
+          if (args.isEmpty()) return MValue.ofString("");
+          String s = args.get(0).asStr();
+          String dir =
+              args.size() > 1 ? args.get(1).asStr().toUpperCase(java.util.Locale.ROOT) : "";
+          switch (dir) {
+            case "U":
+              return MValue.ofString(s.toUpperCase(java.util.Locale.ROOT));
+            case "L":
+              return MValue.ofString(s.toLowerCase(java.util.Locale.ROOT));
+            default:
+              throw new MError("Unsupported $ZCONVERT direction: " + dir);
+          }
+        }
       case "$D":
       case "$DATA":
         {
