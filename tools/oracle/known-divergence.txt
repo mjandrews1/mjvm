@@ -19,3 +19,4 @@ LOCKGLB WRITE line-break per command (RSM-lineage) — LOCK itself matches
 OPMATRIX WRITE line-break per command (RSM-lineage) + = non-canonical coercion cells (C24, STRCMP class) + string-operand ordering ops (C16/rsm#11)
 STDEPTH $STACK depth values RSM-lineage (SSTACK class): RSM $ST=0 lineage vs GT.M 1
 ZCONVERT WRITE line-break per command (RSM-lineage); $ZCONVERT U/L values themselves byte-identical
+NEGPAT WRITE line-break per command (RSM-lineage); negated-pattern values themselves identical
