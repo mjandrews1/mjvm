@@ -1073,7 +1073,14 @@ public final class MRuntime {
   public void openDevice(int n, String path) {
     try {
       java.nio.file.Path p = java.nio.file.Path.of(path);
-      devices.put(n, java.nio.file.Files.newBufferedReader(p));
+      // Write-only device: a missing file is fine (CREATE below); the reader
+      // is simply absent and READs return "" (mjvm#39 family — the demo ILS
+      // writes logs/dumps to devices that do not exist before the first run).
+      try {
+        devices.put(n, java.nio.file.Files.newBufferedReader(p));
+      } catch (java.nio.file.NoSuchFileException e) {
+        devices.remove(n);
+      }
       writers.put(
           n,
           java.nio.file.Files.newBufferedWriter(
