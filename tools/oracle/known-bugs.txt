@@ -27,3 +27,4 @@ ORDERDIR mjvm#19 (same-line -walk truncates to one iteration)
 HALTBASIC mjvm#29
 KILLEXCL mjvm#30
 NEWALL mjvm#31
+FORVLIST 35
