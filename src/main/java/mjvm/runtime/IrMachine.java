@@ -81,27 +81,37 @@ public final class IrMachine {
     return run(prog, rt, startPc, args);
   }
 
-  /** Thread-local value stack pool — avoids allocating 256-element array per call. */
-  private static final ThreadLocal<MValue[]> VALS_POOL =
-      ThreadLocal.withInitial(() -> new MValue[256]);
-
-  /** Numeric values parallel to vals — null in vals[] means value is in dvals[]. */
-  private static final ThreadLocal<double[]> DVALS_POOL =
-      ThreadLocal.withInitial(() -> new double[256]);
-
-  /** Thread-local return-address stack — avoids ArrayDeque allocation per call. */
-  private static final ThreadLocal<int[]> RETS_POOL = ThreadLocal.withInitial(() -> new int[64]);
-
   /**
-   * NEW journal for DO-tag scoping (mjvm#23): CALL_PC records the journal depth; Ir.NEW appends
-   * (name, pre-NEW value); RET restores every entry down to the frame's depth. Threads re-entering
-   * run() nest correctly because depth is recorded per frame.
+   * Frame-local run stacks (mjvm#37). Every IrMachine.run() invocation gets its own value stack,
+   * return-address stack, and NEW journal. The old ThreadLocal arrays were shared across nested
+   * runs (a DO or extrinsic inside a called frame re-enters run()), so a nested frame's pushes
+   * reset to index 0 and clobbered the caller's pending return addresses and in-flight expression
+   * temporaries — the caller then RETed into a stale pc and fell off the program silently. A
+   * per-thread free-list keeps the hot (non-nested) path allocation-free.
    */
-  private static final ThreadLocal<String[]> NEWNAME_POOL =
-      ThreadLocal.withInitial(() -> new String[256]);
+  private static final class Frame {
+    final MValue[] vals = new MValue[256];
+    final double[] dvals = new double[256];
+    final int[] rets = new int[64];
+    final int[] newFrameDepth = new int[64];
+    final String[] newNames = new String[256];
+    final MValue[] newVals = new MValue[256];
+  }
 
-  private static final ThreadLocal<MValue[]> NEWVAL_POOL =
-      ThreadLocal.withInitial(() -> new MValue[256]);
+  private static final ThreadLocal<java.util.ArrayDeque<Frame>> FRAME_FREE =
+      ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
+  private static Frame acquireFrame() {
+    java.util.ArrayDeque<Frame> free = FRAME_FREE.get();
+    Frame f = free.pollLast();
+    if (f == null) f = new Frame();
+    return f;
+  }
+
+  private static void releaseFrame(Frame f) {
+    java.util.ArrayDeque<Frame> free = FRAME_FREE.get();
+    if (free.size() < 32) free.addLast(f);
+  }
 
   /** Thread-local args buffer — avoids allocating MValue[] per CALL. */
   private static final ThreadLocal<MValue[]> ARGS_POOL =
@@ -137,22 +147,33 @@ public final class IrMachine {
     return newTop;
   }
 
+  /** Entry point: run with a frame-local stack (see {@link Frame}, mjvm#37). */
+  private static jvmumps.MValue run(List<Ir> prog, MRuntime rt, int startPc, MValue[] args) {
+    Frame f = acquireFrame();
+    try {
+      return runFrame(prog, rt, startPc, args, f);
+    } finally {
+      releaseFrame(f);
+    }
+  }
+
   private @SuppressWarnings({
     "DLS_DEAD_LOCAL_STORE",
     "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
     "UCF_USELESS_CONTROL_FLOW",
     "DB_DUPLICATE_BRANCHES"
-  }) static jvmumps.MValue run(List<Ir> prog, MRuntime rt, int startPc, MValue[] args) {
-    MValue[] vals = VALS_POOL.get();
-    double[] dvals = DVALS_POOL.get();
-    String[] newNames = NEWNAME_POOL.get();
-    MValue[] newVals = NEWVAL_POOL.get();
+  }) static jvmumps.MValue runFrame(
+      List<Ir> prog, MRuntime rt, int startPc, MValue[] args, Frame f) {
+    MValue[] vals = f.vals;
+    double[] dvals = f.dvals;
+    String[] newNames = f.newNames;
+    MValue[] newVals = f.newVals;
     int newTop = 0;
     int[] spA = {0}; // array wrapper for popVal
     int sp = 0;
     int pc = startPc;
-    int[] rets = RETS_POOL.get();
-    final int[] newFrameDepth = new int[rets.length]; // per-frame NEW-journal depth
+    int[] rets = f.rets;
+    final int[] newFrameDepth = f.newFrameDepth; // per-frame NEW-journal depth
     int rsp = 0;
     MValue lastStored = MValue.EMPTY;
 
@@ -385,9 +406,9 @@ public final class IrMachine {
             MValue av = vals[--sp];
             argsBuf[k] = av != null ? av : MValue.ofNumber(dvals[sp]);
           }
-          // Trim to actual argc — pool buffer may be larger
-          MValue[] actualArgs =
-              (argc == argsBuf.length) ? argsBuf : java.util.Arrays.copyOf(argsBuf, argc);
+          // Always copy: passing the pooled buffer itself would let a nested frame's
+          // CALL ops clobber the args mid-call (mjvm#37 family).
+          MValue[] actualArgs = java.util.Arrays.copyOf(argsBuf, argc);
           if (op.name != null && op.name.startsWith("$")) {
             vals[sp++] = rt.callExtrinsic(op.name.substring(1), actualArgs);
           } else {
