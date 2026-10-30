@@ -61,6 +61,21 @@ public final class ExprEval {
       return key;
     }
 
+    /** mjvm#32 sockets: wait for one socket event on device dev (secs timeout); "" on timeout. */
+    default String sockWait(int dev, double secs) {
+      return "";
+    }
+
+    /** mjvm#32: select connection cid of listener dev; returns its device number (0 if none). */
+    default int sockSelect(int dev, String cid) {
+      return 0;
+    }
+
+    /** mjvm#32: last socket event key (the $KEY value after a wait). */
+    default String lastKey() {
+      return "";
+    }
+
     /** $ORDER among siblings. */
     default String order(String key, double dir) {
       return "";

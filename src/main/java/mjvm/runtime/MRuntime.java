@@ -29,6 +29,16 @@ public final class MRuntime {
   private final Map<Integer, java.io.BufferedReader> devices = new HashMap<>();
   private final Map<Integer, java.io.Writer> writers = new HashMap<>();
   private volatile int io = 0;
+  // mjvm#32 sockets: "SOCKET:LISTEN=port:TCP" opens a listener; each accepted
+  // connection gets its own device number (1000+cid) so plain USE/READ/WRITE/CLOSE
+  // work on it. $$SOCKWAIT drives the event loop, $$SOCKSELECT selects a connection.
+  private final Map<Integer, java.nio.channels.ServerSocketChannel> listeners = new HashMap<>();
+  private final Map<Integer, java.nio.channels.SocketChannel> conns = new HashMap<>();
+  private final Map<String, Integer> cidDev = new HashMap<>();
+  private final Map<Integer, StringBuilder> connBuf = new HashMap<>();
+  private java.nio.channels.Selector selector;
+  private int nextCid = 1;
+  private volatile String lastKey = "";
   // M6 locks / TX (per-level undo, same contract as JvMumps LineInterp)
   private final java.util.Set<String> locks = new java.util.HashSet<>();
   private final java.util.List<java.util.List<Object[]>> txUndo = new ArrayList<>();
@@ -75,6 +85,21 @@ public final class MRuntime {
               @Override
               public jvmumps.MValue extrinsic(String name, java.util.List<jvmumps.MValue> args) {
                 return MRuntime.this.callExtrinsic(name, args.toArray(new jvmumps.MValue[0]));
+              }
+
+              @Override
+              public String sockWait(int dev, double secs) {
+                return MRuntime.this.sockWait(dev, secs);
+              }
+
+              @Override
+              public int sockSelect(int dev, String cid) {
+                return MRuntime.this.sockSelect(dev, cid);
+              }
+
+              @Override
+              public String lastKey() {
+                return MRuntime.this.lastKey();
               }
             });
   }
@@ -1072,6 +1097,10 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public void openDevice(int n, String path) {
     try {
+      if (path != null && path.startsWith("SOCKET:")) {
+        openSocket(n, path);
+        return;
+      }
       java.nio.file.Path p = java.nio.file.Path.of(path);
       // Write-only device: a missing file is fine (CREATE below); the reader
       // is simply absent and READs return "" (mjvm#39 family — the demo ILS
@@ -1093,10 +1122,147 @@ public final class MRuntime {
     }
   }
 
+  /** mjvm#32: parse "SOCKET:LISTEN=port[:TCP]" (server) or "SOCKET:CONNECT=host:port[:TCP]". */
+  private void openSocket(int n, String spec) throws java.io.IOException {
+    if (selector == null) selector = java.nio.channels.Selector.open();
+    String[] parts = spec.split(":");
+    String mode = parts.length > 1 ? parts[1] : "";
+    if (mode.startsWith("LISTEN=")) {
+      int port = Integer.parseInt(mode.substring("LISTEN=".length()).split("\\|")[0].trim());
+      java.nio.channels.ServerSocketChannel ssc = java.nio.channels.ServerSocketChannel.open();
+      ssc.setOption(java.net.StandardSocketOptions.SO_REUSEADDR, true);
+      ssc.bind(new java.net.InetSocketAddress(port));
+      ssc.configureBlocking(false);
+      ssc.register(selector, java.nio.channels.SelectionKey.OP_ACCEPT);
+      listeners.put(n, ssc);
+      io = n;
+    } else if (mode.startsWith("CONNECT=")) {
+      // spec form: SOCKET:CONNECT=host|port  (pipe keeps ':' free for the spec split)
+      String[] hp = mode.substring("CONNECT=".length()).split("\\|");
+      java.nio.channels.SocketChannel sc =
+          java.nio.channels.SocketChannel.open(
+              new java.net.InetSocketAddress(hp[0], Integer.parseInt(hp[1])));
+      sc.configureBlocking(false);
+      sc.register(selector, java.nio.channels.SelectionKey.OP_READ);
+      String cid = "c" + (nextCid++);
+      int cdev = 1000 + nextCid;
+      conns.put(cdev, sc);
+      cidDev.put(cid, cdev);
+      connBuf.put(cdev, new StringBuilder());
+      lastKey = "CONNECT|" + cid;
+      io = cdev;
+      devices.put(n, null); // mark caller's device number open
+    } else {
+      throw new jvmumps.MError("OPEN failed: bad socket spec " + spec);
+    }
+  }
+
+  /** mjvm#32: one event on the selector; returns and sets $KEY. "" on timeout. */
+  public String sockWait(int dev, double secs) {
+    try {
+      if (selector == null) return "";
+      long deadline = System.currentTimeMillis() + (long) (secs * 1000);
+      while (true) {
+        long waitMs = deadline - System.currentTimeMillis();
+        if (waitMs <= 0) return "";
+        int n = selector.select(waitMs);
+        if (n == 0) continue;
+        java.util.Iterator<java.nio.channels.SelectionKey> it = selector.selectedKeys().iterator();
+        while (it.hasNext()) {
+          java.nio.channels.SelectionKey k = it.next();
+          it.remove();
+          if (!k.isValid()) continue;
+          if (k.isAcceptable()) {
+            java.nio.channels.ServerSocketChannel ssc =
+                (java.nio.channels.ServerSocketChannel) k.channel();
+            java.nio.channels.SocketChannel sc = ssc.accept();
+            if (sc == null) continue;
+            sc.configureBlocking(false);
+            sc.register(selector, java.nio.channels.SelectionKey.OP_READ);
+            String cid = "s" + (nextCid++);
+            int cdev = 1000 + nextCid;
+            conns.put(cdev, sc);
+            cidDev.put(cid, cdev);
+            connBuf.put(cdev, new StringBuilder());
+            lastKey = "CONNECT|" + cid;
+            return lastKey;
+          }
+          if (k.isReadable()) {
+            java.nio.channels.SocketChannel sc = (java.nio.channels.SocketChannel) k.channel();
+            Integer cdev = null;
+            for (Map.Entry<Integer, java.nio.channels.SocketChannel> e : conns.entrySet()) {
+              if (e.getValue() == sc) {
+                cdev = e.getKey();
+                break;
+              }
+            }
+            if (cdev == null) continue;
+            String cid = null;
+            for (Map.Entry<String, Integer> e : cidDev.entrySet()) {
+              if (e.getValue().equals(cdev)) {
+                cid = e.getKey();
+                break;
+              }
+            }
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocate(8192);
+            int r = sc.read(bb);
+            if (r < 0) {
+              lastKey = "EOF|" + cid;
+              return lastKey;
+            }
+            if (r > 0) {
+              connBuf
+                  .get(cdev)
+                  .append(new String(bb.array(), 0, r, java.nio.charset.StandardCharsets.UTF_8));
+            }
+            lastKey = "READ|" + cid;
+            return lastKey;
+          }
+        }
+      }
+    } catch (Exception e) {
+      throw new jvmumps.MError("SOCKWAIT failed: " + e);
+    }
+  }
+
+  /** mjvm#32: make connection cid of listener dev current; returns its device number. */
+  public int sockSelect(int dev, String cid) {
+    Integer cdev = cidDev.get(cid);
+    if (cdev == null) return 0;
+    io = cdev;
+    return cdev;
+  }
+
+  public String lastKey() {
+    return lastKey;
+  }
+
   @SuppressWarnings("RedundantThrows")
   public void closeDevice(int n) {
     try {
-      if (devices.containsKey(n)) devices.remove(n).close();
+      if (listeners.containsKey(n)) {
+        listeners.remove(n).close();
+      }
+      if (conns.containsKey(n)) {
+        java.nio.channels.SocketChannel sc = conns.remove(n);
+        try {
+          sc.close();
+        } catch (Exception ignored) {
+        }
+        connBuf.remove(n);
+        String cid = null;
+        for (Map.Entry<String, Integer> e : cidDev.entrySet()) {
+          if (e.getValue() == n) {
+            cid = e.getKey();
+            break;
+          }
+        }
+        if (cid != null) cidDev.remove(cid);
+      }
+      if (devices.containsKey(n)) {
+        java.io.BufferedReader r = devices.remove(n);
+        if (r != null) r.close();
+      }
       if (writers.containsKey(n)) writers.remove(n).close();
     } catch (Exception ignored) {
     }
@@ -1105,7 +1271,11 @@ public final class MRuntime {
 
   @SuppressWarnings("RedundantThrows")
   public void useDevice(int n) {
-    if (n != 0 && !devices.containsKey(n) && !writers.containsKey(n)) {
+    if (n != 0
+        && !devices.containsKey(n)
+        && !writers.containsKey(n)
+        && !listeners.containsKey(n)
+        && !conns.containsKey(n)) {
       throw new jvmumps.MError("USE on unopened device");
     }
     io = n;
@@ -1114,6 +1284,25 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public String readDevice() {
     try {
+      java.nio.channels.SocketChannel sc = conns.get(io);
+      if (sc != null) {
+        // drain whatever is readable into the line buffer, then take one line
+        java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocate(8192);
+        int r;
+        while ((r = sc.read(bb)) > 0) {
+          connBuf
+              .get(io)
+              .append(new String(bb.array(), 0, r, java.nio.charset.StandardCharsets.UTF_8));
+          bb.clear();
+        }
+        StringBuilder buf = connBuf.get(io);
+        int nl = buf.indexOf("\n");
+        if (nl < 0) return "";
+        String line = buf.substring(0, nl);
+        buf.delete(0, nl + 1);
+        if (line.endsWith("\r")) line = line.substring(0, line.length() - 1);
+        return line;
+      }
       java.io.BufferedReader r = devices.get(io);
       if (r == null) return "";
       String line = r.readLine();
@@ -1126,6 +1315,16 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public void writeToDevice(int n, String s) {
     try {
+      java.nio.channels.SocketChannel sc = conns.get(n);
+      if (sc != null) {
+        // raw write, no auto-delimiter (HTTP-style protocols carry their own)
+        sc.write(java.nio.ByteBuffer.wrap(s.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        return;
+      }
+      if (listeners.containsKey(n)) {
+        if (s.isEmpty()) return; // endWrite()/writeNl() on a listener is a no-op
+        throw new jvmumps.MError("cannot WRITE to a listening socket");
+      }
       java.io.Writer w = writers.get(n);
       if (w != null) {
         w.write(s);

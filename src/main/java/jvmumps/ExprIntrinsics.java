@@ -400,9 +400,25 @@ final class ExprIntrinsics {
       case "$DEVICE":
         return MValue.ofString("");
       case "$KEY":
-        return MValue.ofString("");
+        return MValue.ofString(ev.env.lastKey());
       case "$REFERENCE":
         return MValue.ofString(ev.lastRef == null ? "" : ev.lastRef);
+      case "$SOCKWAIT":
+        {
+          // $$SOCKWAIT(dev,secs) — mjvm#32: wait for one socket event; "" on timeout.
+          // Sets $KEY to "CONNECT|cid" / "READ|cid" / "EOF|cid" and returns it.
+          int dev = args.isEmpty() ? 0 : (int) args.get(0).asNum();
+          double secs = args.size() > 1 ? args.get(1).asNum() : 0;
+          return MValue.ofString(ev.env.sockWait(dev, secs));
+        }
+      case "$SOCKSELECT":
+        {
+          // $$SOCKSELECT(dev,cid) — mjvm#32: make connection cid current; returns its
+          // device number (so the caller can CLOSE it), 0 if unknown.
+          int dev = args.isEmpty() ? 0 : (int) args.get(0).asNum();
+          String cid = args.size() > 1 ? args.get(1).asStr() : "";
+          return MValue.ofNumber(ev.env.sockSelect(dev, cid));
+        }
       case "$ESTACK":
         return MValue.ofNumber(0);
       case "$STACK":
