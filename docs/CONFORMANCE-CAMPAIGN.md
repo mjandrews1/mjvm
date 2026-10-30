@@ -44,8 +44,9 @@ math, or the IR machine vs `--class` for parity — and diff.
 | #34 | `$ZCONVERT` silently returned "" for every direction (unimplemented intrinsic) | silent wrong answer | **FIXED** (2026-10-30, 6b80409; U/L implemented, unknown directions MError — found by m-ils battery; ORACLE: ZCONVERT) |
 | #35 | FOR comma value-list (`F i=1,2,3`) runs only the first value — or syntax-errors | silent wrong answer | open — ORACLE: FORVLIST (MFrontend: value-list FOR unimplemented; found by m-ils ILSTEST T01) |
 | #36 | Negated pattern (`x'?1.N`) died with "syntax: trailing input" — `'?` never tokenized | crash (loud) | **FIXED** (2026-10-30, 1f752dc; ExprTokens two-char op list; found by m-ils REINDEX; ORACLE: NEGPAT) |
+| #37 | Nested run() frames shared ThreadLocal stacks — caller RET into stale pc, silent fall-off | silent wrong answer | **FIXED** (2026-10-30, b4d43b6; frame-local stacks via free-list; found by m-ils MARCXML ingest; ORACLE: DEVNEST) |
 
-**ORACLE ledger (2026-10-30, 124 cases):** 79 pass, 0 unexplained diverge, 19 upstream
+**ORACLE ledger (2026-10-30, 125 cases):** 80 pass, 0 unexplained diverge, 19 upstream
 (WRITE line-break family incl. ZCONVERT/NEGPAT residual, $ETRAP, ELSE, div-by-zero, $STACK lineage,
 OPMATRIX C24/C16 cells, LOCKGLB/STDEPTH), 26 known-bug cases. Gate live in GAUNTLET CI on u04
 (four-bucket tripwire). Harness: `tools/oracle/` — `cases/` (M programs), `expected/` (GT.M
