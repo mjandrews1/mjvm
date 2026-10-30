@@ -86,9 +86,10 @@ nesting, subscripts, and literals; nightly batch vs GT.M; divergences auto-filed
 ledger for triage. Budget: one page of generator, run forever. The P1b ledger counts
 routines that fail to *parse*; the fuzzer measures programs that parse but *misbehave*.
 
-**D — Known-answer math suite.** π (finished, digit-exact to 1000; the 1M run is a soak
+**D — Known-answer math suite.** π (digit-exact at 30/1k/10k/100k — the first clean
+100k completed on U02 in 3h49m, verified against tools/piref.py; the 1M run is a soak
 test for the dispatch overheads as much as a computation), e (tools/e.m — same
-fixed-point bignum; digit-exact at 30/1k/10k/100k, 1M soak running), PEMDAS-in-M
+fixed-point bignum; 100k on U02 in 64 min, digit-exact at 30/1k/10k/100k), PEMDAS-in-M
 (tools/pemdasm.m — recursive-descent parser over M's flat precedence; found mjvm#26),
 the 8 fundamental data structures (tools/dstruct.m — array, linked list, stack, queue,
 hash, BST, min-heap, graph BFS; identical verdicts vs GT.M), and the operator x
