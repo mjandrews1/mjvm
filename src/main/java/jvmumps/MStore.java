@@ -865,16 +865,10 @@ public final class MStore implements StoreApi {
   }
 
   static int collate(String a, String b) {
-    // simplified: numeric vs string — numeric first
-    boolean an = ExprEval.numericStr(a);
-    boolean bn = ExprEval.numericStr(b);
-    if (an && bn) {
-      return Double.compare(ExprEval.toNum(a), ExprEval.toNum(b));
-    }
-    if (an != bn) {
-      return an ? -1 : 1;
-    }
-    return a.compareTo(b);
+    // M collation (mjvm#40): canonical-numeric subscripts sort numerically (BigDecimal —
+    // Double loses precision past 2^53 on 16-digit NLM ids) and before all strings;
+    // leading-zero forms like "0011012" are non-canonical and sort as strings.
+    return MCollation.compare(a, b);
   }
 
   @Override

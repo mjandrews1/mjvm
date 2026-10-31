@@ -189,22 +189,8 @@ public final class H2Store implements StoreApi {
     String pfx = key(parent.get(0), parent) + SEP;
 
     if (dir > 0) {
-      // Forward: next child after cur
-      String lo = cur.isEmpty() ? pfx : pfx + cur + SEP + '\uffff';
-      var it = nodes.keyIterator(lo);
-      while (it.hasNext()) {
-        String k = it.next();
-        if (!k.startsWith(pfx)) return "";
-        String rest = k.substring(pfx.length());
-        int j = rest.indexOf(SEP);
-        String child = j < 0 ? rest : rest.substring(0, j);
-        if (cur.isEmpty() || child.compareTo(cur) > 0) return child;
-      }
-      return "";
-    } else {
-      // Reverse: previous child before cur
-      String hi = cur.isEmpty() ? pfx + '\uffff' : pfx + cur;
-      // MVStore doesn't have reverse iterator — collect and reverse
+      // Forward: next child after cur in M collation (mjvm#40: canonical numerics
+      // sort numerically before strings — collect the parent's children and sort).
       java.util.List<String> children = new java.util.ArrayList<>();
       var it = nodes.keyIterator(pfx);
       while (it.hasNext()) {
@@ -217,10 +203,29 @@ public final class H2Store implements StoreApi {
           children.add(child);
         }
       }
-      // Find last child < cur (or last if cur empty)
+      children.sort(MCollation::compare);
+      for (String child : children) {
+        if (cur.isEmpty() || MCollation.compare(child, cur) > 0) return child;
+      }
+      return "";
+    } else {
+      // Reverse: previous child before cur (same M-collation sort)
+      java.util.List<String> children = new java.util.ArrayList<>();
+      var it = nodes.keyIterator(pfx);
+      while (it.hasNext()) {
+        String k = it.next();
+        if (!k.startsWith(pfx)) break;
+        String rest = k.substring(pfx.length());
+        int j = rest.indexOf(SEP);
+        String child = j < 0 ? rest : rest.substring(0, j);
+        if (children.isEmpty() || !children.get(children.size() - 1).equals(child)) {
+          children.add(child);
+        }
+      }
+      children.sort(MCollation::compare);
       for (int i = children.size() - 1; i >= 0; i--) {
         String child = children.get(i);
-        if (cur.isEmpty() || child.compareTo(cur) < 0) return child;
+        if (cur.isEmpty() || MCollation.compare(child, cur) < 0) return child;
       }
       return "";
     }

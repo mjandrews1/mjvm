@@ -20,3 +20,4 @@ OPMATRIX WRITE line-break per command (RSM-lineage) + = non-canonical coercion c
 STDEPTH $STACK depth values RSM-lineage (SSTACK class): RSM $ST=0 lineage vs GT.M 1
 ZCONVERT WRITE line-break per command (RSM-lineage); $ZCONVERT U/L values themselves byte-identical
 NEGPAT WRITE line-break per command (RSM-lineage); negated-pattern values themselves identical
+COLLATE WRITE line-break per command (RSM-lineage); M-collation order itself now byte-identical to GT.M (9,1264327,7502500,0011012)
