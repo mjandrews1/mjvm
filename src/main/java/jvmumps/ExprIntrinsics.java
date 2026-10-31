@@ -6,8 +6,12 @@ import java.util.List;
 final class ExprIntrinsics {
   private ExprIntrinsics() {}
 
+  private static String upper(String name) {
+    return ExprEval.upper(name);
+  }
+
   static MValue intrinsic(ExprEval ev, String name, List<MValue> args) {
-    String n = name.toUpperCase(java.util.Locale.ROOT);
+    String n = upper(name);
     switch (n) {
       case "$H":
       case "$HOROLOG":

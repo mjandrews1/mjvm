@@ -117,7 +117,24 @@ public final class ExprEval {
   public String ecode = "";
   public String ztrap = "";
 
+  /**
+   * mjvm#41 perf: case-fold helper with a bounded cache — intrinsic/label names arrive mixed-case
+   * from M source and were toUpperCase'd (allocating) on every call.
+   */
+  private static final java.util.concurrent.ConcurrentHashMap<String, String> UPPER_CACHE =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  public static String upper(String name) {
+    String u = UPPER_CACHE.get(name);
+    if (u != null) return u;
+    u = name.toUpperCase(java.util.Locale.ROOT);
+    if (UPPER_CACHE.size() < 4096) UPPER_CACHE.put(name, u);
+    return u;
+  }
+
   public MValue eval(String src) {
+    // Fast path: simple $fn(args) intrinsic or $$fn(args) extrinsic call — skip the full
+    // precedence-climbing parser (mjvm#41 perf: the parser walk was ~45% of the ingest
     // Fast path: simple $$fn(args) extrinsic call — skip full parser
     // Only for simple args (no byref `.var`, no nested $$, no `@` indirection)
     if (src.startsWith("$$")
@@ -650,7 +667,7 @@ public final class ExprEval {
           return env.extrinsic(fn, args, byrefs);
         }
         if (t.text.startsWith("$")) {
-          String un = t.text.toUpperCase(java.util.Locale.ROOT);
+          String un = upper(t.text);
           if (un.equals("$X")) return MValue.ofNumber(vx);
           if (un.equals("$Y")) return MValue.ofNumber(vy);
           return callIntrinsic(t.text);
@@ -781,7 +798,7 @@ public final class ExprEval {
     }
 
     MValue callIntrinsic(String name) {
-      String up = name.toUpperCase(java.util.Locale.ROOT);
+      String up = upper(name);
       if (up.equals("$TEXT")) {
         // C71 — argument is a label/ref, not a variable lookup
         if (peek().kind == ExprTokens.Kind.LP) {

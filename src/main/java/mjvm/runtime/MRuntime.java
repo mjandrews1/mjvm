@@ -948,7 +948,7 @@ public final class MRuntime {
     // Linked routine first (ZLINK semantics): $$tag resolves against the
     // routine loaded by the last compile/run. Fall back to the handler.
     if (linkedTags != null && linkedProg != null) {
-      Integer pc = linkedTags.get(name.toUpperCase(java.util.Locale.ROOT));
+      Integer pc = linkedTags.get(jvmumps.ExprEval.upper(name));
       if (pc != null) {
         jvmumps.MValue[] pass = argv == null ? new jvmumps.MValue[0] : argv;
         return mjvm.runtime.IrMachine.runExtrinsic(linkedProg, this, pc, pass);
@@ -980,7 +980,7 @@ public final class MRuntime {
     if (name == null || name.isEmpty()) return;
     // Linked routine (ZLINK semantics): DO tag resolves against linked tags.
     if (linkedTags != null && linkedProg != null) {
-      Integer pc = linkedTags.get(name.toUpperCase(java.util.Locale.ROOT));
+      Integer pc = linkedTags.get(jvmumps.ExprEval.upper(name));
       if (pc != null) {
         mjvm.runtime.IrMachine.runExtrinsic(linkedProg, this, pc, argv);
         return;
