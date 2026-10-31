@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p><b>Thread safety:</b> MVStore is single-writer multi-reader. Writes are synchronized on {@code
  * this}. Reads are lock-free.
  */
+@Deprecated // #33: deprecated backend; use jvmumps.store.TieredStore. Removal target: next major
+// version.
 public final class H2Store implements StoreApi {
   static final char SEP = 1;
 

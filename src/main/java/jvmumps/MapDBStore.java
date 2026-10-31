@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p><b>Thread safety:</b> MapDB BTreeMap is concurrent. Writes are synchronized on {@code this}
  * for transaction consistency.
  */
+@Deprecated // #33: deprecated backend; use jvmumps.store.TieredStore. Removal target: next major
+// version.
 public final class MapDBStore implements StoreApi {
   static final char SEP = 1;
 

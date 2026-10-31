@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import jvmumps.SqlStore;
 import jvmumps.StoreApi;
 import jvmumps.Stores;
 import mjvm.compiler.MFrontend;
@@ -216,13 +215,14 @@ public final class Mjvm {
       System.err.println("mjvm -v: volume-name must be 1-32 alpha characters");
       return 2;
     }
-    Path db = Path.of(dbFile == null ? volume.toLowerCase(java.util.Locale.ROOT) + ".dat" : dbFile);
+    Path db =
+        Path.of(dbFile == null ? volume.toLowerCase(java.util.Locale.ROOT) + ".mv.db" : dbFile);
     if (Files.exists(db)) {
       System.err.println("mjvm: database already exists: " + db);
       return 1;
     }
-    // create empty SQLite-backed store
-    SqlStore st = new SqlStore(db.toString());
+    // create empty TieredStore volume (.mv.db + .wal) — SqlStore path retired (#33)
+    jvmumps.store.TieredStore st = new jvmumps.store.TieredStore(db.toString(), db + ".wal");
     st.close();
     List<String> env = new ArrayList<>();
     env.add("volume " + volume);

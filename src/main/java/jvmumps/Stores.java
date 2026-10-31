@@ -42,8 +42,12 @@ public final class Stores {
       if (dbFile == null) {
         k = "memory";
       } else if (Files.exists(Path.of(dbFile)) && Files.size(Path.of(dbFile)) > 0) {
-        // Existing file — detect type by extension
+        // Existing file — detect type by extension (.dat = legacy sqlite, deprecated #33)
         k = dbFile.endsWith(".mv.db") ? "tiered" : "sqlite";
+        if (k.equals("sqlite")) {
+          System.err.println(
+              "mjvm: existing .dat volume is legacy sqlite (deprecated #33); use tiered.");
+        }
       } else {
         k = "tiered"; // new file → tiered store
       }
@@ -53,6 +57,10 @@ public final class Stores {
         return new MStore();
       }
       case "sqlite", "sql", "sqlstore" -> {
+        // DEPRECATED (#33) + CI-only (#201): never for new production use; mjvm+sqlite
+        // were never deployed, so no migration surface exists.
+        System.err.println(
+            "mjvm: --store sqlite is DEPRECATED (#33) and CI-only (#201); use tiered.");
         if (isProduction()) {
           throw new MError(
               "SqlStore is CI-only and rejected in production (#201). "
@@ -68,10 +76,18 @@ public final class Stores {
         return new jvmumps.store.TieredStore(diskPath, walPath, 10000, 100);
       }
       case "h2", "h2store", "mvstore" -> {
+        // DEPRECATED (#33): superseded by tiered for single-node persistence.
+        // Removal target: next major version. h2.jar stays load-bearing —
+        // TieredStore uses H2Store as its Dafny-verified disk layer.
+        System.err.println(
+            "mjvm: --store h2 is DEPRECATED (#33); use tiered (default) for persistence.");
         String path = dbFile != null ? dbFile : "mjvm.mv.db";
         return new H2Store(path);
       }
       case "mapdb", "mapdbstore" -> {
+        // DEPRECATED (#33): superseded by tiered. Removal target: next major version.
+        System.err.println(
+            "mjvm: --store mapdb is DEPRECATED (#33); use tiered (default) for persistence.");
         String path = dbFile != null ? dbFile : "mjvm.mapdb";
         return new MapDBStore(path);
       }

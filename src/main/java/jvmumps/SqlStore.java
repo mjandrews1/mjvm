@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * monitor (never nested under {@code conn} in the wrong order — queue lock is always acquired
  * <i>after</i> a successful mlocks insert, released before dropping conn).
  */
+@Deprecated // #33: deprecated backend; use jvmumps.store.TieredStore. Removal target: next major
+// version.
 public final class SqlStore implements StoreApi {
   static final char SEP = 1;
 
