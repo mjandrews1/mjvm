@@ -89,7 +89,8 @@ public final class ArchitectureTest {
             .allowEmptyShould(true),
         classes);
 
-    // Rule 5: no classes should depend on deprecated Cdb2Store
+    // Rule 5: Cdb2Store is active again (unfrozen 2026-11-01); keep it confined to jvmumps.. —
+    // no classes outside the store package should depend on jvmumps.Cdb2Store directly
     check(
         "no-new-cdb2-dependencies",
         noClasses()

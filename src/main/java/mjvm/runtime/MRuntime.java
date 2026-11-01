@@ -1019,8 +1019,8 @@ public final class MRuntime {
     if (name == null) return;
     if (name.startsWith("^")) return;
     locals.remove(name);
-    // also clear from store tree if present
-    store.kill(List.of(name), false);
+    // locals never live in the store tree; do NOT store.kill here — on Cdb2Store that runs
+    // a real DELETE for a nonexistent key and the frozen pipe path errored (mjvm#41).
   }
 
   @SuppressWarnings("RedundantThrows")

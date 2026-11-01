@@ -31,11 +31,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * reaps the pipe process.
  */
 /**
- * @deprecated Cdb2Store is deprecated in mJVM. Use H2Store or MapDBStore for single-node
- *     persistence. Cdb2Store retained for reference only. Comdb2 infrastructure is frozen (tsx
- *     plane offline).
+ * Active Comdb2 cluster store (unfrozen 2026-11-01, owner decision): the persistence and
+ * distribution plane for mJVM, e.g. m-ils b2 loads its globals into the fleet's ilsdb cluster.
+ * Single-node persistence stays tiered (default); cdb2 is for the replicated cluster case.
+ * Transport: tools/cdb2pipe (persistent cdb2api process); see Stores for env selection
+ * (CDB2PIPE/CDB2DB/CDB2TYPE).
  */
-@Deprecated
 public final class Cdb2Store implements StoreApi {
   static final char SEP = 1;
 
@@ -66,6 +67,8 @@ public final class Cdb2Store implements StoreApi {
   private static final int BATCH = 300; // Comdb2 ~1800 bind limit (300 rows x 6)
 
   public Cdb2Store(String pipePath, String db, String type) throws Exception {
+    String dbgPath = System.getenv().get("CDB2DEBUG");
+    dbg = dbgPath == null ? null : new java.io.PrintWriter(new java.io.FileWriter(dbgPath, true));
     ProcessBuilder pb = new ProcessBuilder(pipePath, db, type);
     pb.redirectError(ProcessBuilder.Redirect.INHERIT);
     Process p = null;
@@ -117,8 +120,18 @@ public final class Cdb2Store implements StoreApi {
     }
   }
 
+  private final java.io.PrintWriter dbg;
+
+  private void dbg(String tag, String line) {
+    if (dbg != null) {
+      dbg.println(tag + " " + line.replace('\t', '|').replace('\n', '/'));
+      dbg.flush();
+    }
+  }
+
   /** Write a command without reading its response. Caller must {@link #recv}. */
   private void send(String line) {
+    dbg("SEND", line);
     try {
       in.write(line);
       in.write(10);
@@ -133,6 +146,7 @@ public final class Cdb2Store implements StoreApi {
       in.flush();
       String r = out.readLine();
       if (r == null) throw new MError("cdb2pipe EOF");
+      dbg("RECV", r);
       return r;
     } catch (MError e) {
       throw e;
@@ -376,6 +390,8 @@ public final class Cdb2Store implements StoreApi {
                   + (dir > 0 ? 1 : -1));
       if (!r.startsWith("KEY ")) return "";
       String k = unhex(r.substring(4));
+      // cdb2 string collation can return a key outside the requested range; treat as empty
+      if (k.length() < pfx.length() || !k.startsWith(pfx)) return "";
       String rest = k.substring(pfx.length());
       int j = rest.indexOf(SEP);
       return j < 0 ? rest : rest.substring(0, j);

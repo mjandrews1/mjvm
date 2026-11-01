@@ -12,7 +12,8 @@ import java.nio.file.Path;
  *   <li>{@code h2} — {@link H2Store} (single-node persistence)
  *   <li>{@code mapdb} — {@link MapDBStore} (single-node persistence)
  *   <li>{@code sqlite} — {@link SqlStore} (CI/conformance only — rejected in production)
- *   <li>{@code cdb2} — {@link Cdb2Store} deprecated (infrastructure frozen)
+ *   <li>{@code cdb2} — {@link Cdb2Store} (Comdb2 cluster store — active; the
+ *       persistence/distribution plane, e.g. m-ils b2)
  * </ul>
  *
  * <b>Production guard (#201):</b> when {@code MJVM_PROD=1}, SqlStore is rejected. Production
@@ -92,7 +93,6 @@ public final class Stores {
         return new MapDBStore(path);
       }
       case "cdb2", "comdb2", "cdb2store" -> {
-        @SuppressWarnings("deprecation")
         String pipe = System.getenv().getOrDefault("CDB2PIPE", "tools/cdb2pipe");
         String db = System.getenv().getOrDefault("CDB2DB", "testdb");
         String type = System.getenv().getOrDefault("CDB2TYPE", "local");

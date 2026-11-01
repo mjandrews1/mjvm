@@ -231,10 +231,10 @@ static void cmd_setb(char **tok, int ntok) {
     int *vls = calloc(n, sizeof(int)), *nls = calloc(n, sizeof(int));
     int64_t *isnums = calloc(n, sizeof(int64_t));
     int64_t *ids = calloc(n, sizeof(int64_t));
-    char line[8192];
+    char *line = NULL; size_t linecap = 0;
     int got = 0;
     for (int i = 0; i < n; i++) {
-        if (!fgets(line, sizeof(line), stdin)) { printf("ERR SETB eof\n"); goto out; }
+        if (getline(&line, &linecap, stdin) < 0) { printf("ERR SETB eof\n"); goto out; }
         size_t L = strlen(line);
         while (L && (line[L-1]=='\n' || line[L-1]=='\r')) line[--L]=0;
         char *t[8];
@@ -394,12 +394,12 @@ static void cmd_getb(char **tok, int ntok) {
     if (n < 1 || n > 1000) { printf("ERR bad GETB n\n"); return; }
 
     /* Gather keys */
-    char line[8192];
+    char *line = NULL; size_t linecap = 0;
     char **ks = calloc(n, sizeof(char *));
     int *kls = calloc(n, sizeof(int));
     int got = 0;
     for (int i = 0; i < n; i++) {
-        if (!fgets(line, sizeof(line), stdin)) { printf("ERR GETB eof\n"); goto out; }
+        if (getline(&line, &linecap, stdin) < 0) { printf("ERR GETB eof\n"); goto out; }
         size_t L = strlen(line);
         while (L && (line[L-1]=='\n' || line[L-1]=='\r')) line[--L]=0;
         char *t[2];
@@ -577,8 +577,8 @@ int main(int argc, char **argv) {
     printf("PONG\n");
     fflush(stdout);
 
-    char line[8192];
-    while (fgets(line, sizeof(line), stdin)) {
+    char *line = NULL; size_t linecap = 0;
+    while (getline(&line, &linecap, stdin) >= 0) {
         size_t L = strlen(line);
         while (L && (line[L - 1] == '\n' || line[L - 1] == '\r')) line[--L] = 0;
         if (!L) continue;
