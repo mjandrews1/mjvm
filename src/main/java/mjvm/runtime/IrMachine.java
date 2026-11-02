@@ -117,13 +117,6 @@ public final class IrMachine {
   private static final ThreadLocal<MValue[]> ARGS_POOL =
       ThreadLocal.withInitial(() -> new MValue[16]);
 
-  /** Pop a value from the split stack — handles null (numeric) slots. */
-  private static MValue popVal(MValue[] vals, double[] dvals, int[] sp) {
-    int i = --sp[0];
-    MValue v = vals[i];
-    return v != null ? v : MValue.ofNumber(dvals[i]);
-  }
-
   /**
    * Restore NEW-journal entries down to the frame's recorded depth (mjvm#23): a journaled null
    * means the variable was undefined before NEW — remove it again; otherwise set the saved value
@@ -169,7 +162,6 @@ public final class IrMachine {
     String[] newNames = f.newNames;
     MValue[] newVals = f.newVals;
     int newTop = 0;
-    int[] spA = {0}; // array wrapper for popVal
     int sp = 0;
     int pc = startPc;
     int[] rets = f.rets;
@@ -307,9 +299,7 @@ public final class IrMachine {
           if (op.op == Ir.CONCAT) {
             MValue b = vals[--sp];
             if (b == null) b = MValue.ofNumber(dvals[sp]);
-            if (b == null) b = MValue.ofNumber(dvals[sp]);
             MValue a = vals[--sp];
-            if (a == null) a = MValue.ofNumber(dvals[sp]);
             if (a == null) a = MValue.ofNumber(dvals[sp]);
             vals[sp++] = MValue.ofString(a.asStr() + b.asStr());
           } else {
@@ -342,9 +332,7 @@ public final class IrMachine {
         case Ir.EQ, Ir.LT, Ir.GT, Ir.LE, Ir.GE, Ir.NE -> {
           MValue b = vals[--sp];
           if (b == null) b = MValue.ofNumber(dvals[sp]);
-          if (b == null) b = MValue.ofNumber(dvals[sp]);
           MValue a = vals[--sp];
-          if (a == null) a = MValue.ofNumber(dvals[sp]);
           if (a == null) a = MValue.ofNumber(dvals[sp]);
           boolean r =
               switch (op.op) {
