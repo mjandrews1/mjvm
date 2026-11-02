@@ -469,7 +469,7 @@ public final class IrMachine {
           }
         }
         case Ir.MERGE -> rt.mergeVar(op.name, op.ival);
-        case Ir.EVAL_EXPR -> vals[sp++] = rt.evalExpr(op.ival);
+        case Ir.EVAL_EXPR -> vals[sp++] = rt.evalOp(op); // mjvm#43: AST node cached on the op
         case Ir.SET_EXTRACT -> {
           MValue v = vals[--sp];
           if (v == null) v = MValue.ofNumber(dvals[sp]);

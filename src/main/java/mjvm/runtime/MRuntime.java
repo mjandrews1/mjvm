@@ -178,20 +178,46 @@ public final class MRuntime {
     try {
       return exprEval.eval(src == null ? "" : src);
     } catch (jvmumps.MError e) {
-      if (trapFiring) throw e;
-      String trap = exprEval.etrap;
-      if (trap.isEmpty()) trap = exprEval.ztrap;
-      if (trap.isEmpty()) throw e;
-      trapFiring = true;
-      try {
-        var prog = new mjvm.compiler.MFrontend().compileLine(trap);
-        mjvm.runtime.IrMachine.run(prog, this);
-      } catch (RuntimeException ignored) {
-      } finally {
-        trapFiring = false;
-      }
-      return jvmumps.MValue.EMPTY;
+      return fireTrap(e);
     }
+  }
+
+  /**
+   * mjvm#43: evaluate an IR op's expression using the AST node cached on the op itself, skipping
+   * the per-call astCache map lookup in {@link #evalExpr}. Trap semantics are identical to evalExpr
+   * (shared {@link #fireTrap}); sources the AST builder declines fall back to evalExpr.
+   */
+  public jvmumps.MValue evalOp(mjvm.ir.Ir op) {
+    jvmumps.ExprAst.Node n = op.node;
+    if (n == null && !op.nodeFailed) {
+      n = exprEval.astFor(op.ival);
+      op.node = n;
+      if (n == null) op.nodeFailed = true;
+    }
+    if (n == null) {
+      return evalExpr(op.ival);
+    }
+    try {
+      return n.eval(exprEval);
+    } catch (jvmumps.MError e) {
+      return fireTrap(e);
+    }
+  }
+
+  private jvmumps.MValue fireTrap(jvmumps.MError e) {
+    if (trapFiring) throw e;
+    String trap = exprEval.etrap;
+    if (trap.isEmpty()) trap = exprEval.ztrap;
+    if (trap.isEmpty()) throw e;
+    trapFiring = true;
+    try {
+      var prog = new mjvm.compiler.MFrontend().compileLine(trap);
+      mjvm.runtime.IrMachine.run(prog, this);
+    } catch (RuntimeException ignored) {
+    } finally {
+      trapFiring = false;
+    }
+    return jvmumps.MValue.EMPTY;
   }
 
   private volatile boolean trapFiring;

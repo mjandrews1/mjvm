@@ -67,6 +67,14 @@ public final class Ir {
   public final double dval;
   public final int iarg; // argc / target pc
 
+  /**
+   * mjvm#43: AST node cached on the op by MRuntime.evalOp; null until compiled, nodeFailed when the
+   * AST builder declines this source (then the evalExpr legacy path is used).
+   */
+  public jvmumps.ExprAst.Node node;
+
+  public boolean nodeFailed;
+
   public Ir(int op, String name, String ival, double dval, int iarg) {
     this.op = op;
     this.name = name;

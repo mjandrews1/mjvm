@@ -183,6 +183,30 @@ public final class ExprAstDiffTest {
       System.out.println("  FAIL cache idempotence: " + r1.asStr() + " vs " + r2.asStr());
     }
 
+    // mjvm#43: IR-level node cache — evalOp (node cached on the Ir op) must match evalExpr,
+    // including the $SELECT legacy fallback and op-cache idempotence
+    {
+      var rt = new mjvm.runtime.MRuntime(new MStore());
+      rt.setVar("x", MValue.ofNumber(5));
+      String[] ops = {
+        "x+1", "$P(\"a^b\",\"^\",2)", "$S(x>3:\"big\",1:\"small\")", "1+2*3", "x_\"!\""
+      };
+      for (String src : ops) {
+        mjvm.ir.Ir op = new mjvm.ir.Ir(mjvm.ir.Ir.EVAL_EXPR, "", src, 0, 0);
+        MValue a1 = rt.evalOp(op);
+        MValue a2 = rt.evalOp(op); // second call uses the node cached on the op
+        MValue be = rt.evalExpr(src);
+        if (fmt(a1).equals(fmt(a2)) && fmt(a1).equals(fmt(be))) {
+          pass++;
+          System.out.println("  ok evalOp " + src + " = " + fmt(a1));
+        } else {
+          fail++;
+          System.out.println(
+              "  FAIL evalOp " + src + ": op=" + fmt(a1) + "/" + fmt(a2) + " evalExpr=" + fmt(be));
+        }
+      }
+    }
+
     System.out.println();
     System.out.printf("  summary: pass=%d  fail=%d%n", pass, fail);
     System.out.println(

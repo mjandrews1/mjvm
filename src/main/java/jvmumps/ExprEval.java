@@ -193,6 +193,19 @@ public final class ExprEval {
     // AST cache (perf item 5): compile once per unique source, evaluate the tree per call
     // instead of re-running the precedence-climbing walk. Unsupported constructs throw
     // UnsupportedExpr and fall back to the legacy evaluating parser, recorded in noAst.
+    ExprAst.Node n = astFor(src);
+    if (n != null) {
+      return n.eval(this);
+    }
+    return evalLegacy(src);
+  }
+
+  /**
+   * AST cache lookup/compile (perf item 5, mjvm#43): returns the compiled node for {@code src}, or
+   * null when the AST builder declines (recorded in the noAst ledger). Public for MRuntime.evalOp,
+   * which caches the node on the IR op instead of re-looking-up per call.
+   */
+  public ExprAst.Node astFor(String src) {
     ExprAst.Node n = astCache.get(src);
     if (n == null && !noAst.contains(src)) {
       try {
@@ -206,10 +219,7 @@ public final class ExprEval {
         if (noAst.size() < 8192) noAst.add(src);
       }
     }
-    if (n != null) {
-      return n.eval(this);
-    }
-    return evalLegacy(src);
+    return n;
   }
 
   /**

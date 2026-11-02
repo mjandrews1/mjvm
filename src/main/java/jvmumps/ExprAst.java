@@ -14,12 +14,12 @@ import java.util.List;
  * evaluating parser and records the source in a ledger set (AGENTS.md: never swallow — fall back
  * and record).
  */
-final class ExprAst {
+public final class ExprAst {
 
   private ExprAst() {}
 
   /** Control-flow signal: this source is not AST-compilable; caller must use the legacy parser. */
-  static final class UnsupportedExpr extends RuntimeException {
+  public static final class UnsupportedExpr extends RuntimeException {
     UnsupportedExpr(String why) {
       super(why);
     }
@@ -101,8 +101,8 @@ final class ExprAst {
 
   // ---- node tree ---------------------------------------------------------------
 
-  abstract static class Node {
-    abstract MValue eval(ExprEval e);
+  public abstract static class Node {
+    public abstract MValue eval(ExprEval e);
   }
 
   static final class NumNode extends Node {
@@ -113,7 +113,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       return MValue.ofNumber(v);
     }
   }
@@ -126,7 +126,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       return MValue.ofString(s);
     }
   }
@@ -135,21 +135,21 @@ final class ExprAst {
     static final EmptyNode INSTANCE = new EmptyNode();
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       return MValue.EMPTY;
     }
   }
 
   static final class XNode extends Node {
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       return MValue.ofNumber(e.vx);
     }
   }
 
   static final class YNode extends Node {
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       return MValue.ofNumber(e.vy);
     }
   }
@@ -165,7 +165,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       String key;
       if (subs == null) {
         key = name;
@@ -194,7 +194,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       MValue v = x.eval(e);
       switch (op) {
         case U_NEG:
@@ -220,7 +220,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       MValue a = l.eval(e);
       MValue b = r.eval(e);
       switch (op) {
@@ -442,7 +442,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       boolean m = PatternMatch.match(l.eval(e).asStr(), pat);
       if (neg) m = !m;
       return m ? MValue.ofNumber(1) : MValue.ofNumber(0);
@@ -460,7 +460,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       MValue v = x.eval(e);
       return e.eval(v.asStr());
     }
@@ -477,7 +477,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       List<MValue> vals = new ArrayList<>(args.length);
       for (Node a : args) vals.add(a.eval(e));
       return ExprIntrinsics.intrinsic(e, name, vals);
@@ -497,7 +497,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       List<MValue> vals = new ArrayList<>(args.length);
       List<String> br = new ArrayList<>(args.length);
       for (int k = 0; k < args.length; k++) {
@@ -574,7 +574,7 @@ final class ExprAst {
     }
 
     @Override
-    MValue eval(ExprEval e) {
+    public MValue eval(ExprEval e) {
       String k = key.eval(e);
       List<MValue> args = new ArrayList<>(extras.length + 1);
       args.add(MValue.ofString(k));
@@ -586,7 +586,7 @@ final class ExprAst {
 
   // ---- parser (token consumption mirrors ExprEval.Parser exactly) ------------------
 
-  static Node parse(String src, List<ExprTokens.Tok> toks) {
+  public static Node parse(String src, List<ExprTokens.Tok> toks) {
     AstParser p = new AstParser(toks);
     Node n = p.parseExpr();
     if (!p.atEnd()) {
