@@ -77,3 +77,13 @@ after the (reverted) slot-cache experiment.
 Verified: corpus 139/139, smoke all green (TieredStoreRwSmoke pre-existing on HEAD), ORACLE 129
 cases diverge=0 err=0 known-bugs=28. A/B vs 485a79a on SL20 (20M-iteration `S J=J+1` loop,
 alternating runs): 3114 ms → 2287 ms avg (**-27%**); output identical. MjvmBench 1M: inc 5.15M it/s.
+
+## 2026-11-03 #5 residual conclusion (post lazy-str)
+
+Post-lazy-str JFR on SL20: dispatch (IrMachine.runFrame) ~50% of top frames, var access ~25%,
+store tree write only ~10% (MStore.setNum is a no-op for locals — the tree is the only store for
+locals, and data()/order() read the tree, so the write-through is load-bearing and can't be
+skipped without breaking $DATA/$ORDER). Conclusion: #5 is at its agent-safe floor — landed
+tranche 2 (+12% store loop) and lazy numeric str (-27% wall on the 20M loop), branch @ 829265b.
+Further gains are compiler-level (peephole/EVAL_EXPR in MFrontend — P1b surface) or a
+threaded-code/bytecode dispatch redesign. Do not chase the store write per-STORE.
