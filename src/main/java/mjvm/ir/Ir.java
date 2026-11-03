@@ -75,6 +75,12 @@ public final class Ir {
 
   public boolean nodeFailed;
 
+  /**
+   * mjvm#14: cached MValue for PUSH string constants. MValue is immutable, so the constant can be
+   * shared across executions instead of allocating per push.
+   */
+  public jvmumps.MValue constVal;
+
   public Ir(int op, String name, String ival, double dval, int iarg) {
     this.op = op;
     this.name = name;

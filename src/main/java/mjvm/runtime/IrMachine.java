@@ -222,7 +222,13 @@ public final class IrMachine {
             dvals[sp] = op.dval;
             vals[sp++] = null; // null = numeric slot
           } else {
-            vals[sp++] = MValue.ofString(op.ival == null ? "" : op.ival);
+            // mjvm#14: share the immutable constant instead of allocating per push
+            MValue cv = op.constVal;
+            if (cv == null) {
+              cv = MValue.ofString(op.ival == null ? "" : op.ival);
+              op.constVal = cv;
+            }
+            vals[sp++] = cv;
           }
         }
         case Ir.LOAD -> {

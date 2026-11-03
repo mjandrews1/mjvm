@@ -688,6 +688,19 @@ public final class MRuntime {
       store.set(key, glob, v);
       return;
     }
+    // mjvm#14: simple names (no subscript, no indirection) take the String-key store path —
+    // avoids the pathOf ArrayList allocation on every STORE in a hot loop.
+    if (name.indexOf('(') < 0 && name.indexOf('@') < 0) {
+      String key = keyOf(name, this); // == name for simple names
+      boolean glob = key.startsWith("^");
+      if (tlevel.get() > 0) {
+        MValue old = store.get(key, glob);
+        recordUndo(List.of(key), glob, old);
+      }
+      if (!glob) locals.put(name, v);
+      store.set(key, glob, v);
+      return;
+    }
     List<String> path = pathOf(name, this);
     boolean glob = path.get(0).startsWith("^");
     if (tlevel.get() > 0) {
@@ -699,7 +712,6 @@ public final class MRuntime {
     } else {
       // No raw-key locals cache for subscripted names (stale when the subscript changes —
       // S I=1 S A(I)="one" S I=2 W A(I) must read the store, not "A(I)")
-      if (name.indexOf('(') < 0) locals.put(name, v);
       store.set(path, false, v);
     }
   }

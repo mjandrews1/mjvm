@@ -28,3 +28,5 @@ HALTBASIC mjvm#29
 KILLEXCL mjvm#30
 NEWALL mjvm#31
 FORVLIST 35
+ARGFORQ mjvm#13 (QUIT in argumentless FOR exits routine; walk never completes)
+WPCMULTI mjvm#4 (postconditional multi-arg WRITE never fires in $O-walk)

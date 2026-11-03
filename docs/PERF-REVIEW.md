@@ -39,3 +39,13 @@
 ---
 
 *Honesty: numbers are from one dated fixed-host run; rerun `make bench` / `tools/capture_baseline.sh` before quoting in a release.*
+
+## 2026-11-03 tranche (mjvm#14/#43 follow-up, uncommitted at capture)
+
+Safe interpreter hot-path wins landed in `Ir`/`IrMachine`/`MRuntime` (no MFrontend changes):
+- PUSH string constants now share one immutable `MValue` per op (`Ir.constVal`) instead of allocating per push.
+- `MRuntime.setVar` takes the String-key store path for simple names — skips the `pathOf` ArrayList allocation per STORE.
+
+Measured on the Mac (JDK 27, MjvmBench 200k): IR store loop 5.23M → **5.86M it/s (+12%)**; IR inc loop ~flat (3.36M → 3.39M it/s); INTLOOP 2M wall unchanged (JVM-startup dominated). Corpus 139/139, smoke all green (TieredStoreRwSmoke failure is pre-existing on HEAD 7b6aee1), ORACLE 129 cases: pass=81 diverge=0 err=0 upstream=20 known-bugs=28.
+
+Remaining #14 residual is structural: locals live in a HashMap + every STORE writes through the store tree (TieredStore WAL-append per set; MStore tree write per set). Closing it needs per-op local slot caching with NEW/KILL invalidation — spec before code; do not hack around $DATA/$ORDER-on-locals, which read through the store.
