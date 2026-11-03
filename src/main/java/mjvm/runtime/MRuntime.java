@@ -345,7 +345,7 @@ public final class MRuntime {
           // evalSub semantics: numeric values canonicalize via mstr, strings pass through;
           // a null rt (static parse) leaves the raw text, matching evalSub.
           MValue v = rt.evalExpr(sr.subs[i]);
-          sb.append(v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.str);
+          sb.append(v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.asStr());
         } else {
           sb.append(sr.subs[i]);
         }
@@ -397,7 +397,7 @@ public final class MRuntime {
     if (rt != null) {
       try {
         MValue v = rt.evalExpr(s);
-        return v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.str;
+        return v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.asStr();
       } catch (jvmumps.MError e) {
         throw e;
       } catch (Exception e) {

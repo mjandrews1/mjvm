@@ -364,7 +364,7 @@ public final class ExprEval {
     if (v.isnum) {
       return v.num != 0;
     }
-    String s = v.str;
+    String s = v.asStr();
     int i = 0;
     while (i < s.length() && (s.charAt(i) == '+' || s.charAt(i) == '-')) {
       i++;
@@ -747,7 +747,7 @@ public final class ExprEval {
             if (a.isnum) {
               inner.append(mstr(a.asNum()));
             } else {
-              inner.append('"').append(a.str).append('"');
+              inner.append('"').append(a.asStr()).append('"');
             }
           }
           key = t.text + "(" + inner + ")";
@@ -1016,7 +1016,7 @@ public final class ExprEval {
           if (a.isnum) {
             inner.append(mstr(a.asNum()));
           } else {
-            inner.append('"').append(a.str).append('"');
+            inner.append('"').append(a.asStr()).append('"');
           }
           first = false;
         }
@@ -1089,15 +1089,15 @@ public final class ExprEval {
     boolean res;
     if (op.equals("=")) {
       // ISO: both numeric → numeric compare; else string. (J17 / C24)
-      boolean an = a.isnum || numericStr(a.str);
-      boolean bn = b.isnum || numericStr(b.str);
+      boolean an = a.isnum || numericStr(a.asStr());
+      boolean bn = b.isnum || numericStr(b.asStr());
       if (an && bn) {
         res = a.asNum() == b.asNum();
       } else {
         res = a.asStr().equals(b.asStr());
       }
     } else if (op.equals("'=")) {
-      return compare("=", a, b).str.equals("1") ? MValue.ofNumber(0) : MValue.ofNumber(1);
+      return compare("=", a, b).asStr().equals("1") ? MValue.ofNumber(0) : MValue.ofNumber(1);
     } else if (op.equals("<")
         || op.equals(">")
         || op.equals("<=")

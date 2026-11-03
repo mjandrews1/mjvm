@@ -114,7 +114,7 @@ public final class SqlStore implements StoreApi {
         ps.setString(1, key);
         ps.setString(2, path.get(0));
         ps.setString(3, MStore.subsJson(path.subList(1, path.size()).toArray(new String[0])));
-        ps.setString(4, v.isnum ? ExprEval.mstr(v.num) : v.str);
+        ps.setString(4, v.isnum ? ExprEval.mstr(v.num) : v.asStr());
         ps.setInt(5, v.isnum ? 1 : 0);
         ps.setString(6, sk.toString());
         ps.setString(7, sk.toString());

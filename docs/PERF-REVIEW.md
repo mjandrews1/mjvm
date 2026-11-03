@@ -66,3 +66,14 @@ and box lazily only when a string consumer needs asStr() — but the store write
 MValue per STORE because $DATA/$ORDER read the store tree. So the design must add a numeric-aware
 local path in the store (setNum-with-tree-visibility) before this pays. Spec only — do not ship
 partial.
+
+## 2026-11-03 lazy numeric str (mjvm#14/#43) — LANDED
+
+`MValue.str` is now lazy for numeric values (`ofNumber` no longer allocates an mstr string per
+numeric result; materialized on first `asStr()`). All direct `.str` reads converted to `asStr()`
+(compiler-enforced via private field; 20 sites). The per-STORE boxing was the top hot-loop frame
+after the (reverted) slot-cache experiment.
+
+Verified: corpus 139/139, smoke all green (TieredStoreRwSmoke pre-existing on HEAD), ORACLE 129
+cases diverge=0 err=0 known-bugs=28. A/B vs 485a79a on SL20 (20M-iteration `S J=J+1` loop,
+alternating runs): 3114 ms → 2287 ms avg (**-27%**); output identical. MjvmBench 1M: inc 5.15M it/s.

@@ -175,7 +175,7 @@ public final class ExprAst {
           if (k > 0) inner.append(',');
           MValue a = subs[k].eval(e);
           if (a.isnum) inner.append(ExprEval.mstr(a.asNum()));
-          else inner.append('"').append(a.str).append('"');
+          else inner.append('"').append(a.asStr()).append('"');
         }
         key = name + "(" + inner + ")";
       }
@@ -552,7 +552,7 @@ public final class ExprAst {
           } else {
             MValue a = ((Node) it).eval(e);
             if (a.isnum) inner.append(ExprEval.mstr(a.asNum()));
-            else inner.append('"').append(a.str).append('"');
+            else inner.append('"').append(a.asStr()).append('"');
           }
         }
         key.append('(').append(inner).append(')');

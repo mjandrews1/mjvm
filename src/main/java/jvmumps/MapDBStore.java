@@ -53,7 +53,7 @@ public final class MapDBStore implements StoreApi {
   @Override
   public void set(List<String> path, boolean global, MValue v) {
     ops.incrementAndGet();
-    String val = v.isnum ? "#" + ExprEval.mstr(v.num) : v.str;
+    String val = v.isnum ? "#" + ExprEval.mstr(v.num) : v.asStr();
     synchronized (this) {
       nodes.put(key(path.get(0), path), val);
     }

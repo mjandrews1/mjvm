@@ -297,7 +297,7 @@ public final class Cdb2Store implements StoreApi {
 
   @Override
   public void set(List<String> path, boolean global, MValue v) {
-    String val = v.isnum ? ExprEval.mstr(v.num) : v.str;
+    String val = v.isnum ? ExprEval.mstr(v.num) : v.asStr();
     String k = key(path.get(0), path);
     String row =
         hex(k)

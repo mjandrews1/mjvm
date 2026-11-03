@@ -993,7 +993,7 @@ public final class MStore implements StoreApi {
           new String[] {
             name,
             subsJson(pref),
-            n.value.isnum ? mstrSafe(n.value.num) : n.value.str,
+            n.value.isnum ? mstrSafe(n.value.num) : n.value.asStr(),
             n.value.isnum ? "1" : "0"
           });
     }
