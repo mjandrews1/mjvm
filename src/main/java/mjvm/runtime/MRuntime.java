@@ -666,13 +666,26 @@ public final class MRuntime {
       // Subscripted names must not enter the raw-key locals cache: the key would be the
       // unevaluated name (e.g. "A(I)"), stale whenever the subscript changes. The store is
       // the truth for subscripted values; getVar resolves via keyOf.
-      if (name.indexOf('(') < 0) locals.put(name, MValue.ofNumber(val));
+      if (isSimpleLocalName(name)) {
+        locals.put(name, MValue.ofNumber(val));
+        return; // locals are map-only (see setVar)
+      }
       store.setNum(key, false, val);
     }
   }
 
   static java.util.List<String> splitKey(String key) {
     return jvmumps.StoreCore.splitKey(key);
+  }
+
+  /** mjvm#14: a simple local name — no subscript, no indirection, not a global/special. */
+  static boolean isSimpleLocalName(String n) {
+    return n != null
+        && !n.isEmpty()
+        && n.indexOf('(') < 0
+        && n.indexOf('@') < 0
+        && n.charAt(0) != '^'
+        && n.charAt(0) != '$';
   }
 
   @SuppressWarnings("RedundantThrows")
@@ -693,11 +706,20 @@ public final class MRuntime {
     if (name.indexOf('(') < 0 && name.indexOf('@') < 0) {
       String key = keyOf(name, this); // == name for simple names
       boolean glob = key.startsWith("^");
+      if (!glob) {
+        // Simple locals live only in the locals map — they are volatile by M semantics and the
+        // store tree never needed them; skipping the per-STORE tree write is the main #14 win.
+        // data()/order() below consult the map; TX undo records the map value.
+        if (tlevel.get() > 0) {
+          recordUndo(List.of(key), false, locals.get(name));
+        }
+        locals.put(name, v);
+        return;
+      }
       if (tlevel.get() > 0) {
         MValue old = store.get(key, glob);
         recordUndo(List.of(key), glob, old);
       }
-      if (!glob) locals.put(name, v);
       store.set(key, glob, v);
       return;
     }
@@ -1080,7 +1102,22 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public int data(String key) {
     List<String> path = pathOf(key, this);
-    return store.data(path, path.get(0).startsWith("^"));
+    boolean glob = path.get(0).startsWith("^");
+    int treeData = store.data(path, glob);
+    // mjvm#14: simple locals live in the map, not the tree — combine (value=1, kids=10, both=11)
+    if (!glob && isSimpleLocalName(key) && locals.get(key) != null) {
+      return treeData == 10 ? 11 : 1;
+    }
+    return treeData;
+  }
+
+  /** Current value of ref — map first for simple locals (mjvm#14: locals are map-only). */
+  private MValue curVal(String ref, List<String> path, boolean glob) {
+    if (!glob && isSimpleLocalName(ref)) {
+      MValue lv = locals.get(ref);
+      if (lv != null) return lv;
+    }
+    return store.get(path, glob);
   }
 
   /** SET $EXTRACT(ref,from,to)=v / SET $PIECE(ref,d,f,t)=v */
@@ -1088,7 +1125,7 @@ public final class MRuntime {
   public void setExtract(String ref, int from, int to, String v) {
     List<String> path = pathOf(ref, this);
     boolean glob = path.get(0).startsWith("^");
-    String cur = store.get(path, glob).asStr();
+    String cur = curVal(ref, path, glob).asStr();
     if (to < from) to = from;
     if (from < 1) from = 1;
     int n = cur.length();
@@ -1109,7 +1146,7 @@ public final class MRuntime {
   public void setPiece(String ref, String d, int from, int to, String v) {
     List<String> path = pathOf(ref, this);
     boolean glob = path.get(0).startsWith("^");
-    String cur = store.get(path, glob).asStr();
+    String cur = curVal(ref, path, glob).asStr();
     setVar(ref, jvmumps.MValue.ofString(setPieceOf(cur, d, from, to, v)));
   }
 
@@ -1440,14 +1477,17 @@ public final class MRuntime {
         java.util.List<String> path = (java.util.List<String>) u[0];
         MValue old = (MValue) u[1];
         String nm = path.get(0);
+        boolean glob0 = path.get(0).startsWith("^");
+        boolean simpleLocal = !glob0 && nm.indexOf('(') < 0 && nm.indexOf('@') < 0;
         if (old == null) {
           locals.remove(nm);
-          store.kill(path, path.get(0).startsWith("^"));
+          if (!simpleLocal) store.kill(path, glob0);
         } else {
-          if (!path.get(0).startsWith("^") && nm.indexOf('(') < 0) {
-            locals.put(nm, old);
+          if (simpleLocal) {
+            locals.put(nm, old); // locals are map-only (see setVar)
+          } else {
+            store.set(path, glob0, old);
           }
-          store.set(path, path.get(0).startsWith("^"), old);
         }
       }
     }
