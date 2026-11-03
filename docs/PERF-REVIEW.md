@@ -49,3 +49,20 @@ Safe interpreter hot-path wins landed in `Ir`/`IrMachine`/`MRuntime` (no MFronte
 Measured on the Mac (JDK 27, MjvmBench 200k): IR store loop 5.23M → **5.86M it/s (+12%)**; IR inc loop ~flat (3.36M → 3.39M it/s); INTLOOP 2M wall unchanged (JVM-startup dominated). Corpus 139/139, smoke all green (TieredStoreRwSmoke failure is pre-existing on HEAD 7b6aee1), ORACLE 129 cases: pass=81 diverge=0 err=0 upstream=20 known-bugs=28.
 
 Remaining #14 residual is structural: locals live in a HashMap + every STORE writes through the store tree (TieredStore WAL-append per set; MStore tree write per set). Closing it needs per-op local slot caching with NEW/KILL invalidation — spec before code; do not hack around $DATA/$ORDER-on-locals, which read through the store.
+
+## 2026-11-03 slot-cache experiment (mjvm#14) — implemented, measured, REVERTED
+
+Implemented a per-op locals slot cache (Ir.slot → stable slot ids in an MRuntime slot table
+replacing the locals HashMap; LOAD/STORE hot path became one int compare + array read).
+Correctness was clean (corpus 139/139, ORACLE 129 diverge=0, smoke green), and the JFR profile
+confirmed the map probe disappeared (MRuntime.setVar 86→24 samples, MStore.set 76→11) — but the
+A/B wall-clock loop (SL20, 20M iters, alternating runs vs 485a79a) came out ~18% SLOWER
+(3.12s vs 3.69s avg): the loop is bound by numeric boxing at STORE (MValue.ofNumber + mstr per
+set, now the top frame at 106 samples) plus dispatch, and the added per-op slot branches cost
+what they saved. Reverted; HEAD stays at 485a79a (tranche 2, store loop +12%).
+
+Real next step for #14/#43: keep numeric locals as doubles in the slot table (parallel double[])
+and box lazily only when a string consumer needs asStr() — but the store write-through forces an
+MValue per STORE because $DATA/$ORDER read the store tree. So the design must add a numeric-aware
+local path in the store (setNum-with-tree-visibility) before this pays. Spec only — do not ship
+partial.
