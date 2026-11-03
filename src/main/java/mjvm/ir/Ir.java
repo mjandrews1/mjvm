@@ -81,6 +81,12 @@ public final class Ir {
    */
   public jvmumps.MValue constVal;
 
+  /**
+   * mjvm#14: cached locals slot (MRuntime.slotOf) for LOAD/STORE of a simple local name. -1 until
+   * first resolved; slot ids are stable for the life of the runtime.
+   */
+  public int slot = -1;
+
   public Ir(int op, String name, String ival, double dval, int iarg) {
     this.op = op;
     this.name = name;

@@ -87,3 +87,13 @@ skipped without breaking $DATA/$ORDER). Conclusion: #5 is at its agent-safe floo
 tranche 2 (+12% store loop) and lazy numeric str (-27% wall on the 20M loop), branch @ 829265b.
 Further gains are compiler-level (peephole/EVAL_EXPR in MFrontend — P1b surface) or a
 threaded-code/bytecode dispatch redesign. Do not chase the store write per-STORE.
+
+## 2026-11-03 locals slot table (mjvm#14) — LANDED
+
+With locals now map-only (no store write-through, previous commit), the locals HashMap is
+replaced by a slot table (stable slot ids in arrays; `Ir.slot` caches the slot per LOAD/STORE
+op site — one int compare per access once resolved). SL20 A/B vs 0f2a3db (20M-iter loop,
+alternating): 1918ms -> 1547ms (**-19%**); cumulative vs 485a79a: 3114ms -> 1547ms (**-50%**).
+Corpus 139/139, smoke green, ORACLE 129 diverge=0 err=0 known-bugs=28, TX-rollback/$DATA probes
+correct. (The earlier slot-cache attempt regressed -18% because STORE still wrote the store
+tree; with map-only locals it wins cleanly.)

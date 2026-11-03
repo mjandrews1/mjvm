@@ -243,7 +243,17 @@ public final class IrMachine {
             preReadHits++;
           } else {
             try {
-              jvmumps.MValue gv = rt.getVar(op.name);
+              jvmumps.MValue gv;
+              // mjvm#14: slot-cached local read — after first resolution, one int compare
+              if (op.slot < 0 && op.name != null && MRuntime.isSimpleLocalName(op.name)) {
+                op.slot = rt.slotOf(op.name);
+              }
+              if (op.slot >= 0) {
+                gv = rt.localGetSlot(op.slot);
+                if (gv == null) gv = rt.getVar(op.name); // undefined → error / store fallback
+              } else {
+                gv = rt.getVar(op.name);
+              }
               if (gv.isnum) {
                 dvals[sp] = gv.num;
                 vals[sp++] = null;
@@ -273,7 +283,15 @@ public final class IrMachine {
           } else if (op.name != null && op.name.startsWith("$")) {
             rt.setSpecial(op.name, v);
           } else {
-            rt.setVar(op.name, v);
+            // mjvm#14: slot-cached local store — after first resolution, one int compare
+            if (op.slot < 0 && op.name != null && MRuntime.isSimpleLocalName(op.name)) {
+              op.slot = rt.slotOf(op.name);
+            }
+            if (op.slot >= 0) {
+              rt.setVarSlot(op.slot, op.name, v);
+            } else {
+              rt.setVar(op.name, v);
+            }
           }
         }
         case Ir.STORE_ADD -> {
