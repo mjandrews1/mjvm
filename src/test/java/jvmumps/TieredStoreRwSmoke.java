@@ -40,9 +40,11 @@ public final class TieredStoreRwSmoke {
       System.out.println("Phase 4 OK: reader rejects write: " + e.getMessage());
     }
 
-    // Phase 5: Writer still owns WAL (exclusive)
+    // Phase 5: Writer still owns WAL (exclusive) — a second write-mode open must fail
+    // (same JVM → OverlappingFileLockException from the WAL flock)
     try {
-      // Removed dead store: writer2
+      var writer2 = new TieredStore(diskPath, walPath, 10000, 100, false);
+      writer2.close();
       System.out.println("FAIL: second writer opened");
       System.exit(1);
     } catch (Exception e) {
