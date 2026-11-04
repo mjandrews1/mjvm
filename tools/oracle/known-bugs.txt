@@ -2,28 +2,8 @@
 # CI stays green on these; any NEW divergence fails. When a bug is fixed,
 # remove its lines here — the case must then pass or CI goes red.
 # Format: <CASE> <issue>
-WCOMMA mjvm#22
-DOQUIT mjvm#22
-QDOARG mjvm#22
-DOTIF2 mjvm#18
-DOTIFMID mjvm#18
-DOTIFTRUE mjvm#18
-FORNEG mjvm#16
-NEGSUB mjvm#16
-IFCOMMA mjvm#17
-WCONDP mjvm#21
-DATAV mjvm#22 (comma-W literal+var lines degrade to RET: silent truncation facet)
-ORDERUP mjvm#22 (same)
-GWALK mjvm#19 (the $O-walk same-line body truncates to one iteration; after #19 the residual is the WRITE-break upstream class)
-SUBGWALK mjvm#19 (same)
-WDROP mjvm#24 (after #24 is fixed this still diverges via the WRITE-break class — move the annotation to known-divergence then)
-EXTR2 mjvm#25 (3-arg extrinsic compile error)
-DATAMULTI mjvm#22 (W "|",$D() 2-arg lit+fn — silent truncation)
-NEWMULTI mjvm#22 (W A,"|",B,"|",C — the 3+var WRITE compile-error shape)
-SMULTE mjvm#22 (W A,B,C — same family; the S A=1,B=A+1,C=B+1 itself works)
-DOARG2 mjvm#24 (W P+Q,R in tag — multi-arg W drops final)
-WRITEEXCL mjvm#24 (post-# argument dropped; # itself renders as newline — GT.M form feed)
-ORDERDIR mjvm#19 (same-line -walk truncates to one iteration)
-FORVLIST 35
-ARGFORQ mjvm#13 (QUIT in argumentless FOR exits routine; walk never completes)
-WPCMULTI mjvm#4 (postconditional multi-arg WRITE never fires in $O-walk)
+#
+# 2026-11-03 p1b-parser: all families fixed (#4 #13 #16 #17 #18 #19 #21 #22 #24 #25 #35).
+# Residual divergences on those cases are the documented upstream WRITE line-break
+# class (values correct, extra \n per command — RSM-lineage) and live in
+# known-divergence.txt now.
