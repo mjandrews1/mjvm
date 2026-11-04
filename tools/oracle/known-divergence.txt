@@ -22,3 +22,14 @@ ZCONVERT WRITE line-break per command (RSM-lineage); $ZCONVERT U/L values themse
 NEGPAT WRITE line-break per command (RSM-lineage); negated-pattern values themselves identical
 COLLATE WRITE line-break per command (RSM-lineage); M-collation order itself now byte-identical to GT.M (9,1264327,7502500,0011012)
 NEWALL  (upstream WRITE line-break class — fixed bug, residual is the documented divergence)
+DATAMULTI WRITE line-break per command (RSM-lineage) — mjvm#22 fixed 2026-11-03, residual is this class
+DATAV WRITE line-break per command (RSM-lineage) — mjvm#22 fixed, residual
+ORDERUP WRITE line-break per command (RSM-lineage) — mjvm#22 fixed, residual
+WDROP WRITE line-break per command (RSM-lineage) — mjvm#24 fixed, residual
+WRITEEXCL WRITE line-break per command (RSM-lineage; GT.M direct mode pads the form feed with \n) — mjvm#24 fixed, residual
+WCONDP WRITE line-break per command (RSM-lineage) — mjvm#21 fixed, residual
+GWALK WRITE line-break per command (RSM-lineage) — mjvm#19 fixed, residual
+SUBGWALK WRITE line-break per command (RSM-lineage) — mjvm#19 fixed, residual
+ORDERDIR WRITE line-break per command (RSM-lineage) — mjvm#13/#19 fixed (QUIT-in-FOR), residual
+FORNEG WRITE line-break per command (RSM-lineage) — mjvm#16 fixed (negative increment), residual
+FORVLIST WRITE line-break per command (RSM-lineage) — mjvm#35 fixed (comma value list), residual
