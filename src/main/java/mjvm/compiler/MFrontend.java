@@ -20,6 +20,15 @@ public final class MFrontend {
   /** JMP over ELSE body — patched to end of line. */
   private final java.util.List<Integer> endJmps = new java.util.ArrayList<>();
 
+  /**
+   * mjvm#13: stack of FOR-loop scopes. Each entry holds indices (in current out coordinates) of JMP
+   * placeholders emitted by an argumentless QUIT inside that loop's body; the FOR compiler patches
+   * them to just past the loop back-edge, so QUIT exits the loop and skips the rest of the line
+   * (GT.M semantics).
+   */
+  private final java.util.Deque<java.util.List<Integer>> forQuitPatches =
+      new java.util.ArrayDeque<>();
+
   public List<Ir> compileLine(String line) {
     lastTags = java.util.Map.of();
     return compile(line, true);
@@ -32,9 +41,39 @@ public final class MFrontend {
 
   private List<Ir> compile(String line, boolean terminate) {
     List<Ir> out = new ArrayList<>();
+    compileSegments(line, terminate, out);
+    return out;
+  }
+
+  private void compile(String line, boolean terminate, List<Ir> sink) {
+    compileSegments(line, terminate, sink);
+  }
+
+  /**
+   * mjvm#18: a body may contain '\n'-joined physical lines (dotted blocks are merged that way).
+   * Each physical line is its own command scope — an IF's conditional reach ends at the end of its
+   * own line, not at the end of the merged block.
+   */
+  private void compileSegments(String line, boolean terminate, List<Ir> out) {
+    if (line.indexOf('\n') < 0) {
+      compileInto(line, terminate, out);
+      return;
+    }
+    int start = 0;
+    int nl;
+    while ((nl = line.indexOf('\n', start)) >= 0) {
+      compileInto(line.substring(start, nl), false, out);
+      start = nl + 1;
+    }
+    compileInto(line.substring(start), terminate, out);
+  }
+
+  private List<Ir> compileOne(String line, boolean terminate) {
+    List<Ir> out = new ArrayList<>();
     if (compileDepth.get() == 0) {
       ifJmp0.clear();
       endJmps.clear();
+      forQuitPatches.clear();
     }
     if (compileDepth.incrementAndGet() > 30) {
       compileDepth.decrementAndGet();
@@ -126,11 +165,20 @@ public final class MFrontend {
           }
           i = MFrontendUtil.skipWs(line, i);
           int qs = i;
-          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+          // mjvm#25: scanExprEnd is operator/string aware — a naive command-word
+          // scan stops at the B in Q A+B+C (B is a command letter after +)
+          if (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) {
+            i = MFrontendUtil.scanExprEnd(line, i, " ");
+          }
           String qexpr = line.substring(qs, i).trim();
           if (!qexpr.isEmpty()) {
             out.add(Ir.evalExpr(qexpr));
             out.add(Ir.retVal());
+          } else if (!forQuitPatches.isEmpty()) {
+            // mjvm#13: argumentless QUIT inside a FOR loop exits the loop (and
+            // the rest of the line) instead of returning from the routine
+            forQuitPatches.peek().add(out.size());
+            out.add(Ir.jmp(-1));
           } else {
             out.add(Ir.ret());
           }
@@ -142,9 +190,9 @@ public final class MFrontend {
         } else if (cmd.equals("H") || cmd.equals("HALT")) {
           // mjvm#29: HALT terminates the run
           out.add(Ir.halt());
-          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+          i = MFrontendUtil.skipToNextCmd(line, i);
         } else if (cmd.equals("HANG")) {
-          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+          i = MFrontendUtil.skipToNextCmd(line, i);
         } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
           i = MFrontendUtil.skipWs(line, i);
           int stx = i;
@@ -567,7 +615,7 @@ public final class MFrontend {
           }
         } else if (cmd.equals("VIEW")) {
           // M11: VIEW is implementation-defined (no-op) — skip args
-          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+          i = MFrontendUtil.skipToNextCmd(line, i);
         } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
           i = MFrontendUtil.skipWs(line, i);
           int stx = i;
@@ -765,7 +813,13 @@ public final class MFrontend {
         int ds = 0;
         while (ds < d.length() && (d.charAt(ds) == '.' || d.charAt(ds) == ' ')) ds++;
         d = d.substring(ds).trim();
-        if (blk.length() > 0) blk.append(' ');
+        // mjvm#18: join dot-lines with '\n' so each physical dot-line is its own
+        // command scope (an IF on one dot-line must not cover the next dot-line)
+        // — EXCEPT when the block so far ends with an argumentless DO: its block
+        // is the following dot-lines, joined inline with a space (legacy reading)
+        if (blk.length() > 0) {
+          blk.append(endsWithArglessDo(blk.toString()) ? ' ' : '\n');
+        }
         blk.append(d);
         dots.add(j);
         j++;
@@ -806,6 +860,7 @@ public final class MFrontend {
       List<int[]> patches = new ArrayList<>();
       ifJmp0.clear();
       endJmps.clear();
+      forQuitPatches.clear();
       String tag = tags.get(li);
       String body = bodies.get(li);
       activeLabels = labels;
@@ -1040,6 +1095,21 @@ public final class MFrontend {
     return i - dPos;
   }
 
+  /**
+   * mjvm#18: true when the (trimmed) line ends with a D/DO token at a word boundary — i.e. an
+   * argumentless DO whose dotted block follows on the next physical lines.
+   */
+  static boolean endsWithArglessDo(String s) {
+    String t = s.trim();
+    int n = t.length();
+    int e = n;
+    while (e > 0 && Character.isLetter(t.charAt(e - 1))) e--;
+    if (e == n) return false;
+    String w = t.substring(e, n);
+    if (!w.equalsIgnoreCase("D") && !w.equalsIgnoreCase("DO")) return false;
+    return e == 0 || t.charAt(e - 1) == ' ';
+  }
+
   /** True when the letter token at {@code peek} is a tag (or tag candidate) of the routine. */
   static boolean isLabelAt(String line, int peek, java.util.Set<String> tagNames) {
     if (tagNames == null) return false;
@@ -1065,11 +1135,6 @@ public final class MFrontend {
     }
     out.add(Ir.call(target, argc));
     return i;
-  }
-
-  private void compile(String line, boolean terminate, List<Ir> sink) {
-    List<Ir> tmp = compile(line, terminate);
-    sink.addAll(tmp);
   }
 
   void compileDoGoto(
@@ -1234,6 +1299,17 @@ public final class MFrontend {
   }
 
   private int compileIf(String line, int i, List<Ir> out) {
+    // mjvm#17: IF takes a comma-separated condition list (AND semantics) —
+    // I A=1,B=2 means I (A=1)&(B=2); join top-level commas before eval
+    int j = MFrontendUtil.scanExprEnd(line, i, " ");
+    String span = line.substring(i, j).trim();
+    String anded = span.isEmpty() ? null : MFrontendUtil.andJoinCommas(span);
+    if (anded != null) {
+      out.add(Ir.evalExpr(anded));
+      ifJmp0.push(out.size());
+      out.add(Ir.jmp0(-1));
+      return j;
+    }
     i = compileExpr(line, i, out, " ");
     ifJmp0.push(out.size());
     out.add(Ir.jmp0(-1));
@@ -1285,15 +1361,23 @@ public final class MFrontend {
       out.add(Ir.jmp(-1)); // true → exit loop (patched below)
       int exitJmp = out.size() - 1;
       int bodyStart = out.size();
+      java.util.List<Integer> scope = new ArrayList<>();
+      forQuitPatches.push(scope);
       compileInto(body, out);
       out.add(Ir.jmp(loopStart));
+      forQuitPatches.pop();
+      for (int ix : scope) if (ix >= 0 && ix < out.size()) out.set(ix, Ir.jmp(out.size()));
       if (exitJmp >= 0 && exitJmp < out.size()) out.set(exitJmp, Ir.jmp(out.size()));
       if (loopStart + 1 >= 0 && loopStart + 1 < out.size())
         out.set(loopStart + 1, Ir.jmp0(bodyStart));
     } else {
       int loopStart = out.size();
+      java.util.List<Integer> scope = new ArrayList<>();
+      forQuitPatches.push(scope);
       compileInto(body, out);
       out.add(Ir.jmp(loopStart));
+      forQuitPatches.pop();
+      for (int ix : scope) if (ix >= 0 && ix < out.size()) out.set(ix, Ir.jmp(out.size()));
     }
     return line.length();
   }
@@ -1367,11 +1451,16 @@ public final class MFrontend {
         items.add(sb.toString());
         String body = line.substring(j);
         while (body.startsWith(" ")) body = body.substring(1);
+        // mjvm#13: QUIT in any item's body exits the whole FOR command
+        java.util.List<Integer> listScope = new ArrayList<>();
+        forQuitPatches.push(listScope);
         for (String item : items) {
           compileExprSrc(item.trim(), out);
           out.add(Ir.store(var));
           compileInto(body, out);
         }
+        forQuitPatches.pop();
+        for (int ix : listScope) if (ix >= 0 && ix < out.size()) out.set(ix, Ir.jmp(out.size()));
         return line.length();
       }
       List<String> segs = MFrontendUtil.splitOnColons(spec);
@@ -1397,14 +1486,47 @@ public final class MFrontend {
       int top = out.size();
       int jmp0At = -1;
       if (!infinite) {
-        out.add(Ir.load(var));
-        compileExprSrc(toS, out);
-        out.add(Ir.bin(Ir.LE));
-        jmp0At = out.size();
-        out.add(Ir.jmp0(-1));
+        Double incConst = tryParseNum(incS);
+        if (incConst != null && incConst < 0) {
+          // negative constant increment: loop while var>=to (F J=5:-1:1)
+          out.add(Ir.load(var));
+          compileExprSrc(toS, out);
+          out.add(Ir.bin(Ir.GE));
+          jmp0At = out.size();
+          out.add(Ir.jmp0(-1));
+        } else if (incConst != null) {
+          out.add(Ir.load(var));
+          compileExprSrc(toS, out);
+          out.add(Ir.bin(Ir.LE));
+          jmp0At = out.size();
+          out.add(Ir.jmp0(-1));
+        } else {
+          // non-constant increment: direction decided per iteration —
+          // exit unless (inc>=0 & var<=to) ! (inc<0 & var>=to)
+          out.add(Ir.evalExpr(incS));
+          out.add(Ir.pushNum(0));
+          out.add(Ir.bin(Ir.GE));
+          int negJ0 = out.size();
+          out.add(Ir.jmp0(-1)); // inc<0 → negative-direction check
+          out.add(Ir.load(var));
+          compileExprSrc(toS, out);
+          out.add(Ir.bin(Ir.LE));
+          int leJmp = out.size();
+          out.add(Ir.jmp(-1)); // → final condition test
+          int negAt = out.size();
+          if (negJ0 >= 0) out.set(negJ0, Ir.jmp0(negAt));
+          out.add(Ir.load(var));
+          compileExprSrc(toS, out);
+          out.add(Ir.bin(Ir.GE));
+          if (leJmp >= 0) out.set(leJmp, Ir.jmp(out.size() + 1));
+          jmp0At = out.size();
+          out.add(Ir.jmp0(-1));
+        }
       }
       String body = line.substring(j);
       while (body.startsWith(" ")) body = body.substring(1);
+      java.util.List<Integer> specScope = new ArrayList<>();
+      forQuitPatches.push(specScope);
       compileInto(body, out);
       out.add(Ir.load(var));
       compileExprSrc(incS.isEmpty() ? "1" : incS, out);
@@ -1414,6 +1536,8 @@ public final class MFrontend {
         out.add(Ir.jmp(top));
         if (jmp0At >= 0 && jmp0At < out.size()) out.set(jmp0At, Ir.jmp0(out.size()));
       }
+      forQuitPatches.pop();
+      for (int ix : specScope) if (ix >= 0 && ix < out.size()) out.set(ix, Ir.jmp(out.size()));
       return line.length();
     } finally {
       compileRecursionDepth.decrementAndGet();
@@ -1425,7 +1549,14 @@ public final class MFrontend {
   private static final int MAX_COMPILE_DEPTH = 100;
 
   void compileInto(String body, List<Ir> out) {
-    if (body.isEmpty()) return;
+    compileInto(body, false, out);
+  }
+
+  void compileInto(String body, boolean terminate, List<Ir> out) {
+    if (body.isEmpty()) {
+      if (terminate) out.add(Ir.ret());
+      return;
+    }
     compileRecursionDepth.incrementAndGet();
     if (compileRecursionDepth.get() > 30) {
       compileRecursionDepth.decrementAndGet();
@@ -1434,7 +1565,11 @@ public final class MFrontend {
     try {
       int base = out.size();
       int patchCountBefore = activePatches == null ? 0 : activePatches.size();
-      List<Ir> tmp = compile(body, false);
+      // mjvm#13: snapshot forQuitPatches sizes so indices recorded in the temp
+      // list (including in scopes pushed during this call) shift by base below
+      java.util.Map<java.util.List<Integer>, Integer> fqBefore = new java.util.IdentityHashMap<>();
+      for (java.util.List<Integer> fl : forQuitPatches) fqBefore.put(fl, fl.size());
+      List<Ir> tmp = compileOne(body, terminate);
       // Offset local JMP/JMP0 targets by the insertion base so they
       // resolve correctly when copied into the parent list.
       for (Ir ir : tmp) {
@@ -1452,6 +1587,11 @@ public final class MFrontend {
           activePatches.get(k)[1] += base;
         }
       }
+      // Same re-basing for mjvm#13 QUIT-in-FOR placeholder indices
+      for (java.util.List<Integer> fl : forQuitPatches) {
+        int from = fqBefore.getOrDefault(fl, 0);
+        for (int k = from; k < fl.size(); k++) fl.set(k, fl.get(k) + base);
+      }
     } finally {
       compileRecursionDepth.decrementAndGet();
     }
@@ -1459,6 +1599,18 @@ public final class MFrontend {
 
   void compileExprSrc(String src, List<Ir> out) {
     compileExpr(src, 0, out, "\0");
+  }
+
+  /** Parse an M numeric literal (e.g. "-1", "0.5"); null if not a plain constant. */
+  private static Double tryParseNum(String s) {
+    if (s == null) return null;
+    String t = s.trim();
+    if (t.isEmpty()) return null;
+    try {
+      return Double.parseDouble(t);
+    } catch (NumberFormatException e) {
+      return null;
+    }
   }
 
   private int compileNameList(String line, int i, List<Ir> out, int kind) {
