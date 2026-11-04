@@ -96,6 +96,10 @@ public final class IrMachine {
     final int[] newFrameDepth = new int[64];
     final String[] newNames = new String[256];
     final MValue[] newVals = new MValue[256];
+    // mjvm#31: NEW_ALL/NEW_EXCL snapshots — full locals-map snapshots per NEW, restored LIFO on RET
+    final java.util.ArrayList<java.util.Map<String, MValue>> newAllSnaps =
+        new java.util.ArrayList<>();
+    final int[] newAllDepth = new int[64];
   }
 
   private static final ThreadLocal<java.util.ArrayDeque<Frame>> FRAME_FREE =
@@ -116,13 +120,6 @@ public final class IrMachine {
   /** Thread-local args buffer — avoids allocating MValue[] per CALL. */
   private static final ThreadLocal<MValue[]> ARGS_POOL =
       ThreadLocal.withInitial(() -> new MValue[16]);
-
-  /** Pop a value from the split stack — handles null (numeric) slots. */
-  private static MValue popVal(MValue[] vals, double[] dvals, int[] sp) {
-    int i = --sp[0];
-    MValue v = vals[i];
-    return v != null ? v : MValue.ofNumber(dvals[i]);
-  }
 
   /**
    * Restore NEW-journal entries down to the frame's recorded depth (mjvm#23): a journaled null
@@ -168,8 +165,9 @@ public final class IrMachine {
     double[] dvals = f.dvals;
     String[] newNames = f.newNames;
     MValue[] newVals = f.newVals;
+    java.util.ArrayList<java.util.Map<String, MValue>> newAllSnaps = f.newAllSnaps;
+    int[] newAllDepth = f.newAllDepth;
     int newTop = 0;
-    int[] spA = {0}; // array wrapper for popVal
     int sp = 0;
     int pc = startPc;
     int[] rets = f.rets;
@@ -230,7 +228,13 @@ public final class IrMachine {
             dvals[sp] = op.dval;
             vals[sp++] = null; // null = numeric slot
           } else {
-            vals[sp++] = MValue.ofString(op.ival == null ? "" : op.ival);
+            // mjvm#14: share the immutable constant instead of allocating per push
+            MValue cv = op.constVal;
+            if (cv == null) {
+              cv = MValue.ofString(op.ival == null ? "" : op.ival);
+              op.constVal = cv;
+            }
+            vals[sp++] = cv;
           }
         }
         case Ir.LOAD -> {
@@ -245,7 +249,17 @@ public final class IrMachine {
             preReadHits++;
           } else {
             try {
-              jvmumps.MValue gv = rt.getVar(op.name);
+              jvmumps.MValue gv;
+              // mjvm#14: slot-cached local read — after first resolution, one int compare
+              if (op.slot < 0 && op.name != null && MRuntime.isSimpleLocalName(op.name)) {
+                op.slot = rt.slotOf(op.name);
+              }
+              if (op.slot >= 0) {
+                gv = rt.localGetSlot(op.slot);
+                if (gv == null) gv = rt.getVar(op.name); // undefined → error / store fallback
+              } else {
+                gv = rt.getVar(op.name);
+              }
               if (gv.isnum) {
                 dvals[sp] = gv.num;
                 vals[sp++] = null;
@@ -275,7 +289,15 @@ public final class IrMachine {
           } else if (op.name != null && op.name.startsWith("$")) {
             rt.setSpecial(op.name, v);
           } else {
-            rt.setVar(op.name, v);
+            // mjvm#14: slot-cached local store — after first resolution, one int compare
+            if (op.slot < 0 && op.name != null && MRuntime.isSimpleLocalName(op.name)) {
+              op.slot = rt.slotOf(op.name);
+            }
+            if (op.slot >= 0) {
+              rt.setVarSlot(op.slot, op.name, v);
+            } else {
+              rt.setVar(op.name, v);
+            }
           }
         }
         case Ir.STORE_ADD -> {
@@ -307,9 +329,7 @@ public final class IrMachine {
           if (op.op == Ir.CONCAT) {
             MValue b = vals[--sp];
             if (b == null) b = MValue.ofNumber(dvals[sp]);
-            if (b == null) b = MValue.ofNumber(dvals[sp]);
             MValue a = vals[--sp];
-            if (a == null) a = MValue.ofNumber(dvals[sp]);
             if (a == null) a = MValue.ofNumber(dvals[sp]);
             vals[sp++] = MValue.ofString(a.asStr() + b.asStr());
           } else {
@@ -342,9 +362,7 @@ public final class IrMachine {
         case Ir.EQ, Ir.LT, Ir.GT, Ir.LE, Ir.GE, Ir.NE -> {
           MValue b = vals[--sp];
           if (b == null) b = MValue.ofNumber(dvals[sp]);
-          if (b == null) b = MValue.ofNumber(dvals[sp]);
           MValue a = vals[--sp];
-          if (a == null) a = MValue.ofNumber(dvals[sp]);
           if (a == null) a = MValue.ofNumber(dvals[sp]);
           boolean r =
               switch (op.op) {
@@ -469,7 +487,7 @@ public final class IrMachine {
           }
         }
         case Ir.MERGE -> rt.mergeVar(op.name, op.ival);
-        case Ir.EVAL_EXPR -> vals[sp++] = rt.evalExpr(op.ival);
+        case Ir.EVAL_EXPR -> vals[sp++] = rt.evalOp(op); // mjvm#43: AST node cached on the op
         case Ir.SET_EXTRACT -> {
           MValue v = vals[--sp];
           if (v == null) v = MValue.ofNumber(dvals[sp]);
@@ -486,6 +504,7 @@ public final class IrMachine {
         case Ir.CALL_PC -> {
           rets[rsp] = pc + 1;
           newFrameDepth[rsp] = newTop;
+          newAllDepth[rsp] = newAllSnaps.size();
           rsp++;
           pc = op.iarg;
           continue;
@@ -493,6 +512,9 @@ public final class IrMachine {
         case Ir.RET_TO -> {
           if (rsp == 0) return extrinsic ? rt.takeExtrinsicValue() : null;
           newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
+          while (newAllSnaps.size() > newAllDepth[rsp - 1]) {
+            rt.restoreSnapshot(newAllSnaps.remove(newAllSnaps.size() - 1));
+          }
           pc = rets[--rsp];
           continue;
         }
@@ -512,10 +534,35 @@ public final class IrMachine {
         case Ir.RET -> {
           if (rsp > 0) {
             newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
+            while (newAllSnaps.size() > newAllDepth[rsp - 1]) {
+              rt.restoreSnapshot(newAllSnaps.remove(newAllSnaps.size() - 1));
+            }
             pc = rets[--rsp];
             continue;
           }
+          while (!newAllSnaps.isEmpty()) {
+            rt.restoreSnapshot(newAllSnaps.remove(newAllSnaps.size() - 1));
+          }
           return extrinsic ? rt.takeExtrinsicValue() : null;
+        }
+        case Ir.HALT -> {
+          // mjvm#29: HALT terminates the run; every frame's loop sees quit and unwinds
+          rt.requestQuit();
+        }
+        case Ir.KILL_EXCL -> {
+          // mjvm#30: K (A,B) — kill all locals except the listed ones
+          rt.killAllExcept(op.ival == null ? "" : op.ival);
+        }
+        case Ir.KILL_ALL -> rt.killAllExcept("");
+        case Ir.NEW_ALL -> {
+          // mjvm#31: argumentless NEW — snapshot all locals, then hide them
+          newAllSnaps.add(rt.snapshotLocals());
+          rt.newVarAll();
+        }
+        case Ir.NEW_EXCL -> {
+          java.util.Map<String, MValue> snap = rt.snapshotLocals();
+          rt.newVarAll();
+          rt.restoreExcept(snap, op.ival == null ? "" : op.ival);
         }
         default -> throw new jvmumps.MError("bad IR op " + op.op);
       }

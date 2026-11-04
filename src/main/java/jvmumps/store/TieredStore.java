@@ -221,7 +221,7 @@ public final class TieredStore implements StoreApi, AutoCloseable {
     touchLru(key);
     // Append to WAL (durable)
     try {
-      String val = v.isnum ? "#" + ExprEval.mstr(v.num) : v.str;
+      String val = v.isnum ? "#" + ExprEval.mstr(v.num) : v.asStr();
       wal.appendSet(key, val);
       metrics.recordWalAppend();
     } catch (Exception e) {

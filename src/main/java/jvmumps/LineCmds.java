@@ -183,7 +183,7 @@ final class LineCmds {
         String text = fe.eval.eval(fe.readIndOperand(c)).asStr();
         for (String part : fe.splitTopCommas(text)) {
           MValue v = fe.eval.eval(part);
-          String s = v.isnum ? ExprEval.mstr(v.num) : v.str;
+          String s = v.isnum ? ExprEval.mstr(v.num) : v.asStr();
           buf.append(s);
           fe.vx += s.length();
           fe.eval.vx = fe.vx;
@@ -192,7 +192,7 @@ final class LineCmds {
         continue;
       }
       MValue v = fe.eval.eval(c.readExpr());
-      String s = v.isnum ? ExprEval.mstr(v.num) : v.str;
+      String s = v.isnum ? ExprEval.mstr(v.num) : v.asStr();
       buf.append(s);
       fe.vx += s.length();
       fe.eval.vx = fe.vx;

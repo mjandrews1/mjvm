@@ -25,6 +25,26 @@ public final class ExprEval {
   private static final java.util.concurrent.ConcurrentHashMap<String, List<ExprTokens.Tok>>
       tokenCache = new java.util.concurrent.ConcurrentHashMap<>();
 
+  /**
+   * AST cache (perf item 5): expression string → compiled {@link ExprAst.Node} tree. Nodes are
+   * immutable and take the {@link ExprEval} at eval time, so one static cache is safe.
+   */
+  private static final java.util.concurrent.ConcurrentHashMap<String, ExprAst.Node> astCache =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  /**
+   * Ledger of sources the AST builder declined (fell back to the legacy parser) — AGENTS.md
+   * error-handling policy: recorded, never silently dropped. Visible to tests via {@link
+   * #noAstSrcs()}.
+   */
+  private static final java.util.Set<String> noAst =
+      java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+  /** Test/ledger access to the AST-fallback set. */
+  public static java.util.Set<String> noAstSrcs() {
+    return java.util.Collections.unmodifiableSet(noAst);
+  }
+
   public static String fmtNumber(double n, String fmt, int dec) {
     return Parser.fmtNumber(n, fmt, dec);
   }
@@ -170,6 +190,43 @@ public final class ExprEval {
         return env.extrinsic(fn, args, null);
       }
     }
+    // AST cache (perf item 5): compile once per unique source, evaluate the tree per call
+    // instead of re-running the precedence-climbing walk. Unsupported constructs throw
+    // UnsupportedExpr and fall back to the legacy evaluating parser, recorded in noAst.
+    ExprAst.Node n = astFor(src);
+    if (n != null) {
+      return n.eval(this);
+    }
+    return evalLegacy(src);
+  }
+
+  /**
+   * AST cache lookup/compile (perf item 5, mjvm#43): returns the compiled node for {@code src}, or
+   * null when the AST builder declines (recorded in the noAst ledger). Public for MRuntime.evalOp,
+   * which caches the node on the IR op instead of re-looking-up per call.
+   */
+  public ExprAst.Node astFor(String src) {
+    ExprAst.Node n = astCache.get(src);
+    if (n == null && !noAst.contains(src)) {
+      try {
+        n = ExprAst.parse(src, tokenCache.computeIfAbsent(src, k -> ExprTokens.lex(k)));
+        if (astCache.size() < 8192) {
+          astCache.put(src, n);
+        } else {
+          noAst.add(src);
+        }
+      } catch (ExprAst.UnsupportedExpr u) {
+        if (noAst.size() < 8192) noAst.add(src);
+      }
+    }
+    return n;
+  }
+
+  /**
+   * Legacy evaluating-parser path — the reference semantics; also the fallback for sources the AST
+   * builder declines. Package-visible for differential tests.
+   */
+  MValue evalLegacy(String src) {
     List<ExprTokens.Tok> toks = tokenCache.computeIfAbsent(src, k -> ExprTokens.lex(k));
     Parser p = new Parser(toks);
     MValue v = p.expr();
@@ -307,7 +364,7 @@ public final class ExprEval {
     if (v.isnum) {
       return v.num != 0;
     }
-    String s = v.str;
+    String s = v.asStr();
     int i = 0;
     while (i < s.length() && (s.charAt(i) == '+' || s.charAt(i) == '-')) {
       i++;
@@ -460,7 +517,9 @@ public final class ExprEval {
                   a = MValue.ofNumber(y == 0 ? 0 : Math.floor(x / y));
                   continue;
                 case "#":
-                  a = MValue.ofNumber(y == 0 ? 0 : x % y);
+                  // C22: M # is x - y*floor(x/y) (-7#3 = 2), NOT Java's truncated % (-1).
+                  // The AST path (ExprAst) uses the same rule; keep the fast path identical.
+                  a = MValue.ofNumber(y == 0 ? 0 : x - y * Math.floor(x / y));
                   continue;
                 case "**":
                   a = MValue.ofNumber(Math.pow(x, y));
@@ -688,7 +747,7 @@ public final class ExprEval {
             if (a.isnum) {
               inner.append(mstr(a.asNum()));
             } else {
-              inner.append('"').append(a.str).append('"');
+              inner.append('"').append(a.asStr()).append('"');
             }
           }
           key = t.text + "(" + inner + ")";
@@ -957,7 +1016,7 @@ public final class ExprEval {
           if (a.isnum) {
             inner.append(mstr(a.asNum()));
           } else {
-            inner.append('"').append(a.str).append('"');
+            inner.append('"').append(a.asStr()).append('"');
           }
           first = false;
         }
@@ -1030,15 +1089,15 @@ public final class ExprEval {
     boolean res;
     if (op.equals("=")) {
       // ISO: both numeric → numeric compare; else string. (J17 / C24)
-      boolean an = a.isnum || numericStr(a.str);
-      boolean bn = b.isnum || numericStr(b.str);
+      boolean an = a.isnum || numericStr(a.asStr());
+      boolean bn = b.isnum || numericStr(b.asStr());
       if (an && bn) {
         res = a.asNum() == b.asNum();
       } else {
         res = a.asStr().equals(b.asStr());
       }
     } else if (op.equals("'=")) {
-      return compare("=", a, b).str.equals("1") ? MValue.ofNumber(0) : MValue.ofNumber(1);
+      return compare("=", a, b).asStr().equals("1") ? MValue.ofNumber(0) : MValue.ofNumber(1);
     } else if (op.equals("<")
         || op.equals(">")
         || op.equals("<=")

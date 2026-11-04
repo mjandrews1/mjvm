@@ -39,3 +39,61 @@
 ---
 
 *Honesty: numbers are from one dated fixed-host run; rerun `make bench` / `tools/capture_baseline.sh` before quoting in a release.*
+
+## 2026-11-03 tranche (mjvm#14/#43 follow-up, uncommitted at capture)
+
+Safe interpreter hot-path wins landed in `Ir`/`IrMachine`/`MRuntime` (no MFrontend changes):
+- PUSH string constants now share one immutable `MValue` per op (`Ir.constVal`) instead of allocating per push.
+- `MRuntime.setVar` takes the String-key store path for simple names — skips the `pathOf` ArrayList allocation per STORE.
+
+Measured on the Mac (JDK 27, MjvmBench 200k): IR store loop 5.23M → **5.86M it/s (+12%)**; IR inc loop ~flat (3.36M → 3.39M it/s); INTLOOP 2M wall unchanged (JVM-startup dominated). Corpus 139/139, smoke all green (TieredStoreRwSmoke failure is pre-existing on HEAD 7b6aee1), ORACLE 129 cases: pass=81 diverge=0 err=0 upstream=20 known-bugs=28.
+
+Remaining #14 residual is structural: locals live in a HashMap + every STORE writes through the store tree (TieredStore WAL-append per set; MStore tree write per set). Closing it needs per-op local slot caching with NEW/KILL invalidation — spec before code; do not hack around $DATA/$ORDER-on-locals, which read through the store.
+
+## 2026-11-03 slot-cache experiment (mjvm#14) — implemented, measured, REVERTED
+
+Implemented a per-op locals slot cache (Ir.slot → stable slot ids in an MRuntime slot table
+replacing the locals HashMap; LOAD/STORE hot path became one int compare + array read).
+Correctness was clean (corpus 139/139, ORACLE 129 diverge=0, smoke green), and the JFR profile
+confirmed the map probe disappeared (MRuntime.setVar 86→24 samples, MStore.set 76→11) — but the
+A/B wall-clock loop (SL20, 20M iters, alternating runs vs 485a79a) came out ~18% SLOWER
+(3.12s vs 3.69s avg): the loop is bound by numeric boxing at STORE (MValue.ofNumber + mstr per
+set, now the top frame at 106 samples) plus dispatch, and the added per-op slot branches cost
+what they saved. Reverted; HEAD stays at 485a79a (tranche 2, store loop +12%).
+
+Real next step for #14/#43: keep numeric locals as doubles in the slot table (parallel double[])
+and box lazily only when a string consumer needs asStr() — but the store write-through forces an
+MValue per STORE because $DATA/$ORDER read the store tree. So the design must add a numeric-aware
+local path in the store (setNum-with-tree-visibility) before this pays. Spec only — do not ship
+partial.
+
+## 2026-11-03 lazy numeric str (mjvm#14/#43) — LANDED
+
+`MValue.str` is now lazy for numeric values (`ofNumber` no longer allocates an mstr string per
+numeric result; materialized on first `asStr()`). All direct `.str` reads converted to `asStr()`
+(compiler-enforced via private field; 20 sites). The per-STORE boxing was the top hot-loop frame
+after the (reverted) slot-cache experiment.
+
+Verified: corpus 139/139, smoke all green (TieredStoreRwSmoke pre-existing on HEAD), ORACLE 129
+cases diverge=0 err=0 known-bugs=28. A/B vs 485a79a on SL20 (20M-iteration `S J=J+1` loop,
+alternating runs): 3114 ms → 2287 ms avg (**-27%**); output identical. MjvmBench 1M: inc 5.15M it/s.
+
+## 2026-11-03 #5 residual conclusion (post lazy-str)
+
+Post-lazy-str JFR on SL20: dispatch (IrMachine.runFrame) ~50% of top frames, var access ~25%,
+store tree write only ~10% (MStore.setNum is a no-op for locals — the tree is the only store for
+locals, and data()/order() read the tree, so the write-through is load-bearing and can't be
+skipped without breaking $DATA/$ORDER). Conclusion: #5 is at its agent-safe floor — landed
+tranche 2 (+12% store loop) and lazy numeric str (-27% wall on the 20M loop), branch @ 829265b.
+Further gains are compiler-level (peephole/EVAL_EXPR in MFrontend — P1b surface) or a
+threaded-code/bytecode dispatch redesign. Do not chase the store write per-STORE.
+
+## 2026-11-03 locals slot table (mjvm#14) — LANDED
+
+With locals now map-only (no store write-through, previous commit), the locals HashMap is
+replaced by a slot table (stable slot ids in arrays; `Ir.slot` caches the slot per LOAD/STORE
+op site — one int compare per access once resolved). SL20 A/B vs 0f2a3db (20M-iter loop,
+alternating): 1918ms -> 1547ms (**-19%**); cumulative vs 485a79a: 3114ms -> 1547ms (**-50%**).
+Corpus 139/139, smoke green, ORACLE 129 diverge=0 err=0 known-bugs=28, TX-rollback/$DATA probes
+correct. (The earlier slot-cache attempt regressed -18% because STORE still wrote the store
+tree; with map-only locals it wins cleanly.)

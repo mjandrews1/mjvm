@@ -2,6 +2,7 @@ package mjvm.runtime;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import jvmumps.MValue;
@@ -23,7 +24,101 @@ public final class MRuntime {
   }
 
   private final StringBuilder out = new StringBuilder();
-  private final Map<String, MValue> locals = new HashMap<>();
+  // mjvm#14: locals slot table — array-indexed with stable slot ids so Ir ops can cache the slot
+  // (Ir.slot) and skip the per-access map probe. Simple locals are map/slot-only, never in the
+  // store tree (see setVar).
+  private final Map<String, Integer> slotIndex = new HashMap<>();
+  private String[] slotNames = new String[64];
+  private MValue[] slotVals = new MValue[64];
+  private int slotCount;
+
+  int slotOf(String name) {
+    Integer existing = slotIndex.get(name);
+    if (existing != null) return existing;
+    if (slotCount == slotNames.length) {
+      int cap = slotNames.length * 2;
+      slotNames = java.util.Arrays.copyOf(slotNames, cap);
+      slotVals = java.util.Arrays.copyOf(slotVals, cap);
+    }
+    int s = slotCount++;
+    slotNames[s] = name;
+    slotIndex.put(name, s);
+    return s;
+  }
+
+  MValue localGet(String name) {
+    Integer s = slotIndex.get(name);
+    return s == null ? null : slotVals[s];
+  }
+
+  void localPut(String name, MValue v) {
+    slotVals[slotOf(name)] = v;
+  }
+
+  void localRemove(String name) {
+    Integer s = slotIndex.get(name);
+    if (s != null) slotVals[s] = null;
+  }
+
+  void localClear() {
+    java.util.Arrays.fill(slotVals, 0, slotCount, null);
+  }
+
+  MValue localGetSlot(int slot) {
+    return slotVals[slot];
+  }
+
+  /** mjvm#14: STORE fast path via cached slot — slot table only (locals are not in the store). */
+  public void setVarSlot(int slot, String name, MValue v) {
+    if (tlevel.get() > 0) {
+      recordUndo(List.of(name), false, slotVals[slot]);
+    }
+    slotVals[slot] = v;
+  }
+
+  /** mjvm#31: snapshot of all defined locals (for argumentless/exclusive NEW). */
+  public java.util.Map<String, MValue> snapshotLocals() {
+    java.util.Map<String, MValue> m = new HashMap<>();
+    for (int i = 0; i < slotCount; i++) {
+      if (slotVals[i] != null) m.put(slotNames[i], slotVals[i]);
+    }
+    return m;
+  }
+
+  /** mjvm#31: argumentless NEW — hide all locals (restored from the snapshot on scope exit). */
+  public void newVarAll() {
+    localClear();
+  }
+
+  /** mjvm#31: restore a full locals snapshot (called LIFO on RET). */
+  public void restoreSnapshot(java.util.Map<String, MValue> snap) {
+    for (java.util.Map.Entry<String, MValue> e : snap.entrySet()) {
+      localPut(e.getKey(), e.getValue());
+    }
+  }
+
+  /** mjvm#31: restore only the keep-listed names from a snapshot (exclusive NEW N (A,B)). */
+  public void restoreExcept(java.util.Map<String, MValue> snap, String keepCsv) {
+    for (String k : keepCsv.split(",")) {
+      MValue v = snap.get(k);
+      if (v != null) localPut(k, v);
+    }
+  }
+
+  /**
+   * mjvm#30: exclusive KILL — kill all locals except the comma-joined keep names. Slot side via
+   * localRemove; store side (subscripted locals) via store.killAllLocalsExcept.
+   */
+  public void killAllExcept(String keepCsv) {
+    java.util.Set<String> keep =
+        new HashSet<>(
+            keepCsv.isEmpty() ? java.util.List.of() : java.util.Arrays.asList(keepCsv.split(",")));
+    for (int i = 0; i < slotCount; i++) {
+      if (slotVals[i] != null && !keep.contains(slotNames[i])) localRemove(slotNames[i]);
+    }
+    store.killAllLocalsExcept(keep);
+  }
+
   private volatile boolean quit;
   // M5 devices
   private final Map<Integer, java.io.BufferedReader> devices = new HashMap<>();
@@ -178,20 +273,46 @@ public final class MRuntime {
     try {
       return exprEval.eval(src == null ? "" : src);
     } catch (jvmumps.MError e) {
-      if (trapFiring) throw e;
-      String trap = exprEval.etrap;
-      if (trap.isEmpty()) trap = exprEval.ztrap;
-      if (trap.isEmpty()) throw e;
-      trapFiring = true;
-      try {
-        var prog = new mjvm.compiler.MFrontend().compileLine(trap);
-        mjvm.runtime.IrMachine.run(prog, this);
-      } catch (RuntimeException ignored) {
-      } finally {
-        trapFiring = false;
-      }
-      return jvmumps.MValue.EMPTY;
+      return fireTrap(e);
     }
+  }
+
+  /**
+   * mjvm#43: evaluate an IR op's expression using the AST node cached on the op itself, skipping
+   * the per-call astCache map lookup in {@link #evalExpr}. Trap semantics are identical to evalExpr
+   * (shared {@link #fireTrap}); sources the AST builder declines fall back to evalExpr.
+   */
+  public jvmumps.MValue evalOp(mjvm.ir.Ir op) {
+    jvmumps.ExprAst.Node n = op.node;
+    if (n == null && !op.nodeFailed) {
+      n = exprEval.astFor(op.ival);
+      op.node = n;
+      if (n == null) op.nodeFailed = true;
+    }
+    if (n == null) {
+      return evalExpr(op.ival);
+    }
+    try {
+      return n.eval(exprEval);
+    } catch (jvmumps.MError e) {
+      return fireTrap(e);
+    }
+  }
+
+  private jvmumps.MValue fireTrap(jvmumps.MError e) {
+    if (trapFiring) throw e;
+    String trap = exprEval.etrap;
+    if (trap.isEmpty()) trap = exprEval.ztrap;
+    if (trap.isEmpty()) throw e;
+    trapFiring = true;
+    try {
+      var prog = new mjvm.compiler.MFrontend().compileLine(trap);
+      mjvm.runtime.IrMachine.run(prog, this);
+    } catch (RuntimeException ignored) {
+    } finally {
+      trapFiring = false;
+    }
+    return jvmumps.MValue.EMPTY;
   }
 
   private volatile boolean trapFiring;
@@ -241,7 +362,7 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public void reset() {
     out.setLength(0);
-    locals.clear();
+    localClear();
     quit = false;
   }
 
@@ -319,7 +440,7 @@ public final class MRuntime {
           // evalSub semantics: numeric values canonicalize via mstr, strings pass through;
           // a null rt (static parse) leaves the raw text, matching evalSub.
           MValue v = rt.evalExpr(sr.subs[i]);
-          sb.append(v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.str);
+          sb.append(v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.asStr());
         } else {
           sb.append(sr.subs[i]);
         }
@@ -371,7 +492,7 @@ public final class MRuntime {
     if (rt != null) {
       try {
         MValue v = rt.evalExpr(s);
-        return v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.str;
+        return v.isnum ? jvmumps.ExprEval.mstr(v.num) : v.asStr();
       } catch (jvmumps.MError e) {
         throw e;
       } catch (Exception e) {
@@ -595,7 +716,7 @@ public final class MRuntime {
   public MValue getVar(String name) {
     // locals never holds null values (STORE converts dvals-nulls; NEW/KILL remove), so one
     // lookup replaces the containsKey+get pair on the hottest read path.
-    MValue cached = locals.get(name);
+    MValue cached = localGet(name);
     if (cached != null) return cached;
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
@@ -610,7 +731,7 @@ public final class MRuntime {
    * when the variable is undefined.
    */
   MValue peekVar(String name) {
-    MValue cached = locals.get(name);
+    MValue cached = localGet(name);
     if (cached != null) return cached;
     try {
       return getVar(name);
@@ -622,7 +743,7 @@ public final class MRuntime {
   /** Get numeric value directly (skips string format/parse). */
   @SuppressWarnings("RedundantThrows")
   public double getNum(String name) {
-    MValue cached = locals.get(name);
+    MValue cached = localGet(name);
     if (cached != null) return cached.asNum();
     String key = keyOf(name, this);
     boolean glob = key.startsWith("^");
@@ -640,7 +761,10 @@ public final class MRuntime {
       // Subscripted names must not enter the raw-key locals cache: the key would be the
       // unevaluated name (e.g. "A(I)"), stale whenever the subscript changes. The store is
       // the truth for subscripted values; getVar resolves via keyOf.
-      if (name.indexOf('(') < 0) locals.put(name, MValue.ofNumber(val));
+      if (isSimpleLocalName(name)) {
+        localPut(name, MValue.ofNumber(val));
+        return; // locals are map-only (see setVar)
+      }
       store.setNum(key, false, val);
     }
   }
@@ -649,12 +773,44 @@ public final class MRuntime {
     return jvmumps.StoreCore.splitKey(key);
   }
 
+  /** mjvm#14: a simple local name — no subscript, no indirection, not a global/special. */
+  static boolean isSimpleLocalName(String n) {
+    return n != null
+        && !n.isEmpty()
+        && n.indexOf('(') < 0
+        && n.indexOf('@') < 0
+        && n.charAt(0) != '^'
+        && n.charAt(0) != '$';
+  }
+
   @SuppressWarnings("RedundantThrows")
   public void setVar(String name, MValue v) {
     // Fast path: simple global with no indirection
     if (name.startsWith("^") && name.indexOf('@') < 0) {
       boolean glob = true;
       String key = keyOf(name, this);
+      if (tlevel.get() > 0) {
+        MValue old = store.get(key, glob);
+        recordUndo(List.of(key), glob, old);
+      }
+      store.set(key, glob, v);
+      return;
+    }
+    // mjvm#14: simple names (no subscript, no indirection) take the String-key store path —
+    // avoids the pathOf ArrayList allocation on every STORE in a hot loop.
+    if (name.indexOf('(') < 0 && name.indexOf('@') < 0) {
+      String key = keyOf(name, this); // == name for simple names
+      boolean glob = key.startsWith("^");
+      if (!glob) {
+        // Simple locals live only in the locals map — they are volatile by M semantics and the
+        // store tree never needed them; skipping the per-STORE tree write is the main #14 win.
+        // data()/order() below consult the map; TX undo records the map value.
+        if (tlevel.get() > 0) {
+          recordUndo(List.of(key), false, localGet(name));
+        }
+        localPut(name, v);
+        return;
+      }
       if (tlevel.get() > 0) {
         MValue old = store.get(key, glob);
         recordUndo(List.of(key), glob, old);
@@ -673,7 +829,6 @@ public final class MRuntime {
     } else {
       // No raw-key locals cache for subscripted names (stale when the subscript changes —
       // S I=1 S A(I)="one" S I=2 W A(I) must read the store, not "A(I)")
-      if (name.indexOf('(') < 0) locals.put(name, v);
       store.set(path, false, v);
     }
   }
@@ -1018,7 +1173,7 @@ public final class MRuntime {
   public void newVar(String name) {
     if (name == null) return;
     if (name.startsWith("^")) return;
-    locals.remove(name);
+    localRemove(name);
     // locals never live in the store tree; do NOT store.kill here — on Cdb2Store that runs
     // a real DELETE for a nonexistent key and the frozen pipe path errored (mjvm#41).
   }
@@ -1028,7 +1183,7 @@ public final class MRuntime {
     if (name == null || name.isEmpty()) return;
     List<String> path = pathOf(name, this);
     boolean glob = path.get(0).startsWith("^");
-    locals.remove(name);
+    localRemove(name);
     store.kill(path, glob);
   }
 
@@ -1042,7 +1197,22 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public int data(String key) {
     List<String> path = pathOf(key, this);
-    return store.data(path, path.get(0).startsWith("^"));
+    boolean glob = path.get(0).startsWith("^");
+    int treeData = store.data(path, glob);
+    // mjvm#14: simple locals live in the map, not the tree — combine (value=1, kids=10, both=11)
+    if (!glob && isSimpleLocalName(key) && localGet(key) != null) {
+      return treeData == 10 ? 11 : 1;
+    }
+    return treeData;
+  }
+
+  /** Current value of ref — map first for simple locals (mjvm#14: locals are map-only). */
+  private MValue curVal(String ref, List<String> path, boolean glob) {
+    if (!glob && isSimpleLocalName(ref)) {
+      MValue lv = localGet(ref);
+      if (lv != null) return lv;
+    }
+    return store.get(path, glob);
   }
 
   /** SET $EXTRACT(ref,from,to)=v / SET $PIECE(ref,d,f,t)=v */
@@ -1050,7 +1220,7 @@ public final class MRuntime {
   public void setExtract(String ref, int from, int to, String v) {
     List<String> path = pathOf(ref, this);
     boolean glob = path.get(0).startsWith("^");
-    String cur = store.get(path, glob).asStr();
+    String cur = curVal(ref, path, glob).asStr();
     if (to < from) to = from;
     if (from < 1) from = 1;
     int n = cur.length();
@@ -1071,7 +1241,7 @@ public final class MRuntime {
   public void setPiece(String ref, String d, int from, int to, String v) {
     List<String> path = pathOf(ref, this);
     boolean glob = path.get(0).startsWith("^");
-    String cur = store.get(path, glob).asStr();
+    String cur = curVal(ref, path, glob).asStr();
     setVar(ref, jvmumps.MValue.ofString(setPieceOf(cur, d, from, to, v)));
   }
 
@@ -1402,14 +1572,17 @@ public final class MRuntime {
         java.util.List<String> path = (java.util.List<String>) u[0];
         MValue old = (MValue) u[1];
         String nm = path.get(0);
+        boolean glob0 = path.get(0).startsWith("^");
+        boolean simpleLocal = !glob0 && nm.indexOf('(') < 0 && nm.indexOf('@') < 0;
         if (old == null) {
-          locals.remove(nm);
-          store.kill(path, path.get(0).startsWith("^"));
+          localRemove(nm);
+          if (!simpleLocal) store.kill(path, glob0);
         } else {
-          if (!path.get(0).startsWith("^") && nm.indexOf('(') < 0) {
-            locals.put(nm, old);
+          if (simpleLocal) {
+            localPut(nm, old); // locals are map-only (see setVar)
+          } else {
+            store.set(path, glob0, old);
           }
-          store.set(path, path.get(0).startsWith("^"), old);
         }
       }
     }

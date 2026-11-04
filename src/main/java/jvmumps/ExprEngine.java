@@ -109,7 +109,7 @@ public final class ExprEngine implements Engine {
         // handled above / empty
       } else if (!ex.equals("!")) {
         MValue v = eval.eval(ex);
-        out.append(v.isnum ? ExprEval.mstr(v.num) : v.str);
+        out.append(v.isnum ? ExprEval.mstr(v.num) : v.asStr());
       }
     }
     return out.toString();

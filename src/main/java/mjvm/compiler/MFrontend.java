@@ -139,7 +139,11 @@ public final class MFrontend {
             continue; // postcond false → fall through to next command
           }
           break;
-        } else if (cmd.equals("H") || cmd.equals("HALT") || cmd.equals("HANG")) {
+        } else if (cmd.equals("H") || cmd.equals("HALT")) {
+          // mjvm#29: HALT terminates the run
+          out.add(Ir.halt());
+          while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
+        } else if (cmd.equals("HANG")) {
           while (i < line.length() && !MFrontendUtil.isCmdStart(line, i)) i++;
         } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
           i = MFrontendUtil.skipWs(line, i);
@@ -1459,6 +1463,7 @@ public final class MFrontend {
 
   private int compileNameList(String line, int i, List<Ir> out, int kind) {
     // Exclusive parenthesized form: K (A,B) / N (A,B) — kill/new all EXCEPT listed
+    int mark = out.size();
     i = MFrontendUtil.skipWs(line, i);
     if (i < line.length() && line.charAt(i) == '(') {
       i++;
@@ -1488,14 +1493,10 @@ public final class MFrontend {
         }
         break;
       }
-      // Emit: NEW all the keep-names (to save them), then KILL/NEW the rest
-      // For now: emit kill for each name NOT in the keep list
-      // (simplified: the exclusive form is rare; we handle it by
-      //  emitting an IR that the runtime interprets)
-      for (String nm : keep) {
-        if (kind == Ir.NEW) out.add(Ir.newName(nm));
-        else out.add(Ir.killName(nm));
-      }
+      // Exclusive form (mjvm#30/#31): K (A,B) kills all except A,B; N (A,B) news all except A,B.
+      // Emit one op carrying the keep list — the runtime interprets it.
+      if (kind == Ir.NEW) out.add(Ir.newExcl(String.join(",", keep)));
+      else out.add(Ir.killExcl(String.join(",", keep)));
       return i;
     }
     while (i < line.length()) {
@@ -1541,6 +1542,11 @@ public final class MFrontend {
         continue;
       }
       break;
+    }
+    // mjvm#31: argumentless N (NEW) hides all locals; argumentless K (KILL) kills all locals
+    if (out.size() == mark) {
+      if (kind == Ir.NEW) out.add(Ir.newAll());
+      else out.add(Ir.killAll());
     }
     return i;
   }

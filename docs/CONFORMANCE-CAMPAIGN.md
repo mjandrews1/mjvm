@@ -23,7 +23,7 @@ math, or the IR machine vs `--class` for parity — and diff.
 | # | Defect | Class | Status |
 |---|---|---|---|
 | e9223f3 | Subscripted locals raw-key cache (stale reads) | silent wrong answer | **FIXED** |
-| #13 | QUIT in argumentless FOR exits the routine | silent wrong answer | open (MFrontend) |
+| #13 | QUIT in argumentless FOR exits the routine | silent wrong answer | open (MFrontend) — ORACLE case ARGFORQ locks it (known-bugs, added 2026-11-03) |
 | #15 | preRead batch poisons subscripted global LOADs | silent wrong answer | **FIXED** (2026-10-29; SUBGWALK + RTN15 regression) |
 | #16 | Negative-increment FOR never loops | silent wrong answer | open (MFrontend) — ORACLE: FORNEG, NEGSUB |
 | #17 | Comma-IF breaks parser | error (loud) | open — ORACLE: IFCOMMA |
@@ -31,7 +31,7 @@ math, or the IR machine vs `--class` for parity — and diff.
 | #19 | Multi-command same-line FOR body breaks | silent wrong answer | open — ORACLE: MULTILINE now passes (retest after P1b tree updates) |
 | #20 | ~~DO TAG fails to compile~~ MISDIAGNOSED — real trigger is #22 | — | **closed** (D TAG innocent; all repros contained `W "lit",VAR`) |
 | #21 | **Postconditional WRITE argument list consumes next line** | silent wrong answer | open — ORACLE: WCONDP |
-| #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend; #21 same family) |
+| #4 | `W:cond` silent no-op | silent wrong answer | open (MFrontend; #21 same family) — ORACLE case WPCMULTI locks it (known-bugs, added 2026-11-03) |
 | #22 | 2-arg WRITE (lit, var) fails to compile; mid-file degrades to silent RET-truncation | silent wrong answer | open — ORACLE: WCOMMA, DOQUIT, DATAV et al. |
 | #24 | Multi-arg WRITE drops its final non-literal argument | silent wrong answer | open — ORACLE: WDROP, WRITEEXCL, DOARG2 |
 | #25 | Extrinsic `$$FN(1,2,3)` (3+ args) fails to compile | error (loud) | open — ORACLE: EXTR2 |

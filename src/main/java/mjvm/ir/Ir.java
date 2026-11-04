@@ -60,12 +60,39 @@ public final class Ir {
   public static final int XECUTE = 88;
   public static final int PUSH_REG = 89; // push last stored value (peephole)
   public static final int GETB = 90; // GETB nkeys → push nkeys values (batched read)
+  public static final int HALT = 91; // mjvm#29: HALT — stop the whole run
+  public static final int KILL_EXCL =
+      92; // ival = comma-joined keep names — kill all locals except these (mjvm#30)
+  public static final int NEW_ALL = 93; // argumentless NEW — save+hide all locals (mjvm#31)
+  public static final int NEW_EXCL =
+      94; // ival = comma-joined keep names — save all, hide all but these
+  public static final int KILL_ALL = 95; // argumentless KILL — kill all locals
 
   public final int op;
   public final String name; // var / label / write-tag
   public final String ival; // constant string
   public final double dval;
   public final int iarg; // argc / target pc
+
+  /**
+   * mjvm#43: AST node cached on the op by MRuntime.evalOp; null until compiled, nodeFailed when the
+   * AST builder declines this source (then the evalExpr legacy path is used).
+   */
+  public jvmumps.ExprAst.Node node;
+
+  public boolean nodeFailed;
+
+  /**
+   * mjvm#14: cached MValue for PUSH string constants. MValue is immutable, so the constant can be
+   * shared across executions instead of allocating per push.
+   */
+  public jvmumps.MValue constVal;
+
+  /**
+   * mjvm#14: cached locals slot (MRuntime.slotOf) for LOAD/STORE of a simple local name. -1 until
+   * first resolved; slot ids are stable for the life of the runtime.
+   */
+  public int slot = -1;
 
   public Ir(int op, String name, String ival, double dval, int iarg) {
     this.op = op;
@@ -206,6 +233,26 @@ public final class Ir {
 
   public static Ir killName(String n) {
     return new Ir(KILL, n, null, 0, 0);
+  }
+
+  public static Ir halt() {
+    return new Ir(HALT, null, null, 0, 0);
+  }
+
+  public static Ir killExcl(String keepCsv) {
+    return new Ir(KILL_EXCL, null, keepCsv, 0, 0);
+  }
+
+  public static Ir killAll() {
+    return new Ir(KILL_ALL, null, null, 0, 0);
+  }
+
+  public static Ir newAll() {
+    return new Ir(NEW_ALL, null, null, 0, 0);
+  }
+
+  public static Ir newExcl(String keepCsv) {
+    return new Ir(NEW_EXCL, null, keepCsv, 0, 0);
   }
 
   /** MERGE dst ← src (both name strings). */
