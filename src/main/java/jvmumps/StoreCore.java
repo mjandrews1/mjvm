@@ -56,6 +56,12 @@ public interface StoreCore {
     kill(splitKey(key), global);
   }
 
+  /**
+   * mjvm#30: kill all local (non-global) root entries except those named in keep. Default: no-op
+   * (stores without a separate local root override; MStore does).
+   */
+  default void killAllLocalsExcept(java.util.Set<String> keep) {}
+
   /** Atomic increment by string key. Default converts to path. */
   default MValue increment(String key, boolean global, double amount) {
     return increment(splitKey(key), global, amount);

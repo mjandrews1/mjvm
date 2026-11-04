@@ -21,3 +21,4 @@ STDEPTH $STACK depth values RSM-lineage (SSTACK class): RSM $ST=0 lineage vs GT.
 ZCONVERT WRITE line-break per command (RSM-lineage); $ZCONVERT U/L values themselves byte-identical
 NEGPAT WRITE line-break per command (RSM-lineage); negated-pattern values themselves identical
 COLLATE WRITE line-break per command (RSM-lineage); M-collation order itself now byte-identical to GT.M (9,1264327,7502500,0011012)
+NEWALL  (upstream WRITE line-break class — fixed bug, residual is the documented divergence)

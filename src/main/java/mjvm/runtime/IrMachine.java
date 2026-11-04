@@ -96,6 +96,10 @@ public final class IrMachine {
     final int[] newFrameDepth = new int[64];
     final String[] newNames = new String[256];
     final MValue[] newVals = new MValue[256];
+    // mjvm#31: NEW_ALL/NEW_EXCL snapshots — full locals-map snapshots per NEW, restored LIFO on RET
+    final java.util.ArrayList<java.util.Map<String, MValue>> newAllSnaps =
+        new java.util.ArrayList<>();
+    final int[] newAllDepth = new int[64];
   }
 
   private static final ThreadLocal<java.util.ArrayDeque<Frame>> FRAME_FREE =
@@ -161,6 +165,8 @@ public final class IrMachine {
     double[] dvals = f.dvals;
     String[] newNames = f.newNames;
     MValue[] newVals = f.newVals;
+    java.util.ArrayList<java.util.Map<String, MValue>> newAllSnaps = f.newAllSnaps;
+    int[] newAllDepth = f.newAllDepth;
     int newTop = 0;
     int sp = 0;
     int pc = startPc;
@@ -498,6 +504,7 @@ public final class IrMachine {
         case Ir.CALL_PC -> {
           rets[rsp] = pc + 1;
           newFrameDepth[rsp] = newTop;
+          newAllDepth[rsp] = newAllSnaps.size();
           rsp++;
           pc = op.iarg;
           continue;
@@ -505,6 +512,9 @@ public final class IrMachine {
         case Ir.RET_TO -> {
           if (rsp == 0) return extrinsic ? rt.takeExtrinsicValue() : null;
           newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
+          while (newAllSnaps.size() > newAllDepth[rsp - 1]) {
+            rt.restoreSnapshot(newAllSnaps.remove(newAllSnaps.size() - 1));
+          }
           pc = rets[--rsp];
           continue;
         }
@@ -524,10 +534,35 @@ public final class IrMachine {
         case Ir.RET -> {
           if (rsp > 0) {
             newTop = restoreNews(rt, newNames, newVals, newTop, newFrameDepth[rsp - 1]);
+            while (newAllSnaps.size() > newAllDepth[rsp - 1]) {
+              rt.restoreSnapshot(newAllSnaps.remove(newAllSnaps.size() - 1));
+            }
             pc = rets[--rsp];
             continue;
           }
+          while (!newAllSnaps.isEmpty()) {
+            rt.restoreSnapshot(newAllSnaps.remove(newAllSnaps.size() - 1));
+          }
           return extrinsic ? rt.takeExtrinsicValue() : null;
+        }
+        case Ir.HALT -> {
+          // mjvm#29: HALT terminates the run; every frame's loop sees quit and unwinds
+          rt.requestQuit();
+        }
+        case Ir.KILL_EXCL -> {
+          // mjvm#30: K (A,B) — kill all locals except the listed ones
+          rt.killAllExcept(op.ival == null ? "" : op.ival);
+        }
+        case Ir.KILL_ALL -> rt.killAllExcept("");
+        case Ir.NEW_ALL -> {
+          // mjvm#31: argumentless NEW — snapshot all locals, then hide them
+          newAllSnaps.add(rt.snapshotLocals());
+          rt.newVarAll();
+        }
+        case Ir.NEW_EXCL -> {
+          java.util.Map<String, MValue> snap = rt.snapshotLocals();
+          rt.newVarAll();
+          rt.restoreExcept(snap, op.ival == null ? "" : op.ival);
         }
         default -> throw new jvmumps.MError("bad IR op " + op.op);
       }

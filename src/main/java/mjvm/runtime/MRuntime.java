@@ -2,6 +2,7 @@ package mjvm.runtime;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import jvmumps.MValue;
@@ -73,6 +74,49 @@ public final class MRuntime {
       recordUndo(List.of(name), false, slotVals[slot]);
     }
     slotVals[slot] = v;
+  }
+
+  /** mjvm#31: snapshot of all defined locals (for argumentless/exclusive NEW). */
+  public java.util.Map<String, MValue> snapshotLocals() {
+    java.util.Map<String, MValue> m = new HashMap<>();
+    for (int i = 0; i < slotCount; i++) {
+      if (slotVals[i] != null) m.put(slotNames[i], slotVals[i]);
+    }
+    return m;
+  }
+
+  /** mjvm#31: argumentless NEW — hide all locals (restored from the snapshot on scope exit). */
+  public void newVarAll() {
+    localClear();
+  }
+
+  /** mjvm#31: restore a full locals snapshot (called LIFO on RET). */
+  public void restoreSnapshot(java.util.Map<String, MValue> snap) {
+    for (java.util.Map.Entry<String, MValue> e : snap.entrySet()) {
+      localPut(e.getKey(), e.getValue());
+    }
+  }
+
+  /** mjvm#31: restore only the keep-listed names from a snapshot (exclusive NEW N (A,B)). */
+  public void restoreExcept(java.util.Map<String, MValue> snap, String keepCsv) {
+    for (String k : keepCsv.split(",")) {
+      MValue v = snap.get(k);
+      if (v != null) localPut(k, v);
+    }
+  }
+
+  /**
+   * mjvm#30: exclusive KILL — kill all locals except the comma-joined keep names. Slot side via
+   * localRemove; store side (subscripted locals) via store.killAllLocalsExcept.
+   */
+  public void killAllExcept(String keepCsv) {
+    java.util.Set<String> keep =
+        new HashSet<>(
+            keepCsv.isEmpty() ? java.util.List.of() : java.util.Arrays.asList(keepCsv.split(",")));
+    for (int i = 0; i < slotCount; i++) {
+      if (slotVals[i] != null && !keep.contains(slotNames[i])) localRemove(slotNames[i]);
+    }
+    store.killAllLocalsExcept(keep);
   }
 
   private volatile boolean quit;
