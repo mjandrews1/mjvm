@@ -88,6 +88,71 @@ final class MFrontendUtil {
     return segs;
   }
 
+  /**
+   * mjvm#17: IF/QUIT-style comma condition lists are ANDed. Split a condition span on top-level
+   * commas (not inside strings or parens) and join the parts with & — returns null when there is no
+   * top-level comma.
+   */
+  static String andJoinCommas(String span) {
+    java.util.List<String> parts = new ArrayList<>();
+    StringBuilder sb = new StringBuilder();
+    int depth = 0;
+    boolean inS = false;
+    boolean any = false;
+    for (int k = 0; k < span.length(); k++) {
+      char c = span.charAt(k);
+      if (inS) {
+        sb.append(c);
+        if (c == '"') {
+          if (k + 1 < span.length() && span.charAt(k + 1) == '"') {
+            sb.append('"');
+            k++;
+          } else {
+            inS = false;
+          }
+        }
+        continue;
+      }
+      if (c == '"') {
+        inS = true;
+        sb.append(c);
+        continue;
+      }
+      if (c == '(') depth++;
+      if (c == ')') depth--;
+      if (c == ',' && depth == 0) {
+        parts.add(sb.toString());
+        sb.setLength(0);
+        any = true;
+        continue;
+      }
+      sb.append(c);
+    }
+    if (!any) return null;
+    parts.add(sb.toString());
+    StringBuilder r = new StringBuilder();
+    for (int k = 0; k < parts.size(); k++) {
+      if (k > 0) r.append('&');
+      r.append('(').append(parts.get(k).trim()).append(')');
+    }
+    return r.toString();
+  }
+
+  /**
+   * mjvm#25: advance past an argument list to the next command word. String-, paren- and
+   * operator-aware (a naive command-word scan stops at the B in A+B, since B is a command letter
+   * after an operator).
+   */
+  static int skipToNextCmd(String line, int i) {
+    while (i < line.length()) {
+      i = skipWs(line, i);
+      if (i >= line.length() || isCmdStart(line, i)) break;
+      int j = scanExprEnd(line, i, " ");
+      i = j > i ? j : i + 1;
+    }
+    return i;
+  }
+
   static String[] readRefName(String line, int[] pos) {
     int i = pos[0];
     i = skipWs(line, i);
@@ -257,10 +322,13 @@ final class MFrontendUtil {
   static boolean isCmdStart(String s, int i) {
     if (i >= s.length() || !Character.isLetter(s.charAt(i))) return false;
     // must be at a word boundary (start of string or after non-word char)
-    // so %AL doesn't match L (LOCK) at the tail of a variable name
+    // so %AL doesn't match L (LOCK) at the tail of a variable name.
+    // mjvm#22/#24: a comma also never precedes a command — commands are
+    // space-separated, so after a comma the word is an argument, not a command
+    // (W "a=",C / S A=1,B=2 must not read C/B as CLOSE/DO).
     if (i > 0) {
       char prev = s.charAt(i - 1);
-      if (Character.isLetterOrDigit(prev) || prev == '%') return false;
+      if (Character.isLetterOrDigit(prev) || prev == '%' || prev == ',') return false;
     }
     int j = i;
     while (j < s.length() && Character.isLetter(s.charAt(j))) j++;

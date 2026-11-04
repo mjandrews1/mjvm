@@ -355,9 +355,18 @@ final class MFrontendCmds {
         continue;
       }
       if (c == '#') {
-        out.add(Ir.writeNl());
-        pending = false;
+        // mjvm#24: W # is a form-feed (char 12), not a newline; W #n = n form-feeds
         i++;
+        int vs = i;
+        while (i < line.length() && Character.isDigit(line.charAt(i))) i++;
+        int n = 1;
+        if (i > vs) n = Integer.parseInt(line.substring(vs, i));
+        for (int k = 0; k < n; k++) {
+          out.add(Ir.pushNum(12));
+          out.add(Ir.writeChar());
+        }
+        pending = false;
+        firstArg = false;
         i = MFrontendUtil.skipWs(line, i);
         if (i < line.length() && line.charAt(i) == ',') i++;
         continue;
