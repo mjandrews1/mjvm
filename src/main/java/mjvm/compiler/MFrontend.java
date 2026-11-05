@@ -45,6 +45,8 @@ public final class MFrontend {
   private List<Ir> compile(String line, boolean terminate) {
     List<Ir> out = new ArrayList<>();
     compileSegments(line, terminate, out);
+    // Op fusion on the finished line-local program (jumps already absolute in out coords)
+    if (mjvm.ir.IrFusion.FUSE_ENABLED) out = mjvm.ir.IrFusion.fuse(out).prog;
     return out;
   }
 
@@ -1051,12 +1053,25 @@ public final class MFrontend {
         }
       }
     }
+    // Op fusion: compact EVAL_EXPR+STORE pairs into EVAL_STORE, remapping every jump target
+    // through the compaction map. Line starts (base[]) are protected too — runExtrinsic can
+    // enter at a tag no CALL_PC references. Runs after all patch passes, so all iargs here
+    // are absolute.
+    int[] fusedMap = null;
+    if (mjvm.ir.IrFusion.FUSE_ENABLED) {
+      mjvm.ir.IrFusion.Result fused = mjvm.ir.IrFusion.fuse(prog, base);
+      prog = fused.prog;
+      fusedMap = fused.oldToNew;
+    }
     // Tag table for linking: tag name -> IR offset of its line (GAP-2).
     // `labels` held line indices; runExtrinsic needs IR offsets.
     java.util.Map<String, Integer> tagPc = new java.util.LinkedHashMap<>();
     for (java.util.Map.Entry<String, Integer> e : labels.entrySet()) {
       int li = e.getValue();
-      if (li >= 0 && li < base.length) tagPc.put(e.getKey(), base[li]);
+      if (li >= 0 && li < base.length) {
+        int off = fusedMap != null ? fusedMap[base[li]] : base[li];
+        if (off >= 0) tagPc.put(e.getKey(), off);
+      }
     }
     lastTags = tagPc;
     return prog;

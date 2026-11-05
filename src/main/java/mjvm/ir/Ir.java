@@ -69,6 +69,8 @@ public final class Ir {
   public static final int KILL_ALL = 95; // argumentless KILL — kill all locals
   public static final int SET_IF_TRUE = 96; // mjvm#48: peek top, set rt.ifTrue (no pop)
   public static final int JMP_IF_TRUE = 97; // mjvm#48: jump to iarg if rt.ifTrue (cross-line ELSE)
+  public static final int EVAL_STORE =
+      98; // fused EVAL_EXPR(ival)+STORE(name): eval expr, store to name (IrFusion)
 
   public final int op;
   public final String name; // var / label / write-tag
@@ -275,6 +277,11 @@ public final class Ir {
   /** Evaluate an M expression source via JvMumps ExprEval (M11 bridge). */
   public static Ir evalExpr(String src) {
     return new Ir(EVAL_EXPR, null, src, 0, 0);
+  }
+
+  /** Fused SET: evaluate {@code src} and store the result to {@code name} in one op. */
+  public static Ir evalStore(String name, String src) {
+    return new Ir(EVAL_STORE, name, src, 0, 0);
   }
 
   /** SET $EXTRACT(ref,from[,to])=v — ival = "from,to" */

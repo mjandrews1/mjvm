@@ -117,7 +117,28 @@ compacting the op list shifts in-line jump targets (FOR back-edge JMP/JMP0, CALL
 a first pass only remapped JMP/JMP0/JMP_IF_TRUE and corrupted FOR loops (AIOOBE, ORACLE hang).
 Reverted to keep main green. Landed safe perf win instead: #51 ops-array cache (~2-3%).
 
-To do fusion safely: remap ALL iarg-targeted ops (JMP, JMP0, JMP_IF_TRUE, CALL_PC, RET_TO) through
-the compaction map AND reconcile with the later absolute DO/GOTO patch pass; add a fused-IR
-differential test (dump IR before/after, run corpus+ORACLE) before enabling. Estimated upside:
-~1 dispatch per SET, ~15-25% of loop dispatch — worth doing properly as a sprint task.
+## 2026-11-05 — EVAL_STORE fusion — LANDED (branch perf/eval-store-fusion)
+
+Done properly per the recipe above. New op `Ir.EVAL_STORE` (name + ival=expr src); a single
+post-link pass `mjvm.ir.IrFusion.fuse(prog, base[])` runs at the end of `MFrontend.compileRoutine`
+(and the single-line `compile`), after ALL patch passes so every iarg is absolute:
+
+- fuses EVAL_EXPR+STORE -> EVAL_STORE only when the STORE half is NOT a jump target (jumping to
+  the EVAL_EXPR half is unaffected — the fused op runs both halves, same as fall-through did);
+- line starts (base[], runExtrinsic entry points) are protected from removal;
+- remaps ALL iarg-targeted ops (JMP, JMP0, JMP_IF_TRUE, CALL_PC) through the compaction map and
+  throws (never skips) if a target would land on a removed op; tagPc recomputed through oldToNew;
+- EVAL_STORE executes in IrMachine via the shared `storeOp` helper (preRead invalidation,
+  @-indirection, $-specials, slot cache) and in ClassEmitter/BytecodeEmitter.
+
+Kill switch: `IrFusion.FUSE_ENABLED` (default true). Differential test
+`jvmumps.IrFusionRegression` (structural remap invariants + 14-program unfused-vs-fused
+execution battery) — 18/18. Gates on the branch: corpus 131/8/0 (ERR=0), MFrontendRegression
+53/53, ORACLE pass=98 diverge=0 err=0, GAUNTLET 119/120 (same single pre-existing harness-bug
+failure as main), smoke suite identical to main.
+
+Measured (Mac JDK 27, 20M-iter `F I=1:1:20000000 S J=J+1`, alternating 5 reps): raw 1595 ms ->
+fused 1499 ms (**-6.0%**); mixed `S J=J+1 S K=J#2` 10M: 1145 -> 1077 ms (**-5.9%**). One dispatch
+saved per SET; smaller than the ~15-25% estimate because the numeric fast path (dvals) already
+keeps SET cheap — the win is real but the next lever is still dispatch structure itself
+(threaded/superinstruction layout), then MValue boxing on non-numeric stores.

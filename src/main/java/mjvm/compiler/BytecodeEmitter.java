@@ -229,6 +229,19 @@ public final class BytecodeEmitter {
             c.invokevirtual(setVar);
             c.iinc(3, -1);
           }
+          case mjvm.ir.Ir.EVAL_STORE -> {
+            // Fused EVAL_EXPR+STORE (IrFusion): rt.setVar(name, rt.evalExpr(src))
+            c.aload0();
+            c.getfield(rtField);
+            c.ldc(cp.str(op.name));
+            c.aload0();
+            c.getfield(rtField);
+            c.ldc(cp.str(op.ival == null ? "" : op.ival));
+            c.invokevirtual(
+                cp.mref(
+                    "mjvm/runtime/MRuntime", "evalExpr", "(Ljava/lang/String;)Ljvmumps/MValue;"));
+            c.invokevirtual(setVar);
+          }
           case mjvm.ir.Ir.ADD, mjvm.ir.Ir.SUB, mjvm.ir.Ir.MUL, mjvm.ir.Ir.DIV -> {
             // da = s[p-2].asNum(); db = s[p-1].asNum(); s[p-2]=ofNumber(da op db); p--
             c.aload(2);
