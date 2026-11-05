@@ -142,3 +142,16 @@ fused 1499 ms (**-6.0%**); mixed `S J=J+1 S K=J#2` 10M: 1145 -> 1077 ms (**-5.9%
 saved per SET; smaller than the ~15-25% estimate because the numeric fast path (dvals) already
 keeps SET cheap — the win is real but the next lever is still dispatch structure itself
 (threaded/superinstruction layout), then MValue boxing on non-numeric stores.
+
+## 2026-11-05 — step-8 re-time: device-less shell works dual-engine (blocker cleared)
+
+The `O 20:fn` device loop read 0 records under mjvm and was rejected by GT.M (DEVPARUNK); PR #50
+landed the GT.M-portable device-less form (`O fn`/`U fn`/`C fn` -> implicit device 1). The
+ingest shell in `ils-fixture/mjvm_full.m` is now ported to that form. Re-time on the 15 MB /
+2,663-record CAT fixture (catplus_sample.xml), wall incl. process startup:
+
+- mjvm (perf/eval-store-fusion, Mac JDK 27): ingest-only ~905-925 ms; ingest+dump 1203 ms
+- GT.M V7.2-001 (U01 utility-01, i5+HDD): ingest-only ~330-370 ms; ingest+dump 563 ms
+- Both report `ing=2663`; dumps byte-identical (20,723 lines, diff=0) — dual-engine parity holds
+  on the full fixture with the portable shell. Ratio ~1.8-2.1x wall on this fixture (mixed
+  hardware; #43's full-ingest record was 18.4s vs 6.3s = 2.9x).
