@@ -97,3 +97,14 @@ alternating): 1918ms -> 1547ms (**-19%**); cumulative vs 485a79a: 3114ms -> 1547
 Corpus 139/139, smoke green, ORACLE 129 diverge=0 err=0 known-bugs=28, TX-rollback/$DATA probes
 correct. (The earlier slot-cache attempt regressed -18% because STORE still wrote the store
 tree; with map-only locals it wins cleanly.)
+
+## 2026-11-04 (step-8 optimization, branch perf/extrinsic-ops-cache)
+
+First profile-driven lever: `IrMachine.run()` re-copied the whole program
+(`prog.toArray`) on **every** nested DO/$$ call — for the ingest that's ~2,663 `$$LOADXML`
+calls × a 1,490-op program. Now the Ir[] is cached per program (identity-keyed OPS_CACHE).
+
+CAT ingest (mjvm_full.m, 15 MB / 2,663 records, Mac JDK 21, wall incl. JVM startup):
+baseline (main `ce38481`) 1265/1305/1284 ms → after 1279/1259/1218 ms (**~2–3%**, gates green).
+Small because the dominant cost is dispatch itself, not the copy. Next levers remain op
+fusion/superinstructions (dispatch ~40%) and extrinsic frame cost (~27%) per the JFR profile.

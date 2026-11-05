@@ -122,6 +122,15 @@ public final class IrMachine {
       ThreadLocal.withInitial(() -> new MValue[16]);
 
   /**
+   * Per-program ops array cache. run() is re-entered for every DO/$$ call with the same prog list,
+   * so caching the Ir[] avoids re-copying the whole program (toArray) on each nested call — a large
+   * win when a big routine is called per-record (ingest). Identity-keyed; prog lists are not
+   * mutated after compile.
+   */
+  private static final java.util.Map<List<Ir>, Ir[]> OPS_CACHE =
+      java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
+
+  /**
    * Restore NEW-journal entries down to the frame's recorded depth (mjvm#23): a journaled null
    * means the variable was undefined before NEW — remove it again; otherwise set the saved value
    * back. Returns the new journal top.
@@ -219,7 +228,8 @@ public final class IrMachine {
       for (MValue a : args) vals[sp++] = a == null ? MValue.EMPTY : a;
     }
     final int progSize = prog.size();
-    final Ir[] ops = prog.toArray(new Ir[0]); // mjvm#14: array dispatch beats per-op List.get
+    final Ir[] ops =
+        OPS_CACHE.computeIfAbsent(prog, p -> p.toArray(new Ir[0])); // #50 follow-up: cache per prog
     while (pc >= 0 && pc < progSize && !rt.isQuit()) {
       Ir op = ops[pc];
       switch (op.op) {
