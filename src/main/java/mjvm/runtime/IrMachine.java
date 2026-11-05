@@ -417,6 +417,18 @@ public final class IrMachine {
             pc++;
           }
         }
+        case Ir.SET_IF_TRUE -> { // mjvm#48: peek top, record IF truth (stack untouched; pc++ is
+          // post-switch)
+          MValue v = vals[sp - 1] != null ? vals[sp - 1] : MValue.ofNumber(dvals[sp - 1]);
+          rt.ifTrue = MRuntime.truthy(v);
+        }
+        case Ir.JMP_IF_TRUE -> { // mjvm#48: cross-line ELSE — skip body if the paired IF was true
+          if (rt.ifTrue) {
+            pc = op.iarg;
+          } else {
+            pc++;
+          }
+        }
         case Ir.CALL -> {
           int argc = op.iarg;
           MValue[] argsBuf = ARGS_POOL.get();
@@ -566,7 +578,7 @@ public final class IrMachine {
         }
         default -> throw new jvmumps.MError("bad IR op " + op.op);
       }
-      if (op.op != Ir.JMP && op.op != Ir.JMP0) pc++;
+      if (op.op != Ir.JMP && op.op != Ir.JMP0 && op.op != Ir.JMP_IF_TRUE) pc++;
     }
     // fell off the end of the program
     return extrinsic ? rt.takeExtrinsicValue() : null;

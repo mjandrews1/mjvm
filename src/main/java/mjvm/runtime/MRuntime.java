@@ -32,6 +32,9 @@ public final class MRuntime {
   private MValue[] slotVals = new MValue[64];
   private int slotCount;
 
+  /** mjvm#48: truth of the most recent IF — lets a cross-line (line-initial) ELSE pair with it. */
+  public boolean ifTrue;
+
   int slotOf(String name) {
     Integer existing = slotIndex.get(name);
     if (existing != null) return existing;
