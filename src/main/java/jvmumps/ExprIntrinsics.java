@@ -396,6 +396,9 @@ final class ExprIntrinsics {
         return MValue.ofNumber(ev.vx);
       case "$Y":
         return MValue.ofNumber(ev.vy);
+      case "$T":
+      case "$TEST":
+        return MValue.ofNumber(ev.env.testFlag() ? 1 : 0);
       // W8 specials
       case "$IO":
         return MValue.ofNumber(0);
@@ -448,10 +451,13 @@ final class ExprIntrinsics {
           }
           return MValue.ofString("");
         }
+      case "$EC":
       case "$ECODE":
         return MValue.ofString(ev.ecode);
+      case "$ET":
       case "$ETRAP":
         return MValue.ofString(ev.etrap);
+      case "$ZT":
       case "$ZTRAP":
         return MValue.ofString(ev.ztrap);
       case "$ZVERSION":
@@ -468,8 +474,9 @@ final class ExprIntrinsics {
         return MValue.ofNumber(1000000);
       case "$SYSTEM":
         return MValue.ofString("JvMumps");
+      case "$TL":
       case "$TLEVEL":
-        return MValue.ofNumber(0);
+        return MValue.ofNumber(ev.env.tlevel());
       case "$TRESTART":
         return MValue.ofNumber(0);
       case "$I":

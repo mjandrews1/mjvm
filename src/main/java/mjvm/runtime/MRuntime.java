@@ -163,6 +163,16 @@ public final class MRuntime {
               }
 
               @Override
+              public boolean testFlag() {
+                return ifTrue;
+              }
+
+              @Override
+              public int tlevel() {
+                return tlevel.get();
+              }
+
+              @Override
               @SuppressWarnings("RedundantThrows")
               public int data(String name) {
                 return MRuntime.this.data(name);
@@ -346,11 +356,12 @@ public final class MRuntime {
   public void setSpecial(String name, jvmumps.MValue v) {
     String u = name.toUpperCase(java.util.Locale.ROOT);
     switch (u) {
-      case "$ETRAP" -> exprEval.etrap = v.asStr();
-      case "$ECODE" -> exprEval.ecode = v.asStr();
-      case "$ZTRAP" -> exprEval.ztrap = v.asStr();
+      case "$ET", "$ETRAP" -> exprEval.etrap = v.asStr();
+      case "$EC", "$ECODE" -> exprEval.ecode = v.asStr();
+      case "$ZT", "$ZTRAP" -> exprEval.ztrap = v.asStr();
       case "$X" -> exprEval.vx = (int) v.asNum();
       case "$Y" -> exprEval.vy = (int) v.asNum();
+      case "$T", "$TEST" -> ifTrue = MRuntime.truthy(v);
       default -> {
         /* ignore other specials for now */
       }
@@ -1610,15 +1621,14 @@ public final class MRuntime {
       n = s.indexOf(d, start);
       piece++;
     }
-    int end = n;
     while (piece < to && n >= 0) {
       n = s.indexOf(d, n + dl);
       piece++;
     }
-    if (n < 0) end = s.length();
-    else if (end < 0) end = s.length();
+    // n is now the delimiter that ends piece `to` (or -1 if piece `to` runs to
+    // the end). The suffix starts at that delimiter so it is preserved.
     String prefix = s.substring(0, start);
-    String suffix = end < 0 ? "" : s.substring(end);
+    String suffix = n < 0 ? "" : s.substring(n);
     return prefix + v + suffix;
   }
 
