@@ -183,6 +183,30 @@ public final class ClassEmitter {
               .append(");\n");
           b.append("          pc = ").append(next).append("; break; }\n");
         }
+        case Ir.EVAL_STORE -> {
+          // Fused EVAL_EXPR+STORE (IrFusion): v = rt.evalExpr(src); store v to name
+          String src = jstr(op.ival == null ? "" : op.ival);
+          if (op.name != null && op.name.startsWith("@")) {
+            b.append("          { jvmumps.MValue v = rt.evalExpr(")
+                .append(src)
+                .append("); String t = rt.evalExpr(")
+                .append(jstr(op.name.substring(1)))
+                .append(").asStr(); rt.setVar(t, v); }\n");
+          } else if (op.name != null && op.name.startsWith("$")) {
+            b.append("          rt.setSpecial(")
+                .append(jstr(op.name))
+                .append(", rt.evalExpr(")
+                .append(src)
+                .append("));\n");
+          } else {
+            b.append("          rt.setVar(")
+                .append(jstr(op.name))
+                .append(", rt.evalExpr(")
+                .append(src)
+                .append("));\n");
+          }
+          b.append("          pc = ").append(next).append("; break; }\n");
+        }
         case Ir.XECUTE -> {
           b.append(
               "          { jvmumps.MValue v = s[--p]; mjvm.runtime.IrMachine.run(new"

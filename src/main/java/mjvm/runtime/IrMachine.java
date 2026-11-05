@@ -288,27 +288,16 @@ public final class IrMachine {
           rt.setVar(op.name, v);
         }
         case Ir.STORE -> {
-          // Invalidate pre-read cache for this key (guarded — usually empty)
-          if (op.name != null && !preRead.isEmpty()) preRead.remove(op.name);
           MValue v = vals[--sp];
           if (v == null) v = MValue.ofNumber(dvals[sp]);
           lastStored = v;
-          if (op.name != null && op.name.startsWith("@")) {
-            String target = rt.evalExpr(op.name.substring(1)).asStr();
-            rt.setVar(target, v);
-          } else if (op.name != null && op.name.startsWith("$")) {
-            rt.setSpecial(op.name, v);
-          } else {
-            // mjvm#14: slot-cached local store — after first resolution, one int compare
-            if (op.slot < 0 && op.name != null && MRuntime.isSimpleLocalName(op.name)) {
-              op.slot = rt.slotOf(op.name);
-            }
-            if (op.slot >= 0) {
-              rt.setVarSlot(op.slot, op.name, v);
-            } else {
-              rt.setVar(op.name, v);
-            }
-          }
+          storeOp(rt, op, v, preRead);
+        }
+        case Ir.EVAL_STORE -> {
+          // Fused EVAL_EXPR+STORE (IrFusion): evaluate and store in one dispatch
+          MValue v = rt.evalOp(op);
+          lastStored = v;
+          storeOp(rt, op, v, preRead);
         }
         case Ir.STORE_ADD -> {
           if (op.name != null && !preRead.isEmpty()) preRead.remove(op.name);
@@ -598,5 +587,29 @@ public final class IrMachine {
     if (v == null) return "";
     if (v.isnum) return jvmumps.ExprEval.mstr(v.asNum());
     return v.asStr();
+  }
+
+  /**
+   * Shared store path for STORE and the fused EVAL_STORE: pre-read cache invalidation (guarded —
+   * usually empty), @-indirection, $-special vars, and the slot-cached local fast path (mjvm#14).
+   */
+  private static void storeOp(MRuntime rt, Ir op, MValue v, java.util.Map<String, MValue> preRead) {
+    if (op.name != null && !preRead.isEmpty()) preRead.remove(op.name);
+    if (op.name != null && op.name.startsWith("@")) {
+      String target = rt.evalExpr(op.name.substring(1)).asStr();
+      rt.setVar(target, v);
+    } else if (op.name != null && op.name.startsWith("$")) {
+      rt.setSpecial(op.name, v);
+    } else {
+      // mjvm#14: slot-cached local store — after first resolution, one int compare
+      if (op.slot < 0 && op.name != null && MRuntime.isSimpleLocalName(op.name)) {
+        op.slot = rt.slotOf(op.name);
+      }
+      if (op.slot >= 0) {
+        rt.setVarSlot(op.slot, op.name, v);
+      } else {
+        rt.setVar(op.name, v);
+      }
+    }
   }
 }
