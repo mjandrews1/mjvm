@@ -20,6 +20,9 @@ public final class MFrontend {
   /** JMP over ELSE body — patched to end of line. */
   private final java.util.List<Integer> endJmps = new java.util.ArrayList<>();
 
+  /** mjvm#48: JMP_IF_TRUE from a line-initial (cross-line) ELSE — patched to end of line. */
+  private final java.util.List<Integer> endIfTrueJmps = new java.util.ArrayList<>();
+
   /**
    * mjvm#13: stack of FOR-loop scopes. Each entry holds indices (in current out coordinates) of JMP
    * placeholders emitted by an argumentless QUIT inside that loop's body; the FOR compiler patches
@@ -73,6 +76,7 @@ public final class MFrontend {
     if (compileDepth.get() == 0) {
       ifJmp0.clear();
       endJmps.clear();
+      endIfTrueJmps.clear();
       forQuitPatches.clear();
     }
     if (compileDepth.incrementAndGet() > 30) {
@@ -439,9 +443,12 @@ public final class MFrontend {
             || cmd.equals("CLOSE")
             || cmd.equals("U")
             || cmd.equals("USE")) {
-          // OPEN n:path / CLOSE n / USE n — two stack operands; comma-separated
+          // OPEN n:path / CLOSE n / USE n — two stack operands; comma-separated.
+          // Device-less form OPEN "path" / USE "path" / CLOSE "path" (GT.M sequential-file
+          // style) maps to a fixed implicit file device 1, so the same source runs on GT.M.
           while (true) {
             List<Ir> tmp = new ArrayList<>();
+            int opStart = i;
             i = compileExpr(line, i, tmp, ":, ");
             if (i < line.length() && line.charAt(i) == ':') {
               i++;
@@ -451,10 +458,24 @@ public final class MFrontend {
               out.addAll(tmp2);
               out.add(Ir.open());
             } else {
-              out.addAll(tmp);
-              if (cmd.startsWith("O") || cmd.equals("OPEN")) out.add(Ir.open());
-              else if (cmd.startsWith("C") || cmd.equals("CLOSE")) out.add(Ir.close());
-              else out.add(Ir.use());
+              // Device-less form: OPEN "path"/fn, USE "path"/fn, CLOSE "path"/fn (GT.M
+              // sequential-file style) map to a fixed implicit file device 1. A numeric
+              // operand (U 20 / C 20) is still used as the device number directly.
+              String raw = line.substring(opStart, i).trim();
+              boolean devless = !(raw.matches("[0-9]+(\\.[0-9]+)?"));
+              if (cmd.startsWith("O") || cmd.equals("OPEN")) {
+                if (devless) out.add(Ir.pushNum(1));
+                out.addAll(tmp);
+                out.add(Ir.open());
+              } else if (cmd.startsWith("C") || cmd.equals("CLOSE")) {
+                if (devless) out.add(Ir.pushNum(1));
+                else out.addAll(tmp);
+                out.add(Ir.close());
+              } else {
+                if (devless) out.add(Ir.pushNum(1));
+                else out.addAll(tmp);
+                out.add(Ir.use());
+              }
             }
             i = MFrontendUtil.skipWs(line, i);
             if (i < line.length() && line.charAt(i) == ',') {
@@ -646,6 +667,11 @@ public final class MFrontend {
           if (idx >= 0 && idx < end && end <= out.size()) out.set(idx, Ir.jmp(end));
         }
         endJmps.clear();
+        for (int idx :
+            endIfTrueJmps) { // mjvm#48: cross-line ELSE skips body iff paired IF was true
+          if (idx >= 0 && idx < end && end <= out.size()) out.set(idx, Ir.jmpIfTrue(end));
+        }
+        endIfTrueJmps.clear();
       }
       if (terminate) {
         out.add(Ir.ret());
@@ -860,6 +886,7 @@ public final class MFrontend {
       List<int[]> patches = new ArrayList<>();
       ifJmp0.clear();
       endJmps.clear();
+      endIfTrueJmps.clear();
       forQuitPatches.clear();
       String tag = tags.get(li);
       String body = bodies.get(li);
@@ -968,7 +995,9 @@ public final class MFrontend {
       int n = localLen[li];
       for (int k = 0; k < n; k++) {
         Ir ir = prog.get(b + k);
-        if ((ir.op == Ir.JMP || ir.op == Ir.JMP0) && ir.iarg >= 0 && ir.iarg <= n) {
+        if ((ir.op == Ir.JMP || ir.op == Ir.JMP0 || ir.op == Ir.JMP_IF_TRUE)
+            && ir.iarg >= 0
+            && ir.iarg <= n) {
           prog.set(b + k, new Ir(ir.op, ir.name, ir.ival, ir.dval, b + ir.iarg));
         }
       }
@@ -1306,24 +1335,31 @@ public final class MFrontend {
     String anded = span.isEmpty() ? null : MFrontendUtil.andJoinCommas(span);
     if (anded != null) {
       out.add(Ir.evalExpr(anded));
+      out.add(Ir.setIfTrue()); // mjvm#48: record IF truth for a possible cross-line ELSE
       ifJmp0.push(out.size());
       out.add(Ir.jmp0(-1));
       return j;
     }
     i = compileExpr(line, i, out, " ");
+    out.add(Ir.setIfTrue()); // mjvm#48
     ifJmp0.push(out.size());
     out.add(Ir.jmp0(-1));
     return i;
   }
 
   private int compileElse(String line, int i, List<Ir> out) {
+    if (ifJmp0.isEmpty()) {
+      // mjvm#48: line-initial ELSE (no IF on this line) pairs with the previous line's
+      // IF through rt.ifTrue — skip the ELSE body iff that IF was true.
+      endIfTrueJmps.add(out.size());
+      out.add(Ir.jmpIfTrue(-1));
+      return i;
+    }
     endJmps.add(out.size());
     out.add(Ir.jmp(-1));
     int elseStart = out.size();
-    if (!ifJmp0.isEmpty()) {
-      int ifJ0 = ifJmp0.pop();
-      if (ifJ0 >= 0 && ifJ0 < out.size()) out.set(ifJ0, Ir.jmp0(elseStart));
-    }
+    int ifJ0 = ifJmp0.pop();
+    if (ifJ0 >= 0 && ifJ0 < out.size()) out.set(ifJ0, Ir.jmp0(elseStart));
     return i;
   }
 

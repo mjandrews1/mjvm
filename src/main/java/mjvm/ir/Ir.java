@@ -67,6 +67,8 @@ public final class Ir {
   public static final int NEW_EXCL =
       94; // ival = comma-joined keep names — save all, hide all but these
   public static final int KILL_ALL = 95; // argumentless KILL — kill all locals
+  public static final int SET_IF_TRUE = 96; // mjvm#48: peek top, set rt.ifTrue (no pop)
+  public static final int JMP_IF_TRUE = 97; // mjvm#48: jump to iarg if rt.ifTrue (cross-line ELSE)
 
   public final int op;
   public final String name; // var / label / write-tag
@@ -253,6 +255,16 @@ public final class Ir {
 
   public static Ir newExcl(String keepCsv) {
     return new Ir(NEW_EXCL, null, keepCsv, 0, 0);
+  }
+
+  /** mjvm#48: record the IF condition's truth into rt.ifTrue (peeks stack, no pop). */
+  public static Ir setIfTrue() {
+    return new Ir(SET_IF_TRUE, null, null, 0, 0);
+  }
+
+  /** mjvm#48: jump to target if rt.ifTrue (used to skip a cross-line ELSE body). */
+  public static Ir jmpIfTrue(int target) {
+    return new Ir(JMP_IF_TRUE, null, null, 0, target);
   }
 
   /** MERGE dst ← src (both name strings). */

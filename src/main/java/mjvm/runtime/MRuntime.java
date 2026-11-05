@@ -32,6 +32,9 @@ public final class MRuntime {
   private MValue[] slotVals = new MValue[64];
   private int slotCount;
 
+  /** mjvm#48: truth of the most recent IF — lets a cross-line (line-initial) ELSE pair with it. */
+  public boolean ifTrue;
+
   int slotOf(String name) {
     Integer existing = slotIndex.get(name);
     if (existing != null) return existing;
@@ -157,6 +160,16 @@ public final class MRuntime {
               @SuppressWarnings("RedundantThrows")
               public void set(String name, jvmumps.MValue v) {
                 MRuntime.this.setVar(name, v);
+              }
+
+              @Override
+              public boolean testFlag() {
+                return ifTrue;
+              }
+
+              @Override
+              public int tlevel() {
+                return tlevel.get();
               }
 
               @Override
@@ -343,11 +356,12 @@ public final class MRuntime {
   public void setSpecial(String name, jvmumps.MValue v) {
     String u = name.toUpperCase(java.util.Locale.ROOT);
     switch (u) {
-      case "$ETRAP" -> exprEval.etrap = v.asStr();
-      case "$ECODE" -> exprEval.ecode = v.asStr();
-      case "$ZTRAP" -> exprEval.ztrap = v.asStr();
+      case "$ET", "$ETRAP" -> exprEval.etrap = v.asStr();
+      case "$EC", "$ECODE" -> exprEval.ecode = v.asStr();
+      case "$ZT", "$ZTRAP" -> exprEval.ztrap = v.asStr();
       case "$X" -> exprEval.vx = (int) v.asNum();
       case "$Y" -> exprEval.vy = (int) v.asNum();
+      case "$T", "$TEST" -> ifTrue = MRuntime.truthy(v);
       default -> {
         /* ignore other specials for now */
       }
@@ -1572,16 +1586,22 @@ public final class MRuntime {
         java.util.List<String> path = (java.util.List<String>) u[0];
         MValue old = (MValue) u[1];
         String nm = path.get(0);
-        boolean glob0 = path.get(0).startsWith("^");
-        boolean simpleLocal = !glob0 && nm.indexOf('(') < 0 && nm.indexOf('@') < 0;
+        boolean glob0 = nm.startsWith("^");
+        // A 1-element undo path is already a canonical key (may embed \001); a multi-element
+        // path (pathOf) is raw segments. Rebuild the canonical key and use the String-key
+        // store overloads (splitKey splits \001) — node(List) does NOT, so set(List) would
+        // write subscripted vars to the wrong node.
+        String key = path.size() == 1 ? nm : String.join("\u0001", path);
+        boolean simpleLocal =
+            !glob0 && path.size() == 1 && nm.indexOf('(') < 0 && nm.indexOf('@') < 0;
         if (old == null) {
-          localRemove(nm);
-          if (!simpleLocal) store.kill(path, glob0);
+          if (simpleLocal) localRemove(nm);
+          else store.kill(key, glob0);
         } else {
           if (simpleLocal) {
             localPut(nm, old); // locals are map-only (see setVar)
           } else {
-            store.set(path, glob0, old);
+            store.set(key, glob0, old);
           }
         }
       }
@@ -1607,15 +1627,14 @@ public final class MRuntime {
       n = s.indexOf(d, start);
       piece++;
     }
-    int end = n;
     while (piece < to && n >= 0) {
       n = s.indexOf(d, n + dl);
       piece++;
     }
-    if (n < 0) end = s.length();
-    else if (end < 0) end = s.length();
+    // n is now the delimiter that ends piece `to` (or -1 if piece `to` runs to
+    // the end). The suffix starts at that delimiter so it is preserved.
     String prefix = s.substring(0, start);
-    String suffix = end < 0 ? "" : s.substring(end);
+    String suffix = n < 0 ? "" : s.substring(n);
     return prefix + v + suffix;
   }
 

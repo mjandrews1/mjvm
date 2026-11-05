@@ -60,6 +60,16 @@ public final class ExprEval {
 
     void set(String name, MValue v);
 
+    /** mjvm#48: $TEST — truth of the most recent IF (MRuntime.ifTrue). */
+    default boolean testFlag() {
+      return false;
+    }
+
+    /** $TLEVEL — current transaction level (MRuntime.tlevel). */
+    default int tlevel() {
+      return 0;
+    }
+
     /** $DATA: 0/1/10/11. Default: 0/1 from get. */
     default int data(String name) {
       try {
@@ -729,6 +739,7 @@ public final class ExprEval {
           String un = upper(t.text);
           if (un.equals("$X")) return MValue.ofNumber(vx);
           if (un.equals("$Y")) return MValue.ofNumber(vy);
+          if (un.equals("$T") || un.equals("$TEST")) return MValue.ofNumber(env.testFlag() ? 1 : 0);
           return callIntrinsic(t.text);
         }
         String key;

@@ -136,7 +136,7 @@ GRP2 ; Concatenation and string functions
  S G2R=$L("a,b,c",",") I G2R=3 S G2P=G2P+1
  E  S G2F=G2F+1
  ; $FIND
- S G2R=$F("hello world","world") I G2R=7 S G2P=G2P+1
+ S G2R=$F("hello world","world") I G2R=12 S G2P=G2P+1
  E  S G2F=G2F+1
  ; $REVERSE
  S G2R=$REVERSE("abc") I G2R="cba" S G2P=G2P+1
