@@ -243,9 +243,10 @@ GRP5 ; IF, ELSE, FOR, DO, QUIT, postconditionals
  ; IF true
  S G5X=0 I 1 S G5X=1 I G5X=1 S G5P=G5P+1
  E  S G5F=G5F+1
- ; IF false
- S G5X=0 I 0 S G5X=1 I G5X=0 S G5P=G5P+1
- E  S G5F=G2F+1
+ ; IF false (split lines: cross-line ELSE must pair with the last IF only)
+ S G5X=0 I 0 S G5X=1
+ I G5X=0 S G5P=G5P+1
+ E  S G5F=G5F+1
  ; ELSE
  S G5X=0 I 0 S G5X=1
  E  S G5X=2 I G5X=2 S G5P=G5P+1
@@ -576,7 +577,7 @@ GRP13 ; Error handling
  S $EC=""
  ; Error triggers $ETRAP
  S G13E=0
- S $ET="S $EC=""""" D ERTRAP^GAUNTLET"
+ S $ET="S $EC="""" D ERTRAP^GAUNTLET"
  ; Cause an error — undefined variable
  ; (skip for benchmark — would need error state)
  S $ET=""
