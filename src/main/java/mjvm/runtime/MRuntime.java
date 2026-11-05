@@ -1586,16 +1586,22 @@ public final class MRuntime {
         java.util.List<String> path = (java.util.List<String>) u[0];
         MValue old = (MValue) u[1];
         String nm = path.get(0);
-        boolean glob0 = path.get(0).startsWith("^");
-        boolean simpleLocal = !glob0 && nm.indexOf('(') < 0 && nm.indexOf('@') < 0;
+        boolean glob0 = nm.startsWith("^");
+        // A 1-element undo path is already a canonical key (may embed \001); a multi-element
+        // path (pathOf) is raw segments. Rebuild the canonical key and use the String-key
+        // store overloads (splitKey splits \001) — node(List) does NOT, so set(List) would
+        // write subscripted vars to the wrong node.
+        String key = path.size() == 1 ? nm : String.join("\u0001", path);
+        boolean simpleLocal =
+            !glob0 && path.size() == 1 && nm.indexOf('(') < 0 && nm.indexOf('@') < 0;
         if (old == null) {
-          localRemove(nm);
-          if (!simpleLocal) store.kill(path, glob0);
+          if (simpleLocal) localRemove(nm);
+          else store.kill(key, glob0);
         } else {
           if (simpleLocal) {
             localPut(nm, old); // locals are map-only (see setVar)
           } else {
-            store.set(path, glob0, old);
+            store.set(key, glob0, old);
           }
         }
       }
