@@ -108,3 +108,16 @@ CAT ingest (mjvm_full.m, 15 MB / 2,663 records, Mac JDK 21, wall incl. JVM start
 baseline (main `ce38481`) 1265/1305/1284 ms → after 1279/1259/1218 ms (**~2–3%**, gates green).
 Small because the dominant cost is dispatch itself, not the copy. Next levers remain op
 fusion/superinstructions (dispatch ~40%) and extrinsic frame cost (~27%) per the JFR profile.
+
+## 2026-11-04 — op-fusion attempt (EVAL_STORE) — REVERTED, needs careful jump remap
+
+Tried fusing EVAL_EXPR(expr)+STORE(name) -> one EVAL_STORE op to cut per-op dispatch in the
+runFrame hot loop (profile: dispatch ~40%). The fusion itself is semantically fine, but
+compacting the op list shifts in-line jump targets (FOR back-edge JMP/JMP0, CALL_PC, RET_TO);
+a first pass only remapped JMP/JMP0/JMP_IF_TRUE and corrupted FOR loops (AIOOBE, ORACLE hang).
+Reverted to keep main green. Landed safe perf win instead: #51 ops-array cache (~2-3%).
+
+To do fusion safely: remap ALL iarg-targeted ops (JMP, JMP0, JMP_IF_TRUE, CALL_PC, RET_TO) through
+the compaction map AND reconcile with the later absolute DO/GOTO patch pass; add a fused-IR
+differential test (dump IR before/after, run corpus+ORACLE) before enabling. Estimated upside:
+~1 dispatch per SET, ~15-25% of loop dispatch — worth doing properly as a sprint task.
