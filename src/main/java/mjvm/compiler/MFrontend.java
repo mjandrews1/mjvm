@@ -443,9 +443,12 @@ public final class MFrontend {
             || cmd.equals("CLOSE")
             || cmd.equals("U")
             || cmd.equals("USE")) {
-          // OPEN n:path / CLOSE n / USE n — two stack operands; comma-separated
+          // OPEN n:path / CLOSE n / USE n — two stack operands; comma-separated.
+          // Device-less form OPEN "path" / USE "path" / CLOSE "path" (GT.M sequential-file
+          // style) maps to a fixed implicit file device 1, so the same source runs on GT.M.
           while (true) {
             List<Ir> tmp = new ArrayList<>();
+            int opStart = i;
             i = compileExpr(line, i, tmp, ":, ");
             if (i < line.length() && line.charAt(i) == ':') {
               i++;
@@ -455,10 +458,24 @@ public final class MFrontend {
               out.addAll(tmp2);
               out.add(Ir.open());
             } else {
-              out.addAll(tmp);
-              if (cmd.startsWith("O") || cmd.equals("OPEN")) out.add(Ir.open());
-              else if (cmd.startsWith("C") || cmd.equals("CLOSE")) out.add(Ir.close());
-              else out.add(Ir.use());
+              // Device-less form: OPEN "path"/fn, USE "path"/fn, CLOSE "path"/fn (GT.M
+              // sequential-file style) map to a fixed implicit file device 1. A numeric
+              // operand (U 20 / C 20) is still used as the device number directly.
+              String raw = line.substring(opStart, i).trim();
+              boolean devless = !(raw.matches("[0-9]+(\\.[0-9]+)?"));
+              if (cmd.startsWith("O") || cmd.equals("OPEN")) {
+                if (devless) out.add(Ir.pushNum(1));
+                out.addAll(tmp);
+                out.add(Ir.open());
+              } else if (cmd.startsWith("C") || cmd.equals("CLOSE")) {
+                if (devless) out.add(Ir.pushNum(1));
+                else out.addAll(tmp);
+                out.add(Ir.close());
+              } else {
+                if (devless) out.add(Ir.pushNum(1));
+                else out.addAll(tmp);
+                out.add(Ir.use());
+              }
             }
             i = MFrontendUtil.skipWs(line, i);
             if (i < line.length() && line.charAt(i) == ',') {
