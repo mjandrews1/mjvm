@@ -88,24 +88,44 @@ public final class MRuntime {
     return m;
   }
 
-  /** mjvm#31: argumentless NEW — hide all locals (restored from the snapshot on scope exit). */
+  /**
+   * mjvm#31: argumentless NEW — hide ALL locals: simple (slot side) via localClear, subscripted
+   * (store-side roots) via store.newScopeAll. $TEST is a special var, untouched by both — the
+   * documented exception.
+   */
   public void newVarAll() {
     localClear();
+    store.newScopeAll();
   }
 
-  /** mjvm#31: restore a full locals snapshot (called LIFO on RET). */
+  /**
+   * mjvm#31: restore a full locals snapshot exactly (called LIFO on RET): first drop everything the
+   * scope defined (a var that was UNDEFINED at NEW time must be undefined again — not left holding
+   * the in-scope value), then put the snapshot back, slot side and store side.
+   */
   public void restoreSnapshot(java.util.Map<String, MValue> snap) {
+    localClear();
     for (java.util.Map.Entry<String, MValue> e : snap.entrySet()) {
       localPut(e.getKey(), e.getValue());
     }
+    store.restoreScopeAll();
   }
 
-  /** mjvm#31: restore only the keep-listed names from a snapshot (exclusive NEW N (A,B)). */
-  public void restoreExcept(java.util.Map<String, MValue> snap, String keepCsv) {
-    for (String k : keepCsv.split(",")) {
+  /**
+   * mjvm#31: exclusive NEW N (A,B) — called right after newVarAll: put the keep-listed names back
+   * from the snapshot (slot side) and peek-restore the keep-listed store roots (no scope pop —
+   * RET's restoreSnapshot does that). Keep names remain visible with their pre-NEW values inside
+   * the scope.
+   */
+  public void restoreKeep(java.util.Map<String, MValue> snap, String keepCsv) {
+    java.util.Set<String> keep =
+        new HashSet<>(
+            keepCsv.isEmpty() ? java.util.List.of() : java.util.Arrays.asList(keepCsv.split(",")));
+    for (String k : keep) {
       MValue v = snap.get(k);
       if (v != null) localPut(k, v);
     }
+    store.restoreKeepFromScopeAll(keep);
   }
 
   /**

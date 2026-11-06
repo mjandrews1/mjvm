@@ -46,6 +46,15 @@ public interface StoreApi extends StoreCore, StoreOrder, StoreLock, StoreTx {
   @Override
   default void newScope(List<String> names) {}
 
+  // mjvm#31: argumentless/exclusive NEW — full local-root scope (store side).
+  // Defaults are no-ops for stores without a locals tree (MapDB/H2/Cdb2/Tiered).
+  default void newScopeAll() {}
+
+  default void restoreScopeAll() {}
+
+  /** Peek-restore keep-listed roots from the top of the all-scope stack (no pop). */
+  default void restoreKeepFromScopeAll(java.util.Set<String> keep) {}
+
   @Override
   default void merge(List<String> dst, boolean dGlobal, List<String> src, boolean sGlobal) {
     MValue v = get(src, sGlobal);

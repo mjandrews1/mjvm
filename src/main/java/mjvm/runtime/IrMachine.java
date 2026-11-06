@@ -571,9 +571,13 @@ public final class IrMachine {
           rt.newVarAll();
         }
         case Ir.NEW_EXCL -> {
+          // mjvm#31: exclusive NEW N (A,B) = "new all except A,B": journal a full
+          // snapshot so RET restores everything, hide all locals, then put the
+          // keep-listed names back so they stay visible with pre-NEW values.
           java.util.Map<String, MValue> snap = rt.snapshotLocals();
+          newAllSnaps.add(snap);
           rt.newVarAll();
-          rt.restoreExcept(snap, op.ival == null ? "" : op.ival);
+          rt.restoreKeep(snap, op.ival == null ? "" : op.ival);
         }
         default -> throw new jvmumps.MError("bad IR op " + op.op);
       }

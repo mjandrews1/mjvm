@@ -611,6 +611,49 @@ public final class MStore implements StoreApi {
     locals.putAll(scopeStack.remove(scopeStack.size() - 1));
   }
 
+  /**
+   * mjvm#31: argumentless-NEW scope over ALL local roots. Displaced roots go on a dedicated stack;
+   * restore clears whatever the scope defined and puts the displaced roots back exactly (LIFO), so
+   * a var that was UNDEFINED at NEW time is undefined again after restore — not left defined with
+   * the in-scope value (the leak the fuzzer flagged).
+   */
+  private final List<Map<String, Node>> allScopeStack = new ArrayList<>();
+
+  @Override
+  public void newScopeAll() {
+    allScopeStack.add(new ConcurrentHashMap<>(locals));
+    locals.clear();
+  }
+
+  @Override
+  public void restoreScopeAll() {
+    if (allScopeStack.isEmpty()) {
+      return;
+    }
+    locals.clear();
+    locals.putAll(allScopeStack.remove(allScopeStack.size() - 1));
+  }
+
+  /**
+   * mjvm#31: exclusive NEW N (A,B) — put the keep-listed displaced roots back into the live locals
+   * WITHOUT popping the scope stack (the matching restoreScopeAll on scope exit still restores
+   * everything). The keep names stay visible with their pre-NEW values inside the scope, per M
+   * semantics.
+   */
+  @Override
+  public void restoreKeepFromScopeAll(java.util.Set<String> keep) {
+    if (allScopeStack.isEmpty()) {
+      return;
+    }
+    Map<String, Node> displaced = allScopeStack.get(allScopeStack.size() - 1);
+    for (String k : keep) {
+      Node n = displaced.get(k);
+      if (n != null) {
+        locals.put(k, n);
+      }
+    }
+  }
+
   private Map<String, Node> root(boolean global) {
     return global ? globals : locals;
   }
