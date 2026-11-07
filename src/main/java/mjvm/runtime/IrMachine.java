@@ -600,7 +600,8 @@ public final class IrMachine {
   private static void storeOp(MRuntime rt, Ir op, MValue v, java.util.Map<String, MValue> preRead) {
     if (op.name != null && !preRead.isEmpty()) preRead.remove(op.name);
     if (op.name != null && op.name.startsWith("@")) {
-      String target = rt.evalExpr(op.name.substring(1)).asStr();
+      // evalIndirectName resolves the full chain: @%A@(1) -> "q(1)" (GT.M arbiter)
+      String target = rt.evalIndirectName(op.name);
       rt.setVar(target, v);
     } else if (op.name != null && op.name.startsWith("$")) {
       rt.setSpecial(op.name, v);

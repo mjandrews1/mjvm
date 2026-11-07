@@ -668,7 +668,7 @@ public final class ExprAst {
       }
       if (t.kind == ExprTokens.Kind.OP && t.text.equals("@")) {
         i++;
-        return new IndirNode(parseExpr());
+        return new IndirNode(parseAtChain());
       }
       if (t.kind == ExprTokens.Kind.OP && t.text.equals("(")) {
         i++;
@@ -821,12 +821,47 @@ public final class ExprAst {
       return args;
     }
 
+    /**
+     * After '@': parse the operand plus any @(subs) chains into one concatenated name node.
+     * GT.M: @%A@(1) with %A="q" reads q(1); a trailing '@' without '(' is an error there, so only
+     * '@(' is consumed.
+     */
+    Node parseAtChain() {
+      Node x = parseExpr();
+      while (i + 1 < toks.size()
+          && toks.get(i).kind == ExprTokens.Kind.OP
+          && toks.get(i).text.equals("@")
+          && toks.get(i + 1).kind == ExprTokens.Kind.LP) {
+        i += 2; // '@' '('
+        Node acc = new StrNode("(");
+        if (peek().kind != ExprTokens.Kind.RP) {
+          boolean first = true;
+          while (true) {
+            Node a = parseExpr();
+            if (!first) acc = new BinNode(C_CONCAT, acc, new StrNode(","));
+            acc = new BinNode(C_CONCAT, acc, a);
+            first = false;
+            if (peek().kind == ExprTokens.Kind.COMMA) {
+              i++;
+              continue;
+            }
+            break;
+          }
+        }
+        if (peek().kind != ExprTokens.Kind.RP) throw new UnsupportedExpr("missing ) in @(...)");
+        i++;
+        acc = new BinNode(C_CONCAT, acc, new StrNode(")"));
+        x = new BinNode(C_CONCAT, x, acc);
+      }
+      return x;
+    }
+
     /** Mirror of Parser.readRefKey: name[+subs] or @indirection; subs keep their comma tokens. */
     RefKey parseRefKey() {
       ExprTokens.Tok t = peek();
       if (t.kind == ExprTokens.Kind.OP && t.text.equals("@")) {
         i++;
-        return new IndirRefKey(parseExpr());
+        return new IndirRefKey(parseAtChain());
       }
       if (t.kind != ExprTokens.Kind.NAME && t.kind != ExprTokens.Kind.GLOBAL) {
         return new NameRefKey("", null);

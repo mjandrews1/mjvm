@@ -233,6 +233,21 @@ public final class ExprEval {
   }
 
   /**
+   * Resolve an @indirection to its target NAME string without taking the value: "@%A@(1)" with
+   * %A="q" returns "q(1)". Used by the STORE path (IrMachine.storeOp).
+   */
+  public String evalIndirectName(String src) {
+    List<ExprTokens.Tok> toks = tokenCache.computeIfAbsent(src, k -> ExprTokens.lex(k));
+    Parser p = new Parser(toks);
+    if (!(p.peek().kind == ExprTokens.Kind.OP && p.peek().text.equals("@")))
+      throw new MError("not an indirection: " + src);
+    p.i++;
+    String nm = p.parseIndirNameTail(p.expr());
+    if (!p.atEnd()) throw new MError("syntax: trailing input at " + p.peek());
+    return nm;
+  }
+
+  /**
    * Legacy evaluating-parser path — the reference semantics; also the fallback for sources the AST
    * builder declines. Package-visible for differential tests.
    */
@@ -696,6 +711,37 @@ public final class ExprEval {
       return primary();
     }
 
+    /**
+     * Chained subscript indirection after '@': GT.M allows @name@(subs) — @%A@(1) with %A="q"
+     * resolves to name "q(1)"; a trailing '@' without '(' is an error, so only '@(' is consumed.
+     */
+    String parseIndirNameTail(MValue operandVal) {
+      StringBuilder nm = new StringBuilder(operandVal.asStr());
+      while (i + 1 < toks.size()
+          && toks.get(i).kind == ExprTokens.Kind.OP
+          && toks.get(i).text.equals("@")
+          && toks.get(i + 1).kind == ExprTokens.Kind.LP) {
+        i += 2; // '@' '('
+        StringBuilder args = new StringBuilder();
+        if (peek().kind != ExprTokens.Kind.RP) {
+          while (true) {
+            MValue a = expr();
+            if (args.length() > 0) args.append(',');
+            args.append(a.asStr());
+            if (peek().kind == ExprTokens.Kind.COMMA) {
+              i++;
+              continue;
+            }
+            break;
+          }
+        }
+        if (peek().kind != ExprTokens.Kind.RP) throw new MError("missing ) in @(...)");
+        i++;
+        nm.append('(').append(args).append(')');
+      }
+      return nm.toString();
+    }
+
     MValue primary() {
       ExprTokens.Tok t = peek();
       if (t.kind == ExprTokens.Kind.NUM) {
@@ -706,11 +752,12 @@ public final class ExprEval {
         i++;
         return MValue.ofString(t.text);
       }
-      // J5: @expr — argument/name indirection
+      // J5: @expr — argument/name indirection. GT.M also allows @name@(subs)
+      // chains: @%A@(1) with %A="q" reads q(1); a trailing @ not followed by
+      // '(' is an error there, so only '@(' is consumed here.
       if (t.kind == ExprTokens.Kind.OP && t.text.equals("@")) {
         i++;
-        MValue v = expr();
-        return eval(v.asStr());
+        return eval(parseIndirNameTail(expr()));
       }
       if (t.kind == ExprTokens.Kind.NAME || t.kind == ExprTokens.Kind.GLOBAL) {
         i++;

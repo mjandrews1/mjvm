@@ -403,8 +403,17 @@ final class MFrontendCmds {
       if (!firstArg && MFrontendUtil.isCmdStart(line, i)) break;
       if (c == '@') {
         int k = MFrontendUtil.scanExprEnd(line, i + 1, " ,");
-        out.add(Ir.evalExpr(line.substring(i + 1, k).trim()));
-        out.add(Ir.writeArgs());
+        String operand = line.substring(i + 1, k).trim();
+        if (operand.indexOf('@') >= 0) {
+          // chained indirection (@%A@(1)): resolve the whole chain and write
+          // its value directly — GT.M writes q(1) for W @%A@(1) with %A="q"
+          out.add(Ir.evalExpr("@" + operand));
+          out.add(Ir.write());
+        } else {
+          // plain argument indirection: split the value, eval each piece
+          out.add(Ir.evalExpr(operand));
+          out.add(Ir.writeArgs());
+        }
         pending = true;
         firstArg = false;
         i = k;

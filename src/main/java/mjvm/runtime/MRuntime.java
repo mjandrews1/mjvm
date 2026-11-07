@@ -292,6 +292,11 @@ public final class MRuntime {
   }
 
   /** M11: run a raw M expression through JvMumps ExprEval. */
+  /** Resolve an @indirection target (e.g. "@%A@(1)") to its name string, e.g. "q(1)". */
+  public String evalIndirectName(String src) {
+    return exprEval.evalIndirectName(src);
+  }
+
   public jvmumps.MValue evalExpr(String src) {
     // Fast path: try cached compiled expression for simple patterns. Any error falls through
     // to the trap-aware evaluator — the fast path must be semantically transparent (C115).
