@@ -1847,17 +1847,43 @@ public final class MFrontend {
       }
       return i;
     }
-    int[] dp = new int[] {i};
-    String dst = MFrontendUtil.readRefName(line, dp)[0];
-    i = dp[0];
-    i = MFrontendUtil.skipWs(line, i);
-    if (i < line.length() && line.charAt(i) == '=') {
+    // M dst=src[,dst=src...] — GT.M allows multiple pairs and @-indirected names on
+    // either side (M a=@%B1,b=@%B2 merges both subtrees; M a(1)=@%B copies the subtree).
+    for (; ; ) {
+      i = MFrontendUtil.skipWs(line, i);
+      if (i >= line.length() || MFrontendUtil.isCmdStart(line, i)) break;
+      String dst;
+      if (line.charAt(i) == '@') {
+        int k = MFrontendUtil.scanExprEnd(line, i, " ,=");
+        dst = line.substring(i, k).trim();
+        i = k;
+      } else {
+        int[] dp = new int[] {i};
+        dst = MFrontendUtil.readRefName(line, dp)[0];
+        i = dp[0];
+      }
+      i = MFrontendUtil.skipWs(line, i);
+      if (i >= line.length() || line.charAt(i) != '=') break;
       i++;
       i = MFrontendUtil.skipWs(line, i);
-      int[] sp = new int[] {i};
-      String src = MFrontendUtil.readRefName(line, sp)[0];
-      i = sp[0];
-      out.add(Ir.mergeName(dst, src));
+      String src;
+      if (i < line.length() && line.charAt(i) == '@') {
+        // chained @-source: @DI1@(0,P) — scanExprEnd is depth-aware, keeps the (0,P)
+        int k = MFrontendUtil.scanExprEnd(line, i, " ,");
+        src = line.substring(i, k).trim();
+        i = k;
+      } else {
+        int[] sp = new int[] {i};
+        src = MFrontendUtil.readRefName(line, sp)[0];
+        i = sp[0];
+      }
+      if (!dst.isEmpty() && !src.isEmpty()) out.add(Ir.mergeName(dst, src));
+      i = MFrontendUtil.skipWs(line, i);
+      if (i < line.length() && line.charAt(i) == ',') {
+        i++;
+        continue;
+      }
+      break;
     }
     return i;
   }

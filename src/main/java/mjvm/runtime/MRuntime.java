@@ -1329,6 +1329,10 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public void mergeVar(String dst, String src) {
     if (dst == null || src == null) return;
+    // @-indirected names on either side (M a=@%B, M @TO=^s): resolve the full
+    // chain to a name string first — pathOf does not handle a leading '@'
+    if (dst.startsWith("@")) dst = evalIndirectName(dst);
+    if (src.startsWith("@")) src = evalIndirectName(src);
     List<String> d = pathOf(dst, this);
     List<String> s = pathOf(src, this);
     boolean dg = d.get(0).startsWith("^");

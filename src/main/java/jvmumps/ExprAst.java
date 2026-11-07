@@ -452,6 +452,22 @@ public final class ExprAst {
   /**
    * @expr indirection: evaluates the inner expression, then re-evaluates the resulting string.
    */
+  /** Name-string subscript: numbers bare, strings quoted (else DIC would parse as a var). */
+  static final class QuoteSubNode extends Node {
+    final Node x;
+
+    QuoteSubNode(Node x) {
+      this.x = x;
+    }
+
+    @Override
+    public MValue eval(ExprEval e) {
+      MValue v = x.eval(e);
+      if (v.isnum) return v;
+      return MValue.ofString("\"" + v.asStr().replace("\"", "\"\"") + "\"");
+    }
+  }
+
   static final class IndirNode extends Node {
     final Node x;
 
@@ -839,7 +855,7 @@ public final class ExprAst {
           while (true) {
             Node a = parseExpr();
             if (!first) acc = new BinNode(C_CONCAT, acc, new StrNode(","));
-            acc = new BinNode(C_CONCAT, acc, a);
+            acc = new BinNode(C_CONCAT, acc, new QuoteSubNode(a));
             first = false;
             if (peek().kind == ExprTokens.Kind.COMMA) {
               i++;

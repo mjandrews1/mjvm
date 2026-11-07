@@ -727,7 +727,8 @@ public final class ExprEval {
           while (true) {
             MValue a = expr();
             if (args.length() > 0) args.append(',');
-            args.append(a.asStr());
+            // name-string subscripts: numbers bare, strings quoted (else DIC parses as a var)
+            args.append(a.isnum ? mstr(a.num) : "\"" + a.asStr().replace("\"", "\"\"") + "\"");
             if (peek().kind == ExprTokens.Kind.COMMA) {
               i++;
               continue;
