@@ -346,6 +346,7 @@ final class MFrontendCmds {
       i = MFrontendUtil.skipWs(line, i);
       if (i >= line.length()) break;
       char c = line.charAt(i);
+      if (c == ';') break; // comment — rest of line is not WRITE args (GT.M arbiter)
       if (c == '!') {
         out.add(Ir.writeNl());
         pending = false;
