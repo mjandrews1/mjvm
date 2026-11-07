@@ -440,13 +440,16 @@ final class MFrontendCmds {
   static boolean isListTarget(String t) {
     if (t.isEmpty()) return false;
     char c0 = t.charAt(0);
-    if (!(Character.isLetterOrDigit(c0) || c0 == '%' || c0 == '^' || c0 == '$')) return false;
+    // '@' start = argument indirection target (S (@A1,$P(x))="…" — GT.M arbiter accepts)
+    if (!(Character.isLetterOrDigit(c0) || c0 == '%' || c0 == '^' || c0 == '$' || c0 == '@'))
+      return false;
     int i = 0;
     while (i < t.length()
         && (Character.isLetterOrDigit(t.charAt(i))
             || t.charAt(i) == '%'
             || t.charAt(i) == '^'
-            || t.charAt(i) == '$')) {
+            || t.charAt(i) == '$'
+            || t.charAt(i) == '@')) {
       i++;
     }
     if (i >= t.length()) return true;
