@@ -919,9 +919,29 @@ public final class MFrontend {
         if (head.length() > 0) head.append(' ');
         head.append('D');
         if (!rest.isEmpty() && rest.charAt(0) == ':') {
-          // keep the postconditional on the synthetic call; it ends at the
-          // first space (same rule the DO compiler applies when re-parsing)
-          int sp = rest.indexOf(' ');
+          // keep the postconditional on the synthetic call; it ends at the first
+          // space/';' at paren depth 0 outside quotes — NOT inside a quoted
+          // string (D:$D(X("A B"))#2 would otherwise split mid-string)
+          int sp = -1;
+          boolean inQ = false;
+          int depth = 0;
+          for (int q = 1; q < rest.length(); q++) {
+            char c = rest.charAt(q);
+            if (inQ) {
+              if (c == '"') inQ = false;
+              continue;
+            }
+            if (c == '"') {
+              inQ = true;
+              continue;
+            }
+            if (c == '(') depth++;
+            else if (c == ')') depth--;
+            else if ((c == ' ' || c == ';') && depth == 0) {
+              sp = q;
+              break;
+            }
+          }
           if (sp < 0) {
             head.append(rest).append(' ').append(syn);
             rest = "";
@@ -1169,7 +1189,15 @@ public final class MFrontend {
         int j = i;
         if (j < b.length() && b.charAt(j) == ':') {
           j++;
-          while (j < b.length() && b.charAt(j) != ' ' && b.charAt(j) != ';') j++;
+          // postcond may contain quoted strings with spaces (D:$D(X("A B"))#2) —
+          // scan them so the argless-D check sees the real end of the condition
+          while (j < b.length() && b.charAt(j) != ' ' && b.charAt(j) != ';') {
+            if (b.charAt(j) == '"') {
+              j++;
+              while (j < b.length() && b.charAt(j) != '"') j++;
+              if (j < b.length()) j++;
+            } else j++;
+          }
         }
         int k = j;
         while (k < b.length() && b.charAt(k) == ' ') k++;
