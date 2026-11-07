@@ -199,6 +199,10 @@ final class MFrontendUtil {
         i++;
         continue;
       }
+      // ';' at depth 0 starts a comment — terminate the expression scan here
+      // (outside strings), otherwise Q:1 ; c, x swallows the comment into the
+      // quit expression and then chokes on the comma (VistA swallowed class)
+      if (depth == 0 && c == ';') break;
       if (c == '(') depth++;
       if (c == ')') {
         if (depth == 0 && term.indexOf(')') >= 0) break;
