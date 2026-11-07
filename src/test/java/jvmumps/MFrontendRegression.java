@@ -813,25 +813,13 @@ public final class MFrontendRegression {
     pass += r[0];
     fail += r[1];
 
-    // Unsupported targets inside a list must throw (recorded), not miscompile.
-    try {
-      MFrontend fe = new MFrontend();
-      fe.compileProgram("T N %A\nS (%A,$P(%A,\",\"))=\"x\"\n Q\n");
-      boolean recorded =
-          fe.lastSwallowedErrors().stream()
-              .anyMatch(s -> s.contains("unsupported SET list target"));
-      if (recorded) {
-        System.out.println("  set-list-unsupported-recorded PASS");
-        pass++;
-      } else {
-        System.out.printf(
-            "  set-list-unsupported-recorded FAIL ledger=%s%n", fe.lastSwallowedErrors());
-        fail++;
-      }
-    } catch (Exception e) {
-      System.out.printf("  set-list-unsupported-recorded EXC %s%n", e.getMessage());
-      fail++;
-    }
+    // SET list targets may be $ specials: GT.M V7.2-001 (U01, arbiter) accepts
+    // S (%A,$P(%A,","))="x" and runs it with %A="x". The old rejection of $
+    // targets was the divergence fixed 2026-11-06 (5.1 VistA comma class).
+    String code6 = "T N %A\nS (%A,$P(%A,\",\"))=\"x\"\nW %A,! Q\n";
+    r = runOne("set-list-dollar-target", code6, new String[] {"x"});
+    pass += r[0];
+    fail += r[1];
 
     return new int[] {pass, fail};
   }
