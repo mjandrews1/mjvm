@@ -1313,10 +1313,14 @@ public final class MFrontend {
         iexpr = line.substring(ist, j);
       } else {
         int ist = j;
-        while (j < line.length()
-            && (Character.isLetterOrDigit(line.charAt(j))
-                || line.charAt(j) == '%'
-                || line.charAt(j) == '^')) j++;
+        boolean caret = false;
+        while (j < line.length()) {
+          char c = line.charAt(j);
+          if (c == '^') caret = true;
+          // VistA routine names may contain dots after ^ (%SYS.DATABASE)
+          if (!(Character.isLetterOrDigit(c) || c == '%' || c == '^' || (caret && c == '.'))) break;
+          j++;
+        }
         iexpr = line.substring(ist, j);
       }
       // Per-argument postconditional on the indirect target: @NAME:cond
@@ -1349,11 +1353,13 @@ public final class MFrontend {
       while (i < line.length()
           && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
       String fn = line.substring(tst, i);
-      // $$TAG^ROUTINE syntax — strip ^routine part
+      // $$TAG^ROUTINE syntax — strip ^routine part (dots allowed after ^: %SYS.DATABASE)
       if (i < line.length() && line.charAt(i) == '^') {
         i++;
         while (i < line.length()
-            && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
+            && (Character.isLetterOrDigit(line.charAt(i))
+                || line.charAt(i) == '%'
+                || line.charAt(i) == '.')) i++;
       }
       List<Ir> args = new ArrayList<>();
       if (i < line.length() && line.charAt(i) == '(') {
@@ -1374,11 +1380,14 @@ public final class MFrontend {
     while (i < line.length()
         && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
     String target = line.substring(tst, i).toUpperCase(java.util.Locale.ROOT);
-    // TAG^ROUTINE syntax — strip the ^routine part (target is the tag)
+    // TAG^ROUTINE syntax — strip the ^routine part (target is the tag);
+    // dots allowed after ^ for VistA routine names like %SYS.DATABASE
     if (i < line.length() && line.charAt(i) == '^') {
       i++;
       while (i < line.length()
-          && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '%')) i++;
+          && (Character.isLetterOrDigit(line.charAt(i))
+              || line.charAt(i) == '%'
+              || line.charAt(i) == '.')) i++;
     }
     List<Ir> argOps = new ArrayList<>();
     if (i < line.length() && line.charAt(i) == '(') {
