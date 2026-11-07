@@ -1183,7 +1183,16 @@ public final class MFrontend {
         }
       }
       if (i == st) i++; // non-letter token char: make progress
-      while (i < b.length() && b.charAt(i) != ' ') i++; // skip this token's tail
+      // Skip this token's tail, honoring quoted strings: a tail like
+      // $L(X," ") contains a space inside quotes — stopping there desyncs
+      // inStr and hides a trailing argumentless D (dotted block never merges).
+      while (i < b.length() && b.charAt(i) != ' ') {
+        if (b.charAt(i) == '"') {
+          i++;
+          while (i < b.length() && b.charAt(i) != '"') i++;
+          if (i < b.length()) i++;
+        } else i++;
+      }
     }
     return -1;
   }
