@@ -490,6 +490,62 @@ public final class MFrontend {
           // R var[:timeout][,var2[:timeout2]…] — also R @VAR for indirection
           while (true) {
             i = MFrontendUtil.skipWs(line, i);
+            if (i < line.length()) {
+              char fc = line.charAt(i);
+              if (fc == '!' || fc == '#' || fc == '*' || fc == '?' || fc == '"') {
+                // READ format args (native-compiler class-8): ! newline, # formfeed,
+                // *n char, ?n column, "literal" prompt — interleaved with read vars
+                if (fc == '!') {
+                  out.add(Ir.writeNl());
+                  i++;
+                } else if (fc == '#') {
+                  i++;
+                  int vs = i;
+                  while (i < line.length() && Character.isDigit(line.charAt(i))) i++;
+                  int ffn = i > vs ? Integer.parseInt(line.substring(vs, i)) : 1;
+                  for (int k = 0; k < ffn; k++) {
+                    out.add(Ir.pushNum(12));
+                    out.add(Ir.writeChar());
+                  }
+                } else if (fc == '*') {
+                  i++;
+                  int vs = i;
+                  i = MFrontendUtil.scanExprEnd(line, i, ", :");
+                  List<Ir> tmp = new ArrayList<>();
+                  compileExprSrc(line.substring(vs, i).trim(), tmp);
+                  out.addAll(tmp);
+                  out.add(Ir.writeChar());
+                } else if (fc == '?') {
+                  i++;
+                  if (i < line.length()
+                      && line.charAt(i) != ','
+                      && !MFrontendUtil.isCmdStart(line, i)) {
+                    int vs = i;
+                    i = MFrontendUtil.scanExprEnd(line, i, ", :");
+                    List<Ir> tmp = new ArrayList<>();
+                    compileExprSrc(line.substring(vs, i).trim(), tmp);
+                    out.addAll(tmp);
+                    out.add(Ir.writeCol());
+                  }
+                } else { // '"' prompt literal
+                  int before = i;
+                  i = compileExpr(line, i, out, ",:");
+                  out.add(Ir.write());
+                  if (i == before) break;
+                }
+                i = MFrontendUtil.skipWs(line, i);
+                if (i < line.length() && line.charAt(i) == ':') {
+                  i++;
+                  i = MFrontendUtil.scanExprEnd(line, i, " ,");
+                }
+                i = MFrontendUtil.skipWs(line, i);
+                if (i < line.length() && line.charAt(i) == ',') {
+                  i++;
+                  continue;
+                }
+                break;
+              }
+            }
             // Class-5: READ with indirection — R @VAR
             if (i < line.length() && line.charAt(i) == '@') {
               i++;
@@ -1682,7 +1738,9 @@ public final class MFrontend {
         while (i < line.length()
             && (Character.isLetterOrDigit(line.charAt(i))
                 || line.charAt(i) == '%'
-                || line.charAt(i) == '^')) i++;
+                || line.charAt(i) == '^'
+                || line.charAt(i) == '$'))
+          i++; // MSetList.dfy: NEW/KILL lists may name $ specials (N $ETRAP,$ESTACK)
         String nm = line.substring(st, i);
         if (!nm.isEmpty()) keep.add(nm);
         i = MFrontendUtil.skipWs(line, i);
@@ -1721,7 +1779,9 @@ public final class MFrontend {
       while (i < line.length()
           && (Character.isLetterOrDigit(line.charAt(i))
               || line.charAt(i) == '%'
-              || line.charAt(i) == '^')) i++;
+              || line.charAt(i) == '^'
+              || line.charAt(i) == '$'))
+        i++; // MSetList.dfy: plain NEW/KILL list names may be $ specials
       String name = line.substring(st, i);
       if (name.isEmpty()) break;
       if (i < line.length() && line.charAt(i) == '(') {

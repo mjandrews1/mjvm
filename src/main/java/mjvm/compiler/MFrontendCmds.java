@@ -162,7 +162,8 @@ final class MFrontendCmds {
       while (i < line.length()
           && (Character.isLetterOrDigit(line.charAt(i))
               || line.charAt(i) == '%'
-              || line.charAt(i) == '^')) i++;
+              || line.charAt(i) == '^'
+              || line.charAt(i) == '$')) i++; // ^$W("…") globals (VistA swallowed-syntax class)
       if (i == st) throw new MError("SET target must be a name");
       StringBuilder nm = new StringBuilder(line.substring(st, i));
       if (i < line.length() && line.charAt(i) == '(') {
@@ -439,10 +440,13 @@ final class MFrontendCmds {
   static boolean isListTarget(String t) {
     if (t.isEmpty()) return false;
     char c0 = t.charAt(0);
-    if (!(Character.isLetterOrDigit(c0) || c0 == '%' || c0 == '^')) return false;
+    if (!(Character.isLetterOrDigit(c0) || c0 == '%' || c0 == '^' || c0 == '$')) return false;
     int i = 0;
     while (i < t.length()
-        && (Character.isLetterOrDigit(t.charAt(i)) || t.charAt(i) == '%' || t.charAt(i) == '^')) {
+        && (Character.isLetterOrDigit(t.charAt(i))
+            || t.charAt(i) == '%'
+            || t.charAt(i) == '^'
+            || t.charAt(i) == '$')) {
       i++;
     }
     if (i >= t.length()) return true;

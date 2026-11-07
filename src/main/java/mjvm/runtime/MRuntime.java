@@ -746,8 +746,30 @@ public final class MRuntime {
     return i == s.length();
   }
 
+  /** Read a special variable ($ETRAP/$ECODE/$ZTRAP/$X/$Y/$TEST) as a value. */
+  public MValue getSpecial(String name) {
+    String u = name.toUpperCase(java.util.Locale.ROOT);
+    switch (u) {
+      case "$ET", "$ETRAP":
+        return MValue.ofString(exprEval.etrap);
+      case "$EC", "$ECODE":
+        return MValue.ofString(exprEval.ecode);
+      case "$ZT", "$ZTRAP":
+        return MValue.ofString(exprEval.ztrap);
+      case "$X":
+        return MValue.ofNumber(exprEval.vx);
+      case "$Y":
+        return MValue.ofNumber(exprEval.vy);
+      case "$T", "$TEST":
+        return MValue.ofNumber(ifTrue ? 1 : 0);
+      default:
+        throw new jvmumps.MError("Undefined special variable");
+    }
+  }
+
   @SuppressWarnings("RedundantThrows")
   public MValue getVar(String name) {
+    if (name.startsWith("$")) return getSpecial(name); // NEW/KILL/SET of $ specials (MSetList.dfy)
     // locals never holds null values (STORE converts dvals-nulls; NEW/KILL remove), so one
     // lookup replaces the containsKey+get pair on the hottest read path.
     MValue cached = localGet(name);
@@ -765,6 +787,13 @@ public final class MRuntime {
    * when the variable is undefined.
    */
   MValue peekVar(String name) {
+    if (name.startsWith("$")) {
+      try {
+        return getSpecial(name);
+      } catch (jvmumps.MError e) {
+        return null;
+      }
+    }
     MValue cached = localGet(name);
     if (cached != null) return cached;
     try {
@@ -819,6 +848,10 @@ public final class MRuntime {
 
   @SuppressWarnings("RedundantThrows")
   public void setVar(String name, MValue v) {
+    if (name.startsWith("$")) {
+      setSpecial(name, v);
+      return;
+    } // SET $ETRAP=… via IrMachine STORE
     // Fast path: simple global with no indirection
     if (name.startsWith("^") && name.indexOf('@') < 0) {
       boolean glob = true;
@@ -1206,6 +1239,10 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public void newVar(String name) {
     if (name == null) return;
+    if (name.startsWith("$")) {
+      setSpecial(name, MValue.ofString(""));
+      return;
+    } // NEW $ETRAP undefines it
     if (name.startsWith("^")) return;
     localRemove(name);
     // locals never live in the store tree; do NOT store.kill here — on Cdb2Store that runs
@@ -1215,6 +1252,10 @@ public final class MRuntime {
   @SuppressWarnings("RedundantThrows")
   public void killVar(String name) {
     if (name == null || name.isEmpty()) return;
+    if (name.startsWith("$")) {
+      setSpecial(name, MValue.ofString(""));
+      return;
+    } // KILL $ETRAP
     List<String> path = pathOf(name, this);
     boolean glob = path.get(0).startsWith("^");
     localRemove(name);

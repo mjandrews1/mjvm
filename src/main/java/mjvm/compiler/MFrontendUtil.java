@@ -160,7 +160,9 @@ final class MFrontendUtil {
     while (i < line.length()
         && (Character.isLetterOrDigit(line.charAt(i))
             || line.charAt(i) == '%'
-            || line.charAt(i) == '^')) i++;
+            || line.charAt(i) == '^'
+            || line.charAt(i) == '$'))
+      i++; // ^$W / $ETRAP-style names (VistA swallowed-syntax class)
     if (i < line.length() && line.charAt(i) == '(') {
       int depth = 0;
       while (i < line.length()) {
