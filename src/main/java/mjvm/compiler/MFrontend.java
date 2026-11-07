@@ -101,8 +101,12 @@ public final class MFrontend {
           throw new MError("expected command at " + line.substring(st));
         }
         // M11: leading tag (MAIN, FOO, …) — skip, not a command
-        if (!MFrontendUtil.isKnownCmd(cmd) && i < n && line.charAt(i) != '=') {
+        if (!MFrontendUtil.isKnownCmd(cmd)
+            && !MFrontendUtil.isZCommand(cmd)
+            && i < n
+            && line.charAt(i) != '=') {
           // tag or unknown word: if it looks like TAG+space, skip the name
+          // (Z-commands are NOT skipped — they are dispatched below)
           if (st == 0 || line.charAt(st - 1) == ' ' || line.charAt(st - 1) == '\n') {
             // fall through only if this is not a command
             if (!MFrontendUtil.isKnownCmd(cmd)) {
@@ -695,6 +699,30 @@ public final class MFrontend {
         } else if (cmd.equals("VIEW")) {
           // M11: VIEW is implementation-defined (no-op) — skip args
           i = MFrontendUtil.skipToNextCmd(line, i);
+        } else if (cmd.length() > 1 && cmd.charAt(0) == 'Z' && MFrontendUtil.isZCommand(cmd)) {
+          // Z-command (ZPRINT @FROM, ZR @%TG, …): args are expressions (may be
+          // @-indirected); emit one ZCMD op with the args on the stack
+          i = MFrontendUtil.skipWs(line, i);
+          int nargs = 0;
+          while (i < line.length() && line.charAt(i) != ';' && !MFrontendUtil.isCmdStart(line, i)) {
+            int vs = i;
+            i = MFrontendUtil.scanExprEnd(line, i, " ,");
+            String a = line.substring(vs, i).trim();
+            if (!a.isEmpty()) {
+              // @-indirected Z-command args are NAMES (ZPRINT @%TG), resolve to the
+              // name string, not the value
+              out.add(a.startsWith("@") ? Ir.indirName(a) : Ir.evalExpr(a));
+              nargs++;
+            }
+            i = MFrontendUtil.skipWs(line, i);
+            if (i < line.length() && line.charAt(i) == ',') {
+              i++;
+              i = MFrontendUtil.skipWs(line, i);
+              continue;
+            }
+            break;
+          }
+          out.add(Ir.zcmd(cmd, nargs));
         } else if (cmd.equals("X") || cmd.equals("XECUTE")) {
           i = MFrontendUtil.skipWs(line, i);
           int stx = i;

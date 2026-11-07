@@ -273,6 +273,46 @@ final class MFrontendUtil {
         || u.equals("IF");
   }
 
+  /** GT.M/vendor Z-commands (ZPRINT, ZR/ZREMOVE, ZWRITE, …) — parsed as commands, not tags. */
+  static boolean isZCommand(String w) {
+    String u = w.toUpperCase(java.util.Locale.ROOT);
+    switch (u) {
+      case "ZALLOCATE":
+      case "ZBREAK":
+      case "ZCALL":
+      case "ZCOMPILE":
+      case "ZDATE":
+      case "ZDEALLOCATE":
+      case "ZDEBUG":
+      case "ZEDIT":
+      case "ZGOTO":
+      case "ZHALT":
+      case "ZINSERT":
+      case "ZKILL":
+      case "ZLINK":
+      case "ZLOAD":
+      case "ZMESSAGE":
+      case "ZPRINT":
+      case "ZQUIT":
+      case "ZREMOVE":
+      case "ZR":
+      case "ZSAVE":
+      case "ZSHOW":
+      case "ZSTATUS":
+      case "ZSTEP":
+      case "ZTIME":
+      case "ZTRAP":
+      case "ZTSTART":
+      case "ZTCOMMIT":
+      case "ZTROLLBACK":
+      case "ZUSE":
+      case "ZWRITE":
+        return true;
+      default:
+        return false;
+    }
+  }
+
   static boolean isKnownCmd(String w) {
     String u = w.toUpperCase(java.util.Locale.ROOT);
     return u.equals("S")

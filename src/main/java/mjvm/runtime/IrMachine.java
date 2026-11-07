@@ -390,6 +390,14 @@ public final class IrMachine {
         }
         case Ir.WRITE_NL -> rt.writeNl();
         case Ir.END_WRITE -> rt.endWrite();
+        case Ir.ZCMD -> {
+          MValue[] zargs = new MValue[op.iarg];
+          for (int k = op.iarg - 1; k >= 0; k--) {
+            sp--;
+            zargs[k] = vals[sp] != null ? vals[sp] : MValue.ofNumber(dvals[sp]);
+          }
+          rt.zcommand(op.name, zargs);
+        }
         case Ir.XECUTE -> {
           MValue v = vals[--sp];
           if (v == null) v = MValue.ofNumber(dvals[sp]);
@@ -499,6 +507,7 @@ public final class IrMachine {
         }
         case Ir.MERGE -> rt.mergeVar(op.name, op.ival);
         case Ir.EVAL_EXPR -> vals[sp++] = rt.evalOp(op); // mjvm#43: AST node cached on the op
+        case Ir.INDIR_NAME -> vals[sp++] = MValue.ofString(rt.evalIndirectName(op.ival));
         case Ir.SET_EXTRACT -> {
           MValue v = vals[--sp];
           if (v == null) v = MValue.ofNumber(dvals[sp]);

@@ -67,6 +67,32 @@ public final class MRuntime {
     java.util.Arrays.fill(slotVals, 0, slotCount, null);
   }
 
+  /**
+   * Runtime ledger for vendor Z-commands recognized but not implemented — visible, never silent.
+   */
+  public final java.util.List<String> zLedger = new java.util.ArrayList<>();
+
+  /** Z-command dispatch (GT.M vendor extensions). ZWRITE dumps locals; the rest are ledgered. */
+  public void zcommand(String cmd, MValue[] args) {
+    switch (cmd) {
+      case "ZWRITE" -> {
+        for (int s = 0; s < slotCount; s++) {
+          if (slotVals[s] != null) {
+            MValue v = slotVals[s];
+            write(
+                slotNames[s]
+                    + "="
+                    + (v.isnum ? jvmumps.ExprEval.mstr(v.asNum()) : v.asStr())
+                    + "\n");
+          }
+        }
+      }
+      case "ZPRINT" -> zLedger.add("ZPRINT: routine source not retained at runtime");
+      case "ZR", "ZREMOVE" -> zLedger.add("ZR/ZREMOVE: routine removal n/a (in-memory engine)");
+      default -> zLedger.add("Z-command not implemented: " + cmd);
+    }
+  }
+
   MValue localGetSlot(int slot) {
     return slotVals[slot];
   }

@@ -71,6 +71,10 @@ public final class Ir {
   public static final int JMP_IF_TRUE = 97; // mjvm#48: jump to iarg if rt.ifTrue (cross-line ELSE)
   public static final int EVAL_STORE =
       98; // fused EVAL_EXPR(ival)+STORE(name): eval expr, store to name (IrFusion)
+  public static final int ZCMD =
+      99; // Z-command (ZPRINT/ZR/…) — name=cmd, iarg=nargs (args on stack)
+  public static final int INDIR_NAME =
+      100; // resolve an @-indirection to its target NAME string (ival = source, e.g. "@%TG")
 
   public final int op;
   public final String name; // var / label / write-tag
@@ -160,6 +164,16 @@ public final class Ir {
 
   public static Ir xecute() {
     return new Ir(XECUTE, null, null, 0, 0);
+  }
+
+  /** Z-command: name = command (uppercased), iarg = arg count (args pushed before the op). */
+  public static Ir zcmd(String name, int nargs) {
+    return new Ir(ZCMD, name.toUpperCase(java.util.Locale.ROOT), null, 0, nargs);
+  }
+
+  /** Push the resolved NAME of an @-indirection (not its value): "@%TG" -> "^X". */
+  public static Ir indirName(String src) {
+    return new Ir(INDIR_NAME, null, src, 0, 0);
   }
 
   public static Ir writeNl() {
